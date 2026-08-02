@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Xodimni o'chirish | Xodimlar{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>Xodimni o'chirish
+            </div>
+            <div class="card-body p-4 text-center">
+                <i class="bi bi-person-x-fill text-danger mb-3" style="font-size: 4rem;"></i>
+                <h4>Rostdan ham o'chirmoqchimisiz?</h4>
+                <p class="text-muted mb-1">
+                    <strong>{{ staff.get_full_name|default:staff.username }}</strong> ({{ staff.username }})
+                    {% if staff.role %}— {{ staff.role.name }}{% endif %}
+                </p>
+                <div class="alert alert-warning mt-3 text-start">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <strong>Eslatma:</strong> Xodim tizimdan faqat <em>vaqtincha</em> o'chiriladi (Soft-delete).
+                    Uning barcha <strong>eski qabullari, cheklari va hisobotlari</strong> o'zgarishsiz saqlanib qoladi.
+                    Kerak bo'lsa uni qayta tiklash mumkin.
+                </div>
+                <form method="post" class="d-flex gap-2 justify-content-center mt-3">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger px-4">
+                        <i class="bi bi-person-x me-1"></i> Ha, o'chirish
+                    </button>
+                    <a href="{% url 'staff:list' %}" class="btn btn-outline-secondary">Bekor qilish</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

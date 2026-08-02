@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Operatsiya jarayoni — Doctor B Najot{% endblock %}
+{% block page_name %}Operatsiya jarayoni{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+        <h1 class="h4 page-title mb-1">
+            <i class="bi bi-heart-pulse"></i> {{ surgery.visit.patient.full_name }}
+        </h1>
+        <div class="text-muted small">
+            {{ surgery.surgery_type.name }} ·
+            {{ surgery.scheduled_time|date:"d.m.Y H:i:s" }} ·
+            {% if surgery.operating_room %}<i class="bi bi-door-open"></i> {{ surgery.operating_room.name }}{% else %}<span class="text-danger">Xona tanlanmagan</span>{% endif %}
+        </div>
+    </div>
+    <a href="{% url 'clinical:surgery_dashboard' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> Jarrohlik bloki
+    </a>
+</div>
+
+<!-- Real-time: har 5 soniyada avtomatik yangilanadi -->
+<div id="processBody"
+     hx-get="{% url 'clinical:surgery_process' surgery.id %}?partial=1"
+     hx-trigger="every 5s [!htmxShouldPause()]"
+     hx-target="#processBody"
+     hx-swap="innerHTML">
+    {% include "clinical/_surgery_process_body.html" %}
+</div>
+{% endblock %}

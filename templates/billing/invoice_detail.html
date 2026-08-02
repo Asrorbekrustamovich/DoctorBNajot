@@ -1,0 +1,463 @@
+{% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Chek - {{ visit.patient.full_name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="mb-0">
+            {# Orqaga: kassir/buxgalter kassaga, qolganlar bemor kartasiga (aks holda 403) #}
+            {% if can_edit %}
+            <a href="{% url 'billing:dashboard' %}" class="text-decoration-none text-dark" title="Kassaga qaytish"><i class="bi bi-arrow-left"></i></a>
+            {% else %}
+            <a href="{% url 'patients:detail' visit.patient.id %}" class="text-decoration-none text-dark" title="Bemor kartasiga qaytish"><i class="bi bi-arrow-left"></i></a>
+            {% endif %}
+            Bemor hisobi (Chek)
+        </h3>
+        <div class="d-flex gap-2 align-items-center">
+            {% if invoice.is_locked %}
+            <span class="badge bg-dark fs-6"><i class="bi bi-lock-fill"></i> Qulflangan (o'zgarmas)</span>
+                {% if user.is_superuser or user.role.code == 'super_admin' %}
+                <form method="post" action="{% url 'clinical:document_lock' 'invoice' invoice.id %}" class="d-inline"
+                      onsubmit="return confirm('Chek qulfi ochilsinmi? (faqat superadmin)');">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="unlock">
+                    <button class="btn btn-outline-danger"><i class="bi bi-unlock"></i> Ochish</button>
+                </form>
+                {% endif %}
+            {% elif can_edit and invoice.status == 'paid' %}
+            <form method="post" action="{% url 'clinical:document_lock' 'invoice' invoice.id %}" class="d-inline"
+                  onsubmit="return confirm('Chek o\'zgarmas qilib qulflansinmi? Keyin faqat superadmin ochadi.');">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="lock">
+                <button class="btn btn-danger"><i class="bi bi-lock-fill"></i> O'zgarmas qilib saqlash</button>
+            </form>
+            {% endif %}
+            <a href="{% url 'billing:patient_invoices' visit.patient.id %}" class="btn btn-outline-primary">
+                <i class="bi bi-list-ul"></i> Barcha cheklar
+            </a>
+            <a href="?format=word" class="btn btn-outline-primary"><i class="bi bi-file-word"></i> Word (rasmiy)</a>
+            <button class="btn btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Chop etish</button>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Chap tomon: Chek ma'lumotlari -->
+        <div class="col-md-8">
+            <div class="card shadow-sm border-0 mb-4 print-section">
+                <div class="card-header bg-white pt-4 pb-3 border-bottom text-center">
+                    <h4 class="mb-1 text-success"><i class="bi bi-heart-pulse-fill"></i> Doctor B Najot</h4>
+                    <p class="text-muted mb-0 small">Manzil: {{ clinic_address }}</p>
+                    <p class="text-muted mb-0 small">Tel: {{ clinic_phone }}</p>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-4">
+                        <div class="col-sm-6">
+                            <h6 class="text-muted mb-1">Mijoz:</h6>
+                            <div class="fw-bold fs-5">{{ visit.patient.full_name }}</div>
+                            <div class="text-muted small">ID: {{ visit.patient.id|stringformat:"s"|slice:":8" }}</div>
+                        </div>
+                        <div class="col-sm-6 text-sm-end">
+                            <h6 class="text-muted mb-1">Chek ma'lumoti:</h6>
+                            <div><strong>Sana:</strong> {% now "d.m.Y H:i" %}</div>
+                            <div><strong>Qabul sanasi:</strong> {{ visit.visit_date|date:"d.m.Y" }}</div>
+                            <div>
+                                <strong>Holati:</strong>
+                                {% if invoice.status == 'paid' %}
+                                <span class="badge bg-success">To'langan</span>
+                                {% elif invoice.status == 'partial' %}
+                                <span class="badge bg-warning text-dark">Qisman to'langan</span>
+                                {% elif invoice.status == 'refunded' %}
+                                <span class="badge bg-secondary">Pul qaytarilgan</span>
+                                {% else %}
+                                <span class="badge bg-danger">To'lanmagan</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive mb-4">
+                        <table class="table table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Xizmat / Mahsulot nomi</th>
+                                    <th class="text-center">Miqdori</th>
+                                    <th class="text-end">Narxi (so'm)</th>
+                                    <th class="text-end">Jami (so'm)</th>
+                                    <th class="text-end d-print-none">Amallar</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in invoice.items.all %}
+                                <tr>
+                                    <td>{{ forloop.counter }}</td>
+                                    <td>
+                                        {{ item.name }}
+                                        {% if item.item_type == 'service' %}
+                                        <span class="badge bg-primary rounded-pill ms-1" style="font-size: 0.6rem;">Xizmat</span>
+                                        {% elif item.item_type == 'medicine' %}
+                                        <span class="badge bg-info rounded-pill ms-1" style="font-size: 0.6rem;">Dori</span>
+                                        {% elif item.item_type == 'inpatient' %}
+                                        <span class="badge bg-warning text-dark rounded-pill ms-1" style="font-size: 0.6rem;">Palata</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">{{ item.quantity }}</td>
+                                    <td class="text-end">{{ item.price|intcomma }}</td>
+                                    <td class="text-end fw-bold">{{ item.total_price|intcomma }}</td>
+                                    <td class="text-end d-print-none">
+                                        {% if can_edit %}
+                                        {% if item.reference_id %}
+                                            {% if item.item_type == 'service' %}
+                                                {% if "Shifokor" not in item.name %}
+                                                    <form method="post" action="{% url 'billing:cancel_service_order' item.reference_id %}" style="display:inline;" onsubmit="return confirm('Rostdan ham ushbu xizmatni bekor qilasizmi? Pul miqdori chekdan ayiriladi.');">
+                                                        {% csrf_token %}
+                                                        <input type="hidden" name="reason" value="Kassir / Admin tomonidan bekor qilindi">
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Bekor qilish">
+                                                            <i class="bi bi-x-circle"></i>
+                                                        </button>
+                                                    </form>
+                                                {% else %}
+                                                    <!-- Shifokor qabuli tahrirlash -->
+                                                    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editConsultModal{{ item.reference_id }}" title="Narxni tahrirlash">
+                                                        <i class="bi bi-pencil"></i>
+                                                    </button>
+                                                    
+                                                    <!-- Edit Consultation Fee Modal -->
+                                                    <div class="modal fade text-start" id="editConsultModal{{ item.reference_id }}" tabindex="-1" aria-hidden="true">
+                                                        <div class="modal-dialog">
+                                                            <div class="modal-content">
+                                                                <div class="modal-header bg-primary text-white">
+                                                                    <h5 class="modal-title">Shifokor qabuli narxini tahrirlash</h5>
+                                                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                                                </div>
+                                                                <form method="post" action="{% url 'billing:edit_consultation_fee' item.reference_id %}">
+                                                                    {% csrf_token %}
+                                                                    <div class="modal-body">
+                                                                        <div class="mb-3">
+                                                                            <label class="form-label">Yangi narxni kiriting (so'm):</label>
+                                                                            <input type="number" min="0" step="1" name="fee" class="form-control" value="{{ item.price|stringformat:'.0f' }}" required>
+                                                                        </div>
+                                                                        <div class="alert alert-warning small mb-3">Diqqat! Ushbu o'zgarish faqat shu mijozning joriy cheki uchun amal qiladi.</div>
+                                                                        <div class="mb-3">
+                                                                            <label class="form-label text-danger fw-bold">O'zgartirish sababi (majburiy)</label>
+                                                                            <input type="text" name="audit_reason" class="form-control border-danger" required placeholder="Nima sababdan?">
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="modal-footer">
+                                                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Yopish</button>
+                                                                        <button type="submit" class="btn btn-primary">Saqlash</button>
+                                                                    </div>
+                                                                </form>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                {% endif %}
+                                            {% elif item.item_type == 'medicine' %}
+                                                <button type="button" class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#editMedicineModal{{ item.reference_id }}" title="Miqdorni tahrirlash">
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
+                                                <form method="post" action="{% url 'billing:return_medicine' item.reference_id %}" style="display:inline;" onsubmit="return confirm('Rostdan ham ushbu dorini qaytarasizmi? Ombor qoldig\'i tiklanib, chekdan o\'chadi.');">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="reason" value="Kassir / Admin qaytarib oldi">
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Bekor qilish (Vozvrat)">
+                                                        <i class="bi bi-arrow-counterclockwise"></i>
+                                                    </button>
+                                                </form>
+
+                                                <!-- Edit Medicine Quantity Modal -->
+                                                <div class="modal fade text-start" id="editMedicineModal{{ item.reference_id }}" tabindex="-1" aria-hidden="true">
+                                                    <div class="modal-dialog">
+                                                        <div class="modal-content">
+                                                            <div class="modal-header bg-primary text-white">
+                                                                <h5 class="modal-title">Dori miqdorini tahrirlash</h5>
+                                                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                                            </div>
+                                                            <form method="post" action="{% url 'billing:edit_medicine_quantity' item.reference_id %}">
+                                                                {% csrf_token %}
+                                                                <div class="modal-body">
+                                                                    <div class="mb-3">
+                                                                        <label class="form-label">Yangi miqdorni kiriting:</label>
+                                                                        <input type="number" min="0" step="0.01" name="quantity" class="form-control" value="{{ item.quantity|stringformat:'.2f' }}" required>
+                                                                    </div>
+                                                                    <div class="alert alert-warning small mb-3">Diqqat! Miqdorni o'zgartirsangiz summa qayta hisoblanadi va ombor qoldig'i moslashadi.</div>
+                                                                    <div class="mb-3">
+                                                                        <label class="form-label text-danger fw-bold">O'zgartirish sababi (majburiy)</label>
+                                                                        <input type="text" name="audit_reason" class="form-control border-danger" required placeholder="Nima sababdan?">
+                                                                    </div>
+                                                                </div>
+                                                                <div class="modal-footer">
+                                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Yopish</button>
+                                                                    <button type="submit" class="btn btn-primary">Saqlash</button>
+                                                                </div>
+                                                            </form>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            {% elif item.item_type == 'inpatient' %}
+                                                <button type="button" class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#editDaysModal{{ item.reference_id }}" title="Kunlarni tahrirlash">
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
+                                                <form method="post" action="{% url 'billing:cancel_inpatient_stay' item.reference_id %}" style="display:inline;" onsubmit="return confirm('Rostdan ham ushbu palata/xonani bekor qilasizmi? Pul miqdori chekdan ayiriladi.');">
+                                                    {% csrf_token %}
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Bekor qilish (Qaytarish)">
+                                                        <i class="bi bi-arrow-counterclockwise"></i>
+                                                    </button>
+                                                </form>
+                                                
+                                                <!-- Edit Days Modal -->
+                                                <div class="modal fade text-start" id="editDaysModal{{ item.reference_id }}" tabindex="-1" aria-hidden="true">
+                                                    <div class="modal-dialog">
+                                                        <div class="modal-content">
+                                                            <div class="modal-header bg-primary text-white">
+                                                                <h5 class="modal-title">Kunlar sonini o'zgartirish</h5>
+                                                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                                            </div>
+                                                            <form method="post" action="{% url 'billing:edit_inpatient_days' item.reference_id %}">
+                                                                {% csrf_token %}
+                                                                <div class="modal-body">
+                                                                    <div class="mb-3">
+                                                                        <label class="form-label">Yangi kunlar sonini kiriting:</label>
+                                                                        <input type="number" min="0" step="1" name="total_days" class="form-control" value="{{ item.quantity|floatformat:'0' }}" required>
+                                                                    </div>
+                                                                    <div class="alert alert-warning small mb-3">Diqqat! Kunlarni o'zgartirsangiz, ushbu yotish uchun hisoblangan summa yangilanadi.</div>
+                                                                    <div class="mb-3">
+                                                                        <label class="form-label text-danger fw-bold">O'zgartirish sababi (majburiy)</label>
+                                                                        <input type="text" name="audit_reason" class="form-control border-danger" required placeholder="Nima sababdan?">
+                                                                    </div>
+                                                                </div>
+                                                                <div class="modal-footer">
+                                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Yopish</button>
+                                                                    <button type="submit" class="btn btn-primary">Saqlash</button>
+                                                                </div>
+                                                            </form>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            {% endif %}
+                                        {% endif %}
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted">Hozircha xarajatlar yozilmagan.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot class="table-light">
+                                <tr>
+                                    <td colspan="4" class="text-end fw-bold">Jami hisoblangan:</td>
+                                    <td class="text-end fw-bold fs-5 text-dark">{{ invoice.total_amount|intcomma }}</td>
+                                    <td class="d-print-none"></td>
+                                </tr>
+                                {% if invoice.paid_amount > 0 %}
+                                <tr>
+                                    <td colspan="4" class="text-end fw-bold text-success">To'langan:</td>
+                                    <td class="text-end fw-bold text-success">{{ invoice.paid_amount|intcomma }}</td>
+                                    <td class="d-print-none"></td>
+                                </tr>
+                                {% endif %}
+                                {% if invoice.refunded_amount > 0 %}
+                                <tr>
+                                    <td colspan="4" class="text-end fw-bold text-secondary">Qaytarilgan:</td>
+                                    <td class="text-end fw-bold text-secondary">{{ invoice.refunded_amount|intcomma }}</td>
+                                    <td class="d-print-none"></td>
+                                </tr>
+                                {% endif %}
+                                {% if invoice.debt > 0 %}
+                                <tr>
+                                    <td colspan="4" class="text-end fw-bold text-danger">Qarzdorlik:</td>
+                                    <td class="text-end fw-bold text-danger">{{ invoice.debt|intcomma }}</td>
+                                    <td class="d-print-none"></td>
+                                </tr>
+                                {% elif invoice.overpaid_amount > 0 %}
+                                <tr>
+                                    <td colspan="4" class="text-end fw-bold text-warning">Ortiqcha to'lov (qaytarilishi kerak):</td>
+                                    <td class="text-end fw-bold text-warning">{{ invoice.overpaid_amount|intcomma }}</td>
+                                    <td class="d-print-none"></td>
+                                </tr>
+                                {% endif %}
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    {% if invoice.refunds.all %}
+                    <h6 class="text-secondary fw-bold border-bottom pb-2 d-print-none">Pul qaytarishlar tarixi</h6>
+                    <ul class="list-group list-group-flush mb-3 d-print-none">
+                        {% for r in invoice.refunds.all %}
+                        <li class="list-group-item d-flex justify-content-between px-0 small">
+                            <span>{{ r.created_at|date:"d.m.Y H:i:s" }} — {{ r.reason }} ({{ r.refunded_by.get_full_name|default:"—" }})</span>
+                            <strong class="text-secondary">-{{ r.amount|intcomma }} so'm</strong>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+
+                    <div class="text-center text-muted small mt-4">
+                        <p>Xizmatingizdan mamnunmiz! Salomat bo'ling.</p>
+                        <p class="mb-0">Kassir: {{ request.user.get_full_name|default:request.user.username }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- O'ng tomon: To'lov / Qaytarish / Otmen (faqat kassir/buxgalter/direktor) -->
+        {% if can_edit %}
+        <div class="col-md-4 d-print-none">
+            <div class="card shadow-sm border-0 mb-3">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-wallet2"></i> To'lov qabul qilish</h5>
+                </div>
+                <div class="card-body">
+                    {% if invoice.debt > 0 %}
+                    <form method="post" action="{% url 'billing:pay_invoice' invoice.id %}">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label text-muted">Jami qarz (so'm)</label>
+                            <input type="text" class="form-control form-control-lg fw-bold text-danger bg-light" value="{{ invoice.debt|intcomma }}" readonly>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">To'lanayotgan summa</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control form-control-lg" name="amount" value="{{ invoice.debt|stringformat:'.0f' }}" min="1" max="{{ invoice.debt|stringformat:'.0f' }}" step="1" required>
+                                <span class="input-group-text">so'm</span>
+                            </div>
+                            <div class="form-text">Mijoz qisman to'lov qilayotgan bo'lsa summani o'zgartiring.</div>
+                        </div>
+
+                        <button type="submit" class="btn btn-success btn-lg w-100" onclick="return confirm('To\'lov qabul qilishni tasdiqlaysizmi?');">
+                            <i class="bi bi-check2-circle"></i> To'lovni tasdiqlash
+                        </button>
+                    </form>
+                    {% else %}
+                    <div class="text-center py-3">
+                        <i class="bi bi-check-circle text-success" style="font-size: 2.5rem;"></i>
+                        <h5 class="mt-2 mb-0">Qarzdorlik yo'q</h5>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Pul qaytarish -->
+            {% if invoice.refundable_amount > 0 %}
+            <div class="card shadow-sm border-0 mb-3">
+                <div class="card-header bg-secondary text-white">
+                    <h6 class="mb-0"><i class="bi bi-arrow-counterclockwise"></i> Pul qaytarish</h6>
+                </div>
+                <div class="card-body">
+                    {% if invoice.overpaid_amount > 0 %}
+                    <div class="alert alert-warning py-2 small">
+                        Otmen tufayli <strong>{{ invoice.overpaid_amount|intcomma }} so'm</strong> ortiqcha to'langan — qaytarib bering.
+                    </div>
+                    {% endif %}
+                    <form method="post" action="{% url 'billing:refund_invoice' invoice.id %}">
+                        {% csrf_token %}
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold">Summa (maks. {{ invoice.refundable_amount|intcomma }} so'm)</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" name="amount"
+                                       value="{% if invoice.overpaid_amount > 0 %}{{ invoice.overpaid_amount|stringformat:'.0f' }}{% endif %}"
+                                       min="1" max="{{ invoice.refundable_amount|stringformat:'.0f' }}" step="1" required>
+                                <span class="input-group-text">so'm</span>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Sabab (majburiy)</label>
+                            <input type="text" class="form-control" name="reason" placeholder="Masalan: xizmat otmen qilindi" required>
+                        </div>
+                        <button type="submit" class="btn btn-outline-secondary w-100" onclick="return confirm('Pul qaytarishni tasdiqlaysizmi?');">
+                            <i class="bi bi-cash-coin"></i> Qaytarishni tasdiqlash
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Xizmatlarni otmen qilish -->
+            {% with active_orders=visit.service_orders.all %}
+            {% if active_orders %}
+            <div class="card shadow-sm border-0 mb-3">
+                <div class="card-header bg-danger text-white">
+                    <h6 class="mb-0"><i class="bi bi-x-circle"></i> Xizmatni otmen qilish</h6>
+                </div>
+                <ul class="list-group list-group-flush">
+                    {% for order in active_orders %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div class="small">
+                            {{ order.service.name }}
+                            <span class="d-block text-muted">{{ order.service.price|intcomma }} so'm · {{ order.get_status_display }}</span>
+                        </div>
+                        {% if order.status == 'waiting' or order.status == 'paid' %}
+                        <form method="post" action="{% url 'billing:cancel_service_order' order.id %}">
+                            {% csrf_token %}
+                            <button class="btn btn-sm btn-outline-danger" onclick="return confirm('{{ order.service.name }} xizmati otmen qilinsinmi?');">
+                                Otmen
+                            </button>
+                        </form>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+            {% endwith %}
+
+            <!-- Dorilarni qaytarish -->
+            {% with dispenses=visit.dispensed_medicines.all %}
+            {% if dispenses %}
+            <div class="card shadow-sm border-0 mb-3">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0"><i class="bi bi-capsule"></i> Dorini qaytarish</h6>
+                </div>
+                <ul class="list-group list-group-flush">
+                    {% for d in dispenses %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div class="small">
+                            {{ d.batch.medicine.name }} × {{ d.quantity }}
+                            <span class="d-block text-muted">
+                                {% if d.is_returned %}Qaytarilgan ({{ d.returned_at|date:"d.m.Y" }}){% else %}{{ d.price_at_dispense|intcomma }} so'm{% endif %}
+                            </span>
+                        </div>
+                        {% if not d.is_returned %}
+                        <form method="post" action="{% url 'billing:return_medicine' d.id %}">
+                            {% csrf_token %}
+                            <button class="btn btn-sm btn-outline-info" onclick="return confirm('{{ d.batch.medicine.name }} qaytarib olinsinmi? Ombor qoldig\'i tiklanadi.');">
+                                Qaytarish
+                            </button>
+                        </form>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+            {% endwith %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    .print-section, .print-section * {
+        visibility: visible;
+    }
+    .print-section {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+    }
+    .navbar {
+        display: none !important;
+    }
+}
+</style>
+{% endblock %}

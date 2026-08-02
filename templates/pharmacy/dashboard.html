@@ -1,0 +1,352 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2 class="fw-bold"><i class="bi bi-box-seam"></i> Ombor (Sklad)</h2>
+        <p class="text-muted">Dori-darmonlar va tibbiy vositalar qoldig'i hamda kirimi</p>
+    </div>
+    <div class="col-md-4 text-end">
+        <button class="btn btn-outline-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#addUnitModal">
+            <i class="bi bi-rulers"></i> O'lchov birligi
+        </button>
+        <button class="btn btn-primary shadow-sm ms-2" data-bs-toggle="modal" data-bs-target="#addMedicineModal">
+            <i class="bi bi-plus-circle"></i> Yangi dori qo'shish
+        </button>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Kutilayotgan dorilar (Topshirilmadi) -->
+    <div class="col-12 mb-4">
+        <div class="card shadow-sm border-0 border-top border-warning border-3" style="border-radius:16px;">
+            <div class="card-header bg-white border-0 pt-4 pb-0 px-4">
+                <h5 class="fw-bold text-warning"><i class="bi bi-clock-history"></i> Kutilayotgan dorilar (Sklad tasdig'i kutilmoqda)</h5>
+            </div>
+            <div class="card-body px-4">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Vaqt</th>
+                                <th>Bemor</th>
+                                <th>Dori (Partiya)</th>
+                                <th>Miqdor</th>
+                                <th>Shifokor</th>
+                                <th class="text-end">Amal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for disp in pending_dispenses %}
+                            <tr>
+                                <td class="small">{{ disp.dispensed_at|date:"d.m.Y H:i:s" }}</td>
+                                <td class="fw-bold text-primary">{{ disp.visit.patient.full_name }}</td>
+                                <td>{{ disp.batch.medicine.name }}</td>
+                                <td><span class="badge bg-warning text-dark">{{ disp.quantity|intcomma }} {{ disp.batch.medicine.unit.short_name }}</span></td>
+                                <td class="small text-muted">{{ disp.dispensed_by.get_full_name }}</td>
+                                <td class="text-end">
+                                    <div class="btn-group">
+                                        <form method="post" action="{% url 'pharmacy:confirm_dispense' disp.id %}" class="d-inline">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-success" title="Topshirildi deb belgilash" onclick="return confirm('Rostdan ham dorini topshirdingizmi?');"><i class="bi bi-check-circle"></i> Topshirish</button>
+                                        </form>
+                                        <form method="post" action="{% url 'pharmacy:cancel_dispense' disp.id %}" class="d-inline ms-1">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Bekor qilish va omborga qaytarish" onclick="return confirm('Bekor qilib, qoldiqni omborga qaytarasizmi?');"><i class="bi bi-x-circle"></i> Bekor qilish</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">Kutilayotgan dori tayinlovlari yo'q.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dori-darmonlar qoldig'i -->
+    <div class="col-md-8">
+        <div class="card shadow-sm border-0" style="border-radius:16px;">
+            <div class="card-header bg-white border-0 pt-4 pb-0 px-4">
+                <h5 class="fw-bold"><i class="bi bi-stack"></i> Dorilar va qoldiqlar</h5>
+            </div>
+            <div class="card-body px-4">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Nomi</th>
+                                <th>O'lchov birligi</th>
+                                <th>Jami qoldiq</th>
+                                <th>Harakat</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for medicine in medicines %}
+                            <tr>
+                                <td class="fw-bold">{{ medicine.name }}</td>
+                                <td><span class="badge bg-secondary">{{ medicine.unit.name }}</span></td>
+                                <td>
+                                    {% if medicine.total_available > 0 %}
+                                        <span class="text-success fw-bold">{{ medicine.formatted_total_available }}</span>
+                                    {% else %}
+                                        <span class="text-danger fw-bold">Tugagan</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#receiveModal-{{ medicine.id }}">
+                                        <i class="bi bi-box-arrow-in-down"></i> Kirim qilish
+                                    </button>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-center text-muted py-4">Hozircha dori turlari kiritilmagan.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<!-- Dori kirim modallari (jadval TASHQARISIDA — aks holda ochilmaydi/ko'rinmaydi) -->
+{% for medicine in medicines %}
+<div class="modal fade" id="receiveModal-{{ medicine.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">Dori kirim qilish: {{ medicine.name }}</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'pharmacy:receive_medicine' %}">
+                {% csrf_token %}
+                <input type="hidden" name="medicine_id" value="{{ medicine.id }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Qaysi qadoqda kelyapti? *</label>
+                        <select class="form-select" name="packaging_id" required>
+                            <option value="base">Asosiy birlik ({{ medicine.unit.name }}) - 1 tadan</option>
+                            {% for pkg in medicine.packages.all %}
+                            <option value="{{ pkg.id }}">{{ pkg.name }} (Ichida: {{ pkg.quantity_in_base_unit|floatformat:0 }} dona)</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Miqdor (Nechta qadoq?) *</label>
+                        <input type="number" step="0.01" class="form-control" name="quantity" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Sotish narxi (1 {{ medicine.unit.short_name|default:medicine.unit.name }} uchun) *</label>
+                        <input type="number" step="0.01" class="form-control" name="selling_price" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Kelish narxi (Ixtiyoriy)</label>
+                        <input type="number" step="0.01" class="form-control" name="purchase_price" value="0">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Partiya raqami / Seriya (Ixtiyoriy)</label>
+                        <input type="text" class="form-control" name="batch_number">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>
+                    <button type="submit" class="btn btn-success">Kirimni tasdiqlash</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+    <!-- Aktiv partiyalar va narxlar -->
+    <div class="col-md-4">
+        <div class="card shadow-sm border-0" style="border-radius:16px;">
+            <div class="card-header bg-white border-0 pt-4 pb-0 px-4">
+                <h5 class="fw-bold"><i class="bi bi-tag"></i> Aktiv partiyalar narxi</h5>
+            </div>
+            <div class="card-body px-4">
+                <div class="list-group list-group-flush">
+                    {% for batch in active_batches %}
+                    <div class="list-group-item px-0 py-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="fw-bold">{{ batch.medicine.name }}</span>
+                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">Qoldiq: {{ batch.formatted_quantity_available }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center text-muted small mb-2">
+                            <span>Sotish narxi: <strong class="text-dark">{{ batch.selling_price|intcomma }}</strong> so'm</span>
+                        </div>
+                        <button class="btn btn-sm btn-outline-secondary w-100" data-bs-toggle="modal" data-bs-target="#editPriceModal-{{ batch.id }}">
+                            <i class="bi bi-pencil-square"></i> Narxni o'zgartirish
+                        </button>
+                    </div>
+
+                    <!-- Narxni o'zgartirish Modal -->
+                    <div class="modal fade" id="editPriceModal-{{ batch.id }}" tabindex="-1">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header bg-secondary text-white">
+                                    <h6 class="modal-title">Narxni yangilash</h6>
+                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                </div>
+                                <form method="post" action="{% url 'pharmacy:update_batch_price' batch.id %}">
+                                    {% csrf_token %}
+                                    <div class="modal-body">
+                                        <p class="small text-muted mb-3">{{ batch.medicine.name }} (Qoldiq: {{ batch.formatted_quantity_available }})</p>
+                                        <div class="mb-3">
+                                            <label class="form-label">Yangi sotish narxi</label>
+                                            <input type="number" step="0.01" class="form-control" name="new_selling_price" value="{{ batch.selling_price|stringformat:'f'|slice:':-3' }}" required>
+                                            <div class="form-text text-warning small">Eski dori chiqimlari (bemorlarga) narxiga ta'sir qilmaydi!</div>
+                                        </div>
+                                        
+                                        {% if batch.price_history.exists %}
+                                        <div class="mt-4 accordion accordion-flush border rounded" id="historyAccordion-{{ batch.id }}">
+                                            <div class="accordion-item">
+                                                <h2 class="accordion-header">
+                                                    <button class="accordion-button collapsed py-2 small fw-bold bg-light" type="button" data-bs-toggle="collapse" data-bs-target="#historyCollapse-{{ batch.id }}">
+                                                        <i class="bi bi-clock-history me-2"></i> Narx o'zgarish tarixi ({{ batch.price_history.count }})
+                                                    </button>
+                                                </h2>
+                                                <div id="historyCollapse-{{ batch.id }}" class="accordion-collapse collapse" data-bs-parent="#historyAccordion-{{ batch.id }}">
+                                                    <div class="accordion-body p-0" style="max-height: 200px; overflow-y: auto;">
+                                                        <div class="p-2 text-end border-bottom bg-light">
+                                                            <a href="{% url 'pharmacy:export_price_history' batch.id %}" class="btn btn-sm btn-outline-success">
+                                                                <i class="bi bi-file-earmark-excel"></i> Excel yuklab olish
+                                                            </a>
+                                                        </div>
+                                                        <ul class="list-group list-group-flush small">
+                                                            {% for history in batch.price_history.all %}
+                                                            <li class="list-group-item px-3 py-2 d-flex justify-content-between align-items-start">
+                                                                <div>
+                                                                    <span class="text-danger text-decoration-line-through me-1">{{ history.old_price|intcomma }}</span>
+                                                                    <i class="bi bi-arrow-right text-muted me-1"></i>
+                                                                    <span class="text-success fw-bold">{{ history.new_price|intcomma }}</span>
+                                                                </div>
+                                                                <div class="text-end text-muted" style="font-size: 0.75rem;">
+                                                                    <div>{{ history.changed_at|date:"d.m.Y H:i:s" }}</div>
+                                                                    <div>{{ history.changed_by.get_full_name|default:history.changed_by.username }}</div>
+                                                                </div>
+                                                            </li>
+                                                            {% endfor %}
+                                                        </ul>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Bekor qilish</button>
+                                        <button type="submit" class="btn btn-primary btn-sm">Saqlash</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <p class="text-muted text-center py-3">Aktiv partiyalar mavjud emas.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- O'lchov birligi Modal -->
+<div class="modal fade" id="addUnitModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Yangi o'lchov birligi</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'pharmacy:add_unit' %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Nomi (Masalan: Ampula, Flakon, Quti)</label>
+                        <input type="text" class="form-control" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Qisqartma (Ixtiyoriy, masalan: dona, ml, mg)</label>
+                        <input type="text" class="form-control" name="short_name">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>
+                    <button type="submit" class="btn btn-primary">Qo'shish</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Dori Qo'shish Modal -->
+<div class="modal fade" id="addMedicineModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Yangi dori turi qo'shish</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'pharmacy:add_medicine' %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Dori nomi *</label>
+                        <input type="text" class="form-control" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">O'lchov birligi *</label>
+                        <select class="form-select" name="unit" required>
+                            <option value="">-- Tanlang --</option>
+                            {% for unit in units %}
+                            <option value="{{ unit.id }}">{{ unit.name }} ({{ unit.short_name }})</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Agar ro'yxatda yo'q bo'lsa, avval O'lchov birligi qo'shing.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Tavsif (Ixtiyoriy)</label>
+                        <textarea class="form-control" name="description" rows="2"></textarea>
+                    </div>
+                    
+                    <hr>
+                    <h6 class="mb-3 text-primary"><i class="bi bi-box"></i> Qadoqlash strukturasi (Ixtiyoriy)</h6>
+                    <p class="text-muted small mb-2">Masalan, agar asosiy o'lchov "Dona" bo'lsa, bu yerda kattaroq o'ramlarni qo'shishingiz mumkin:</p>
+                    
+                    <div class="row g-2 mb-2">
+                        <div class="col-8">
+                            <input type="text" name="pkg1_name" class="form-control" placeholder="1-O'ram nomi (Masalan: Pochka)">
+                        </div>
+                        <div class="col-4">
+                            <input type="number" name="pkg1_qty" class="form-control" placeholder="Ichi nechta?">
+                        </div>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-8">
+                            <input type="text" name="pkg2_name" class="form-control" placeholder="2-O'ram nomi (Masalan: Blok)">
+                        </div>
+                        <div class="col-4">
+                            <input type="number" name="pkg2_qty" class="form-control" placeholder="Ichi nechta?">
+                        </div>
+                    </div>
+                    <div class="form-text text-warning mt-1"><i class="bi bi-exclamation-triangle"></i> Miqdor doim <b>eng kichik asosiy o'lchovda</b> (Dona) yozilishi kerak! (Masalan: 1 Blok ichida 10 ta pochka va har pochkada 5 ta dona bo'lsa, Blok uchun "50" yozing)</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>
+                    <button type="submit" class="btn btn-primary">Qo'shish</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

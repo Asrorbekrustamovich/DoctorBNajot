@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Jarrohlik bayonnomasi - {{ visit.patient.full_name }}{% endblock %}
+
+{% block content %}
+{% if not word_export %}
+<div class="d-flex justify-content-between align-items-center mb-3 d-print-none">
+    <h1 class="h4 mb-0"><i class="bi bi-file-medical"></i> Jarrohlik bayonnomasi (rasmiy ko'rinish)</h1>
+    <div>
+        <a href="?format=word" class="btn btn-outline-primary"><i class="bi bi-file-word"></i> Word ga yuklash</a>
+        <button class="btn btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Chop etish</button>
+        <a href="javascript:history.back()" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Orqaga</a>
+    </div>
+</div>
+{% endif %}
+
+<div class="card shadow-sm report-sheet">
+    <div class="card-body p-5">
+        <div class="report-head">
+            <h2>{{ clinic_name }}</h2>
+            <div>{{ clinic_address }} · Tel: {{ clinic_phone }}</div>
+        </div>
+
+        <table class="report-meta">
+            <tr><td><strong>Ismi familiyasi:</strong></td><td>{{ visit.patient.full_name }} ({{ visit.patient.age }} yosh, {{ visit.patient.get_gender_display }})</td></tr>
+            <tr><td><strong>Karta raqami:</strong></td><td>{{ visit.patient.card_number }}</td></tr>
+            <tr><td><strong>Sana:</strong></td><td>{{ surgery.scheduled_time|date:"d.m.Y H:i:s" }}</td></tr>
+            <tr><td><strong>Operatsiya:</strong></td><td>{{ surgery.surgery_type.name }}</td></tr>
+            {% if surgery.operating_room %}<tr><td><strong>Xona:</strong></td><td>{{ surgery.operating_room.name }}</td></tr>{% endif %}
+        </table>
+        <hr>
+
+        <div class="report-body">
+            <h4 class="text-center mb-4">OPERATSIYA BAYONNOMASI</h4>
+            
+            {% if report.arrival_condition %}
+            <div class="mb-3">
+                <strong>1. Bemorning operatsiyagacha holati:</strong>
+                <div class="mt-1 ps-3">{{ report.arrival_condition|linebreaksbr }}</div>
+            </div>
+            {% endif %}
+            
+            {% if report.anesthesia %}
+            <div class="mb-3">
+                <strong>2. Narkoz (Anesteziya):</strong>
+                <div class="mt-1 ps-3">{{ report.anesthesia|linebreaksbr }}</div>
+            </div>
+            {% endif %}
+            
+            {% if report.performed_actions %}
+            <div class="mb-3">
+                <strong>3. Jarrohlik jarayoni (bajarilgan amallar):</strong>
+                <div class="mt-1 ps-3">{{ report.performed_actions|linebreaksbr }}</div>
+            </div>
+            {% endif %}
+            
+            {% if report.medications %}
+            <div class="mb-3">
+                <strong>4. Qo'llanilgan dorilar:</strong>
+                <div class="mt-1 ps-3">{{ report.medications|linebreaksbr }}</div>
+            </div>
+            {% endif %}
+            
+            {% if report.consumables %}
+            <div class="mb-3">
+                <strong>5. Asbob-uskuna va sarflar:</strong>
+                <div class="mt-1 ps-3">{{ report.consumables|linebreaksbr }}</div>
+            </div>
+            {% endif %}
+            
+            {% if report.notes %}
+            <div class="mb-3">
+                <strong>6. Qo'shimcha izoh/Tavsiyalar:</strong>
+                <div class="mt-1 ps-3">{{ report.notes|linebreaksbr }}</div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="report-sig">
+            <div>
+                <strong>Jarroh:</strong> {{ surgery.surgeon.get_full_name }}<br><br>
+                <strong>Imzo:</strong> ________________
+            </div>
+            <div>
+                <strong>Anesteziolog:</strong> {{ surgery.anesthesiologist.get_full_name|default:"_______________" }}<br><br>
+                <strong>Hamshira:</strong> {{ surgery.operating_nurse.get_full_name|default:"_______________" }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .report-sheet { max-width: 900px; margin: 0 auto; font-family: Georgia, serif; color: #111; }
+    .report-head { text-align: center; border-bottom: 2px solid #0d9488; padding-bottom: 10px; margin-bottom: 16px; }
+    .report-head h2 { margin: 0; color: #0f766e; }
+    .report-meta { font-size: 15px; margin-bottom: 8px; }
+    .report-meta td { padding: 2px 12px 2px 0; vertical-align: top; }
+    .report-body { font-size: 16px; line-height: 1.7; min-height: 200px; }
+    .report-sig { margin-top: 60px; display: flex; justify-content: space-between; font-size: 15px; }
+    @media print {
+        .navbar, .d-print-none { display: none !important; }
+        .report-sheet { box-shadow: none !important; border: none !important; max-width: 100%; }
+        body { background: #fff !important; }
+    }
+</style>
+{% endblock %}

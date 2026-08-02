@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Umumiy Statistika va Moliya{% endblock %}
+{% block page_name %}Umumiy Statistika va Moliya ({{ current_month|stringformat:"02d" }}.{{ current_year }}){% endblock %}
+
+{% block content %}
+<div class="mb-4 d-flex justify-content-between align-items-center flex-wrap">
+    <div>
+        <h4 class="mb-0 text-primary"><i class="bi bi-bar-chart-fill"></i> Moliya Paneli</h4>
+        <div class="text-muted small">Klinikaning jami daromad va sof foyda hisoboti</div>
+    </div>
+    <form method="get" class="d-flex gap-2">
+        <select name="month" class="form-select form-select-sm" style="width:120px;">
+            {% for m in months %}
+            <option value="{{ m }}" {% if m == current_month %}selected{% endif %}>{{ m }}-oy</option>
+            {% endfor %}
+        </select>
+        <select name="year" class="form-select form-select-sm" style="width:100px;">
+            {% for y in years %}
+            <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-filter"></i> Qo'llash</button>
+    </form>
+</div>
+
+<!-- TOP CARDS -->
+<div class="row mb-4 g-3">
+    <!-- Jami Tushum -->
+    <div class="col-md-4">
+        <div class="card shadow-sm border-0 bg-primary text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="fs-6 opacity-75">Jami Tushum</div>
+                        <div class="fs-3 fw-bold">{{ total_revenue|intcomma }} so'm</div>
+                    </div>
+                    <i class="bi bi-wallet2 fs-1 opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Operatsiya Chiqimi -->
+    <div class="col-md-4">
+        <div class="card shadow-sm border-0 bg-danger text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="fs-6 opacity-75">Klinika Chiqimlari (Ombor, dori)</div>
+                        <div class="fs-3 fw-bold">{{ surgery_clinic_expense|intcomma }} so'm</div>
+                    </div>
+                    <i class="bi bi-cart-dash fs-1 opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Sof Foyda -->
+    <div class="col-md-4">
+        <div class="card shadow-sm border-0 bg-success text-white h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="fs-6 opacity-75">Klinikaning Sof Foydasi</div>
+                        <div class="fs-3 fw-bold">{{ total_net_profit|intcomma }} so'm</div>
+                    </div>
+                    <i class="bi bi-piggy-bank fs-1 opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<ul class="nav nav-tabs mb-4" id="statsTab" role="tablist">
+    <li class="nav-item">
+        <button class="nav-link active text-danger" id="surgery-tab" data-bs-toggle="tab" data-bs-target="#surgery" type="button" role="tab"><i class="bi bi-heart-pulse"></i> Operatsiyalar ({{ surgeries|length }})</button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link text-info" id="inpatient-tab" data-bs-toggle="tab" data-bs-target="#inpatient" type="button" role="tab"><i class="bi bi-hospital"></i> Statsionar ({{ inpatient_stays|length }})</button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link text-primary" id="ambulatory-tab" data-bs-toggle="tab" data-bs-target="#ambulatory" type="button" role="tab"><i class="bi bi-people"></i> Ambulator ({{ ambulatory_visits|length }})</button>
+    </li>
+</ul>
+
+<div class="tab-content" id="statsTabContent">
+    <!-- OPERATSIYALAR -->
+    <div class="tab-pane fade show active" id="surgery" role="tabpanel">
+        <div class="card shadow-sm">
+            <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">Jarrohlik amaliyotlari tarixi</h6>
+                <div>
+                    <span class="badge bg-white text-danger me-2">Tushum: {{ surgery_revenue|intcomma }}</span>
+                    <span class="badge bg-white text-danger me-2">Foyda: {{ surgery_profit|intcomma }}</span>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">Sana</th>
+                                <th>Bemor</th>
+                                <th>Operatsiya</th>
+                                <th>Jarroh</th>
+                                <th class="text-end">To'lov (Tushum)</th>
+                                <th class="text-end">Chiqim (Xarajat)</th>
+                                <th class="text-end pe-3">Klinikaga qolgan foyda</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for s in surgeries %}
+                            <tr>
+                                <td class="ps-3 small text-muted">{{ s.scheduled_time|date:"d.m.Y H:i" }}</td>
+                                <td><strong>{{ s.visit.patient.full_name }}</strong></td>
+                                <td>{{ s.surgery_type.name }}</td>
+                                <td>{{ s.surgeon.get_full_name }}</td>
+                                <td class="text-end fw-bold">{{ s.actual_price|intcomma }}</td>
+                                <td class="text-end text-danger">-{{ s.actual_price|add:"-"|add:s.surgery_profit|intcomma }}</td>
+                                <td class="text-end text-success pe-3 fw-bold">{{ s.surgery_profit|intcomma }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="7" class="text-center text-muted py-4">Ushbu oyda yakunlangan operatsiyalar yo'q.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- STATSIONAR -->
+    <div class="tab-pane fade" id="inpatient" role="tabpanel">
+        <div class="card shadow-sm">
+            <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">Statsionarda davolanganlar tarixi</h6>
+                <div>
+                    <span class="badge bg-white text-info">Tushum: {{ inpatient_revenue|intcomma }}</span>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">Kelgan sana</th>
+                                <th>Bemor</th>
+                                <th>Xona va Palata</th>
+                                <th>Tur / Kun</th>
+                                <th class="text-end pe-3">Yozilgan Summa</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for s in inpatient_stays %}
+                            <tr>
+                                <td class="ps-3 small text-muted">{{ s.created_at|date:"d.m.Y H:i" }}</td>
+                                <td><strong>{{ s.visit.patient.full_name }}</strong></td>
+                                <td>{{ s.bed.room.name }} - {{ s.bed.number }}</td>
+                                <td>
+                                    {% if s.stay_type == 'package' %}<span class="badge bg-warning text-dark">Paket</span>{% else %}<span class="badge bg-secondary">Oddiy</span>{% endif %}
+                                    <span class="ms-1">{{ s.days }} kun</span>
+                                </td>
+                                <td class="text-end pe-3 fw-bold text-success">{{ s.total_amount|intcomma }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="5" class="text-center text-muted py-4">Ushbu oyda yotib chiqqan bemorlar yo'q.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AMBULATOR -->
+    <div class="tab-pane fade" id="ambulatory" role="tabpanel">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">Ambulator (Qatnab) davolanganlar tarixi</h6>
+                <div>
+                    <span class="badge bg-white text-primary">Tushum: {{ ambulatory_revenue|intcomma }}</span>
+                    {% if total_doctor_shares %}
+                    <span class="badge bg-warning text-dark ms-2">Shifokor ulushlari (1/3): {{ total_doctor_shares|intcomma }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">Sana</th>
+                                <th>Bemor</th>
+                                <th>Shifokor</th>
+                                <th>Navbat / Holat</th>
+                                <th class="text-end pe-3">Konsultatsiya Summasi</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for v in ambulatory_visits %}
+                            <tr>
+                                <td class="ps-3 small text-muted">{{ v.created_at|date:"d.m.Y H:i" }}</td>
+                                <td><strong>{{ v.patient.full_name }}</strong></td>
+                                <td>{{ v.doctor.get_full_name|default:"-" }}</td>
+                                <td>№ {{ v.queue_number }} ({{ v.get_status_display }})</td>
+                                <td class="text-end pe-3 fw-bold text-success">{% if v.consultation %}{{ v.consultation.fee|intcomma }}{% else %}0{% endif %}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="5" class="text-center text-muted py-4">Ushbu oyda ambulator bemorlar yo'q.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

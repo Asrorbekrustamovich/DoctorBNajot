@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*.sqlite3
+.env
+.env.server
+.env.local
+.env.production
+/media/
+/backups/
+/staticfiles/
+.venv/
+venv/
+.idea/
+.vscode/
+*.log
+celerybeat-schedule*

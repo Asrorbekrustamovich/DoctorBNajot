@@ -1,0 +1,433 @@
+{% load humanize %}
+<!-- Bosqich indikatori -->
+<div class="card mb-3">
+    <div class="card-body py-3">
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            {% for code, label in surgery.Stage.choices %}
+            <span class="badge {% if surgery.stage == code %}bg-success{% elif forloop.counter0 < 1 %}bg-secondary{% else %}bg-light text-muted border{% endif %} px-3 py-2">
+                {{ label }}
+            </span>
+            {% if not forloop.last %}<i class="bi bi-chevron-right text-muted small"></i>{% endif %}
+            {% endfor %}
+            <span class="ms-auto badge bg-dark px-3 py-2">Holat: {{ surgery.get_status_display }}</span>
+        </div>
+    </div>
+</div>
+
+<!-- Jamoa -->
+<div class="card mb-3">
+    <div class="card-header"><i class="bi bi-people"></i> Operatsiya jamoasi</div>
+    <div class="card-body">
+        <div class="row g-3 small">
+            <div class="col"><span class="text-muted d-block">Jarroh</span><strong>{{ surgery.surgeon.get_full_name|default:"—" }}</strong></div>
+            <div class="col"><span class="text-muted d-block">Asistent</span><strong>{{ surgery.assistant.get_full_name|default:"—" }}</strong></div>
+            <div class="col"><span class="text-muted d-block">Anesteziolog</span><strong>{{ surgery.anesthesiologist.get_full_name|default:"—" }}</strong></div>
+            <div class="col"><span class="text-muted d-block">Operatsion hamshira</span><strong>{{ surgery.operating_nurse.get_full_name|default:"—" }}</strong></div>
+            <div class="col"><span class="text-muted d-block">Bo'lim hamshirasi</span><strong>{{ surgery.ward_nurse.get_full_name|default:"—" }}</strong></div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <!-- ==================== 1-QADAM: BEMORNI TAYYORLASH (BO'LIM HAMSHIRASI) ==================== -->
+    <div class="col-lg-6">
+        <div class="card h-100 {% if not surgery.patient_prepared %}border-danger{% endif %}">
+            <div class="card-header bg-secondary bg-opacity-10">
+                <i class="bi bi-person-check"></i> 1-qadam — Bemorni tayyorlash (Bo'lim hamshirasi)
+                {% if surgery.patient_prepared %}
+                <span class="badge bg-success ms-2">Tayyor {{ surgery.patient_prepared_at|date:"H:i:s" }}</span>
+                {% else %}
+                <span class="badge bg-danger ms-2">Kutilmoqda</span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                <div class="small text-muted mb-2">Yuvish, kiyintirish, hujjatlarni tekshirish. Bu qadam bajarilmaguncha operatsiya boshlanmaydi.</div>
+                {% if can_ward_nurse %}
+                <form method="post" action="{% url 'clinical:surgery_patient_prep' surgery.id %}">
+                    {% csrf_token %}
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold">Tayyorlash bayoni (nimalar qilindi)</label>
+                        <textarea name="patient_prep_note" class="form-control form-control-sm" rows="3">{{ surgery.patient_prep_note }}</textarea>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" name="patient_prepared" value="1" id="patPrep{{ surgery.id }}" {% if surgery.patient_prepared %}checked{% endif %}>
+                        <label class="form-check-label fw-bold" for="patPrep{{ surgery.id }}">Bemor operatsiyaga tayyorlandi</label>
+                    </div>
+                    <button class="btn btn-sm btn-secondary"><i class="bi bi-check-lg"></i> Saqlash</button>
+                </form>
+                {% else %}
+                <div class="text-muted small"><i class="bi bi-lock"></i> Bu qadamni faqat bo'lim hamshirasi bajaradi.
+                    {% if surgery.patient_prep_note %}<div class="mt-2 border rounded p-2 bg-light">{{ surgery.patient_prep_note }}</div>{% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 2-QADAM: ANESTEZIOLOGIK KO'RIK ==================== -->
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header bg-info bg-opacity-10">
+                <i class="bi bi-clipboard2-pulse"></i> 2-qadam — Anesteziologik ko'rik / punksiya
+                {% if surgery.anesthesia_exam_at %}
+                <span class="badge bg-success ms-2">Bajarildi {{ surgery.anesthesia_exam_at|date:"H:i:s" }}</span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if can_anesth %}<form method="post" action="{% url 'clinical:surgery_step_anesthesia' surgery.id %}">
+                    {% csrf_token %}
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold">Narkoz turi</label>
+                        <select name="anesthesia_type" class="form-select form-select-sm">
+                            <option value="">-- Tanlang --</option>
+                            {% for code, label in anesthesia_types %}
+                            <option value="{{ code }}" {% if surgery.anesthesia_type == code %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold">Ko'rik natijasi (bemor holati, allergiya, xavf)</label>
+                        <textarea name="anesthesia_exam_note" class="form-control form-control-sm" rows="4">{{ surgery.anesthesia_exam_note }}</textarea>
+                    </div>
+                    <button class="btn btn-sm btn-primary"><i class="bi bi-check-lg"></i> Ko'rikni saqlash</button>
+                </form>{% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 2-QADAM: TAYYORLASH (HAMSHIRA) ==================== -->
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header bg-warning bg-opacity-10">
+                <i class="bi bi-hospital"></i> 3-qadam — Operatsiyaga tayyorlash (operatsion hamshira)
+                {% if surgery.room_prepared %}<span class="badge bg-success ms-2">Xona tayyor</span>{% endif %}
+            </div>
+            <div class="card-body">
+                {% if can_prep %}<form method="post" action="{% url 'clinical:surgery_step_preparation' surgery.id %}">
+                    {% csrf_token %}
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" name="room_prepared" value="1" id="roomPrep{{ surgery.id }}" {% if surgery.room_prepared %}checked{% endif %}>
+                        <label class="form-check-label fw-bold" for="roomPrep{{ surgery.id }}">Operatsion xona tayyorlandi</label>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold">Steril belyo va anjomlar (operatsiya turiga mos)</label>
+                        <div class="border rounded p-2" style="max-height:220px; overflow-y:auto;">
+                            {% for item in ready_items %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="items" value="{{ item.id }}" id="itm-{{ item.id }}">
+                                <label class="form-check-label small" for="itm-{{ item.id }}">
+                                    {{ item.name }} — {{ item.get_item_type_display }} · {{ item.get_steril_method_display }}{% if item.serial_number %} ({{ item.serial_number }}){% endif %}
+                                </label>
+                            </div>
+                            {% empty %}
+                            <div class="text-muted small">Tayyor (steril) narsa yo'q — Sterilizatsiya bo'limidan qo'shing.</div>
+                            {% endfor %}
+                        </div>
+                        <div class="form-text">Kerakli narsalarni belgilang (bir nechtasini belgilash mumkin). Belyo hamma turda; ochiq operatsiyada avtoklav anjomlar, endoskopikda rastvor anjomlar chiqadi.</div>
+                    </div>
+                    {% if attached_items %}
+                    <div class="mb-2 small">
+                        <span class="text-muted d-block mb-1">Biriktirilgan asboblar:</span>
+                        <table class="table table-sm mb-0"><tbody>
+                            {% for it in attached_items %}
+                            <tr>
+                                <td>{{ it.name }}
+                                    {% if it.status == "ready" %}<span class="badge bg-success ms-1">Ishlatilmadi (xonada)</span>
+                                    {% elif it.status == "used" %}<span class="badge bg-danger ms-1">Ishlatildi</span>
+                                    {% else %}<span class="badge bg-warning text-dark ms-1">Operatsiyada</span>{% endif %}
+                                </td>
+                                <td class="text-end">
+                                    {% if can_nurse %}
+                                    <form method="post" action="{% url 'clinical:surgery_item_mark' it.id %}" class="d-inline">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="surgery_id" value="{{ surgery.id }}">
+                                        <button name="action" value="used" class="btn btn-sm btn-outline-danger py-0">Ishlatildi</button>
+                                        <button name="action" value="unused" class="btn btn-sm btn-outline-success py-0">Ishlatilmadi</button>
+                                    </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody></table>
+                    </div>
+                    {% endif %}
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold">Tayyorlash bayoni</label>
+                        <textarea name="preparation_note" class="form-control form-control-sm" rows="2">{{ surgery.preparation_note }}</textarea>
+                    </div>
+                    <button class="btn btn-sm btn-primary"><i class="bi bi-check-lg"></i> Tayyorlashni saqlash</button>
+                </form>{% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== ANESTEZIOLOG ZAYAVKASI ==================== -->
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header bg-primary bg-opacity-10 d-flex align-items-center">
+                <span><i class="bi bi-box-seam"></i> Anesteziolog materiallari (zayavka)</span>
+                {% if anesthesia_request %}
+                <span class="badge {% if anesthesia_request.status == 'sent' %}bg-success{% else %}bg-warning text-dark{% endif %} ms-auto">
+                    {{ anesthesia_request.get_status_display }}
+                    {% if anesthesia_request.sent_at %} · {{ anesthesia_request.sent_at|date:"H:i:s" }}{% endif %}
+                </span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if anesthesia_request.status != 'sent' %}
+                {% if can_anesth %}<form method="post" action="{% url 'clinical:anesthesia_request_add_item' surgery.id %}" class="row g-2 mb-3">
+                    {% csrf_token %}
+                    <div class="col-7">
+                        <select name="stock_id" class="form-select form-select-sm" required>
+                            <option value="">-- Ombordan tanlang --</option>
+                            {% for s in stock_items %}
+                            <option value="{{ s.id }}">{{ s.name }} (qoldiq: {{ s.quantity|floatformat:0 }} {{ s.unit }} · {{ s.selling_price|floatformat:0 }} so'm)</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-3">
+                        <input type="number" name="quantity" class="form-control form-control-sm" value="1" min="0.01" step="0.01" placeholder="Soni">
+                    </div>
+                    <div class="col-2">
+                        <button class="btn btn-sm btn-outline-primary w-100"><i class="bi bi-plus-lg"></i></button>
+                    </div>
+                </form>{% endif %}
+                {% endif %}
+
+                <table class="table table-sm mb-2">
+                    <thead><tr><th>Mahsulot</th><th class="text-center">Ishlatilgan</th><th class="text-end">Narx</th><th class="text-end">Jami</th><th class="text-end">Qaytarish</th></tr></thead>
+                    <tbody>
+                        {% for it in request_items %}
+                        <tr>
+                            <td>
+                                {{ it.stock.name }}
+                                {% if it.is_extra %}<span class="badge bg-info text-dark ms-1">qo'shimcha</span>{% endif %}
+                                {% if it.returned_quantity > 0 %}<span class="badge bg-secondary ms-1">qaytarildi: {{ it.returned_quantity|floatformat:0 }}</span>{% endif %}
+                            </td>
+                            <td class="text-center">{{ it.used_quantity|floatformat:0 }} {{ it.stock.unit }}</td>
+                            <td class="text-end">{{ it.price_snapshot|floatformat:0 }}</td>
+                            <td class="text-end fw-bold">{{ it.line_total|floatformat:0 }}</td>
+                            <td class="text-end">
+                                {% if it.used_quantity > 0 %}
+                                {% if can_anesth %}<form method="post" action="{% url 'clinical:anesthesia_item_return' it.id %}" class="d-inline-flex gap-1">
+                                    {% csrf_token %}
+                                    <input type="number" name="quantity" class="form-control form-control-sm" style="width:70px"
+                                           min="0.01" step="0.01" max="{{ it.used_quantity }}" placeholder="soni">
+                                    <button class="btn btn-sm btn-outline-secondary" title="Omborga qaytarish">
+                                        <i class="bi bi-arrow-return-left"></i>
+                                    </button>
+                                </form>{% endif %}
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="5" class="text-center text-muted py-3">Zayavka bo'sh</td></tr>
+                        {% endfor %}
+                    </tbody>
+                    {% if request_items %}
+                    <tfoot class="table-light">
+                        <tr><td colspan="3" class="text-end fw-bold">Anesteziolog xarajati (klinika):</td>
+                            <td class="text-end fw-bold text-primary">{{ anesthesia_total|floatformat:0 }} so'm</td><td></td></tr>
+                    </tfoot>
+                    {% endif %}
+                </table>
+
+                {% if anesthesia_request and anesthesia_request.status != 'sent' %}
+                {% if can_anesth %}<form method="post" action="{% url 'clinical:anesthesia_request_send' surgery.id %}">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-success w-100"
+                            onclick="return confirm('Materiallar yuborilsinmi? Ombordan yechiladi va narx qotiriladi.');">
+                        <i class="bi bi-send"></i> Yuborildi (ombordan yechish)
+                    </button>
+                </form>{% endif %}
+                {% elif anesthesia_request.status == 'sent' %}
+                {% if can_anesth %}<form method="post" action="{% url 'clinical:anesthesia_extra_add' surgery.id %}" class="row g-2 mb-2">
+                    {% csrf_token %}
+                    <div class="col-12"><span class="small fw-bold text-info"><i class="bi bi-plus-circle"></i> Operatsiya davomida qo'shimcha olish</span></div>
+                    <div class="col-7">
+                        <select name="stock_id" class="form-select form-select-sm" required>
+                            <option value="">-- Ombordan tanlang --</option>
+                            {% for s in stock_items %}
+                            <option value="{{ s.id }}">{{ s.name }} (qoldiq: {{ s.quantity|floatformat:0 }} {{ s.unit }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-3"><input type="number" name="quantity" class="form-control form-control-sm" value="1" min="0.01" step="0.01"></div>
+                    <div class="col-2"><button class="btn btn-sm btn-info w-100"><i class="bi bi-plus-lg"></i></button></div>
+                </form>{% endif %}
+                <div class="alert alert-success py-2 mb-0 small">
+                    <i class="bi bi-check-circle"></i> Yuborildi —
+                    {{ anesthesia_request.sent_by.get_full_name|default:"anesteziolog" }},
+                    {{ anesthesia_request.sent_at|date:"d.m.Y H:i:s" }}. Ombordan yechildi.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== HAMSHIRA SARF-HARAJATLARI ==================== -->
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header bg-warning bg-opacity-10">
+                <i class="bi bi-bandaid"></i> Ishlatilgan anjom/dorilar (Umumiy)
+            </div>
+            <div class="card-body">
+                {% if can_nurse %}<form method="post" action="{% url 'clinical:surgery_nurse_usage_add' surgery.id %}" class="row g-2 mb-3">
+                    {% csrf_token %}
+                    <div class="col-7">
+                        <select name="stock_id" class="form-select form-select-sm" required>
+                            <option value="">-- Zayavkadan tanlang --</option>
+                            {% if anesthesia_request %}
+                                {% for req_item in anesthesia_request.items.all %}
+                                <option value="{{ req_item.stock.id }}">{{ req_item.stock.name }} (Olib kelingan: {{ req_item.quantity|floatformat:0 }} {{ req_item.stock.unit }})</option>
+                                {% endfor %}
+                            {% else %}
+                                <option value="" disabled>Oldin Zayavka yuboring</option>
+                            {% endif %}
+                        </select>
+                    </div>
+                    <div class="col-3"><input type="number" name="quantity" class="form-control form-control-sm" value="1" min="0.01" step="0.01" placeholder="Soni"></div>
+                    <div class="col-2"><button class="btn btn-sm btn-outline-primary w-100"><i class="bi bi-plus-lg"></i></button></div>
+                </form>{% endif %}
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>Nomi</th><th class="text-center">Ishlatilgan</th><th class="text-end">Narx</th><th class="text-end">Jami</th><th class="text-end">Qaytarish</th></tr></thead>
+                    <tbody>
+                        {% for it in nurse_usages %}
+                        <tr>
+                            <td>
+                                {{ it.display_name }}
+                                {% if it.returned_quantity > 0 %}<span class="badge bg-secondary ms-1">qaytarildi: {{ it.returned_quantity|floatformat:0 }}</span>{% endif %}
+                            </td>
+                            <td class="text-center">{{ it.used_quantity|floatformat:0 }}</td>
+                            <td class="text-end">{{ it.price|floatformat:0 }}</td>
+                            <td class="text-end fw-bold">{{ it.line_total|floatformat:0 }}</td>
+                            <td class="text-end">
+                                {% if it.used_quantity > 0 and it.stock_id %}
+                                {% if can_nurse %}<form method="post" action="{% url 'clinical:nurse_item_return' it.id %}" class="d-inline-flex gap-1">
+                                    {% csrf_token %}
+                                    <input type="number" name="quantity" class="form-control form-control-sm" style="width:70px"
+                                           min="0.01" step="0.01" max="{{ it.used_quantity }}" placeholder="soni">
+                                    <button class="btn btn-sm btn-outline-secondary" title="Omborga qaytarish">
+                                        <i class="bi bi-arrow-return-left"></i>
+                                    </button>
+                                </form>{% endif %}
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="5" class="text-center text-muted py-3">Hozircha yozilmagan</td></tr>
+                        {% endfor %}
+                    </tbody>
+                    {% if nurse_usages %}
+                    <tfoot class="table-light">
+                        <tr><td colspan="3" class="text-end fw-bold">Hamshira xarajati (klinika):</td>
+                            <td class="text-end fw-bold text-warning">{{ nurse_total|floatformat:0 }} so'm</td><td></td></tr>
+                    </tfoot>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 3-QADAM: INTRAOPERATSION PROTOKOL ==================== -->
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-danger bg-opacity-10 d-flex align-items-center flex-wrap gap-2">
+                <span><i class="bi bi-activity"></i> 4-qadam — Intraoperatsion protokol (anesteziolog)</span>
+                {% if surgery.started_at %}
+                <span class="badge bg-danger">Boshlandi: {{ surgery.started_at|date:"H:i:s" }}</span>
+                {% endif %}
+                {% if surgery.finished_at %}
+                <span class="badge bg-success">Tugadi: {{ surgery.finished_at|date:"H:i:s" }}</span>
+                {% endif %}
+                <div class="ms-auto d-flex gap-2">
+                    {% if surgery.stage != 'operating' and surgery.stage != 'finished' %}
+                    {% if can_surgeon %}<form method="post" action="{% url 'clinical:surgery_start_operation' surgery.id %}">
+                        {% csrf_token %}
+                        <button class="btn btn-sm btn-danger"><i class="bi bi-play-fill"></i> Operatsiyani boshlash</button>
+                    </form>{% endif %}
+                    {% elif surgery.stage == 'operating' %}
+                    {% if can_surgeon %}<form method="post" action="{% url 'clinical:surgery_finish_operation' surgery.id %}">
+                        {% csrf_token %}
+                        <button class="btn btn-sm btn-success"
+                                onclick="return confirm('Operatsiya yakunlansinmi? Asboblar sterilizatsiyaga qaytadi.');">
+                            <i class="bi bi-check2-circle"></i> Yakunlash
+                        </button>
+                    </form>{% endif %}
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-body">
+                {% if surgery.stage == 'operating' %}
+                {% if can_anesth %}<form method="post" action="{% url 'clinical:surgery_vitals_add' surgery.id %}" class="row g-2 mb-3">
+                    {% csrf_token %}
+                    <div class="col-md-2"><input type="time" lang="ru" name="recorded_time" class="form-control form-control-sm" title="Vaqt (bo'sh = hozirgi)"></div>
+                    <div class="col-md-2"><input name="blood_pressure" class="form-control form-control-sm" placeholder="Bosim 120/80"></div>
+                    <div class="col-md-2"><input type="number" name="pulse" class="form-control form-control-sm" placeholder="Puls"></div>
+                    <div class="col-md-2"><input type="number" name="spo2" class="form-control form-control-sm" placeholder="SpO₂ %"></div>
+                    <div class="col-md-3"><input name="note" class="form-control form-control-sm" placeholder="Qilingan ish / dori"></div>
+                    <div class="col-md-1"><button class="btn btn-sm btn-danger w-100"><i class="bi bi-plus-lg"></i></button></div>
+                </form>{% endif %}
+                {% else %}
+                <div class="alert alert-secondary py-2 small">
+                    Protokol yuritish uchun avval operatsiyani boshlang (xona tayyor + materiallar yuborilgan bo'lishi kerak).
+                </div>
+                {% endif %}
+
+                <table class="table table-sm table-hover mb-0">
+                    <thead><tr><th>Vaqt</th><th>Qon bosimi</th><th>Puls</th><th>SpO₂</th><th>Qilingan ish / dori</th><th>Kim</th></tr></thead>
+                    <tbody>
+                        {% for v in vitals %}
+                        <tr>
+                            <td class="fw-bold">{{ v.recorded_at|date:"H:i:s" }}</td>
+                            <td>{{ v.blood_pressure|default:"—" }}</td>
+                            <td>{{ v.pulse|default:"—" }}</td>
+                            <td>{{ v.spo2|default:"—" }}</td>
+                            <td>{{ v.note|default:"—" }}</td>
+                            <td class="text-muted small">{{ v.recorded_by.get_full_name|default:"—" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="6" class="text-center text-muted py-3">Hozircha yozuv yo'q</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== YAKUNIY XARAJAT ==================== -->
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="row text-center g-3">
+                    <div class="col-md-3">
+                        <div class="text-muted small">Bemorga yoziladigan summa</div>
+                        <div class="h4 mb-0 text-success">{{ surgery.actual_price|floatformat:0 }} so'm</div>
+                        <div class="small text-muted">Operatsiya narxi (chekda shu chiqadi)</div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-muted small">Anesteziolog materiallari</div>
+                        <div class="h5 mb-0 text-primary">{{ anesthesia_total|floatformat:0 }} so'm</div>
+                        <div class="small text-muted">klinika xarajati</div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-muted small">Hamshira anjomlari</div>
+                        <div class="h5 mb-0 text-warning">{{ nurse_total|floatformat:0 }} so'm</div>
+                        <div class="small text-muted">klinika xarajati</div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-muted small">Klinika sof foydasi</div>
+                        <div class="h5 mb-0 {% if surgery_profit < 0 %}text-danger{% else %}text-success{% endif %}">{{ surgery_profit|floatformat:0 }} so'm</div>
+                        <div class="small text-muted">narx − ichki xarajat</div>
+                    </div>
+                </div>
+                <div class="alert alert-secondary py-2 mt-3 mb-0 small">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>Diqqat:</strong> anesteziolog materiallari va hamshira anjomlari
+                    <strong>bemorga alohida yozilmaydi</strong> — ular operatsiya narxi ichida.
+                    Bu raqamlar faqat <strong>klinika uchun ichki hisob</strong> (sarf-harajat nazorati).
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

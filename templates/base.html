@@ -1,0 +1,356 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="google" content="notranslate">
+    <title>{% block title %}Doctor B Najot{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.14.1/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+    <style>
+        :root {
+            --brand: #1a7f6b;
+            --brand-2: #2aa88f;
+            --sidebar-bg: #0f2e2a;
+            --sidebar-ink: #a9c7c0;
+            --ink: #16233a;
+            --muted: #6b7a90;
+            --line: #e8edf2;
+            --bg: #f4f6f9;
+            --sidebar-w: 258px;
+        }
+        * { scrollbar-width: thin; }
+        body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--ink); margin: 0; }
+        a { text-decoration: none; }
+
+        .dbn-sidebar {
+            position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+            background: var(--sidebar-bg); display: flex; flex-direction: column;
+            z-index: 1040; transition: transform .25s ease;
+        }
+        .dbn-brand {
+            display: flex; align-items: center; gap: .6rem;
+            padding: 1.15rem 1.25rem; color: #fff; font-weight: 800; font-size: 1.1rem;
+            letter-spacing: -.3px; border-bottom: 1px solid rgba(255,255,255,.07);
+        }
+        .dbn-brand .logo {
+            width: 36px; height: 36px; border-radius: 10px;
+            background: linear-gradient(135deg, var(--brand-2), #3fc8ac);
+            display: inline-flex; align-items: center; justify-content: center;
+            color: #062b25; font-size: 1.15rem; flex-shrink: 0;
+        }
+        .dbn-nav { padding: .7rem .7rem 1.2rem; overflow-y: auto; flex: 1; }
+        .dbn-nav::-webkit-scrollbar { width: 6px; }
+        .dbn-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 3px; }
+        .dbn-nav .nav-label {
+            font-size: .67rem; text-transform: uppercase; letter-spacing: .8px;
+            color: #5f8079; padding: .95rem .8rem .3rem; font-weight: 700;
+        }
+        .dbn-nav a {
+            display: flex; align-items: center; gap: .7rem;
+            padding: .6rem .8rem; margin: .1rem 0; border-radius: 9px;
+            color: var(--sidebar-ink); font-weight: 500; font-size: .9rem;
+            transition: background .15s, color .15s;
+        }
+        .dbn-nav a i { font-size: 1.05rem; width: 20px; text-align: center; flex-shrink: 0; }
+        .dbn-nav a:hover { background: rgba(255,255,255,.06); color: #fff; }
+        .dbn-nav a.active {
+            background: linear-gradient(90deg, var(--brand), var(--brand-2));
+            color: #fff; box-shadow: 0 6px 16px rgba(26,127,107,.3);
+        }
+        .dbn-sidebar-foot { padding: .85rem 1rem; border-top: 1px solid rgba(255,255,255,.07); font-size: .72rem; color: #5f8079; }
+
+        .dbn-main { margin-left: var(--sidebar-w); min-height: 100vh; }
+        .dbn-topbar {
+            height: 62px; background: #fff; border-bottom: 1px solid var(--line);
+            display: flex; align-items: center; gap: 1rem;
+            padding: 0 1.5rem; position: sticky; top: 0; z-index: 1030;
+        }
+        .dbn-topbar .burger { border: 0; background: transparent; font-size: 1.35rem; color: var(--muted); display: none; }
+        .dbn-page-name { font-weight: 700; font-size: 1.02rem; }
+        .dbn-user { display: flex; align-items: center; gap: .6rem; cursor: pointer; padding: .3rem .5rem; border-radius: 10px; }
+        .dbn-user:hover { background: var(--bg); }
+        .dbn-avatar {
+            width: 38px; height: 38px; border-radius: 50%;
+            background: linear-gradient(135deg, var(--brand), var(--brand-2));
+            color: #fff; display: inline-flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: .95rem; flex-shrink: 0;
+        }
+        .dbn-content { padding: 1.6rem 1.5rem; }
+
+        .card { border: 0; border-radius: 14px; box-shadow: 0 1px 3px rgba(16,35,58,.06); }
+        .card-header { background: #fff; border-bottom: 1px solid var(--line); font-weight: 700; border-radius: 14px 14px 0 0 !important; }
+        .btn-primary { background: var(--brand); border-color: var(--brand); font-weight: 600; border-radius: 9px; }
+        .btn-primary:hover, .btn-primary:focus { background: #14675a; border-color: #14675a; }
+        .btn-outline-primary { color: var(--brand); border-color: var(--brand); border-radius: 9px; font-weight: 600; }
+        .btn-outline-primary:hover { background: var(--brand); border-color: var(--brand); }
+        .form-control, .form-select { border-radius: 9px; border-color: #dde5ec; padding: .55rem .8rem; }
+        .form-control:focus, .form-select:focus { border-color: var(--brand); box-shadow: 0 0 0 .2rem rgba(26,127,107,.15); }
+        .table thead th { font-size: .76rem; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); border-bottom-width: 1px; }
+        .badge { font-weight: 600; border-radius: 7px; padding: .4em .65em; }
+        .stat-card { transition: transform .15s ease; }
+        .stat-card:hover { transform: translateY(-3px); }
+        .stat-icon { width: 52px; height: 52px; border-radius: 13px; display: inline-flex; align-items: center; justify-content: center; font-size: 1.4rem; }
+        .page-title { font-weight: 800; letter-spacing: -.4px; }
+
+        /* ---- Accordion (ichma-ich menyu) ---- */
+        .dbn-group { margin: .1rem 0; }
+        .grp-toggle {
+            display: flex; align-items: center; gap: .7rem; cursor: pointer;
+            padding: .6rem .8rem; border-radius: 9px;
+            color: var(--sidebar-ink); font-weight: 500; font-size: .9rem;
+            transition: background .15s, color .15s; user-select: none;
+        }
+        .grp-toggle i.lead-ic { font-size: 1.05rem; width: 20px; text-align: center; flex-shrink: 0; }
+        .grp-toggle:hover { background: rgba(255,255,255,.06); color: #fff; }
+        .grp-toggle .chev { margin-left: auto; font-size: .8rem; transition: transform .2s ease; }
+        .dbn-group.open > .grp-toggle .chev { transform: rotate(90deg); }
+        .dbn-group.open > .grp-toggle { color: #fff; }
+        .dbn-sub { overflow: hidden; margin: .1rem 0 .25rem; }
+        .dbn-sub a {
+            font-size: .855rem; padding: .5rem .8rem .5rem 2.6rem; position: relative;
+        }
+        .dbn-sub a::before {
+            content: ""; position: absolute; left: 1.5rem; top: 50%;
+            width: 5px; height: 5px; border-radius: 50%;
+            background: #446b63; transform: translateY(-50%);
+        }
+        .dbn-sub a.active::before { background: #fff; }
+
+        .dbn-backdrop { display: none; }
+        @media (max-width: 991px) {
+            .dbn-sidebar { transform: translateX(-100%); }
+            .dbn-sidebar.open { transform: translateX(0); }
+            .dbn-main { margin-left: 0; }
+            .dbn-topbar .burger { display: inline-block; }
+            .dbn-backdrop.show { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 1035; }
+        }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+{% if user.is_authenticated and not word_export %}
+<div x-data="{ open: false }">
+    <aside class="dbn-sidebar" :class="open && 'open'">
+        <div class="dbn-brand">
+            <span class="logo"><i class="bi bi-heart-pulse-fill"></i></span>
+            Doctor B Najot
+        </div>
+        <nav class="dbn-nav">
+            <div class="nav-label">Asosiy</div>
+            {% if user.role.code != "accountant" %}
+            <a href="{% url 'core:home' %}" class="{% if request.path == '/' %}active{% endif %}"><i class="bi bi-grid-1x2-fill"></i> Boshqaruv paneli</a>
+            {% endif %}
+            {% if user.is_superuser or user.role.code == "super_admin" or user.role.code == "administrator" or user.role.code == "reception" or user.role.code == "director" or user.role.code == "chief_doctor" or user.role.code == "cashier" %}
+            <a href="{% url 'patients:list' %}" class="{% if request.resolver_match.namespace == 'patients' %}active{% endif %}"><i class="bi bi-people-fill"></i> Bemorlar</a>
+            {% endif %}
+            {% if user.can_view_visits and user.role.code != "accountant" %}
+            <a href="{% url 'registration:queue' %}" class="{% if request.resolver_match.namespace == 'registration' and request.resolver_match.url_name != 'board' %}active{% endif %}"><i class="bi bi-list-ol"></i> Navbat</a>
+            {% endif %}
+            {% if user.is_superuser or user.role.code == "super_admin" or user.role.code == "administrator" or user.role.code == "reception" or user.role.code == "director" or user.role.code == "tablo" %}
+            <a href="{% url 'registration:board' %}" target="_blank" class="{% if request.resolver_match.url_name == 'board' %}active{% endif %}"><i class="bi bi-tv"></i> Navbat tablosi</a>
+            {% endif %}
+
+            {% if user.is_superuser or user.role.code == "super_admin" or user.role.code == "doctor" or user.role.code == "chief_doctor" or user.role.code == "radiology" or user.role.code == "lab" or user.role.code in "administrator,reception,director,surgeon,anesthesiologist,nurse,ward_nurse" or user.role.code == "sterilization" %}
+            <div class="nav-label">Klinika</div>
+            <div class="dbn-group{% if request.resolver_match.namespace == 'clinical' %} open{% endif %}" x-data="{ open: {% if request.resolver_match.namespace == 'clinical' %}true{% else %}false{% endif %} }" :class="open && 'open'">
+                <div class="grp-toggle" @click="open = !open">
+                    <i class="bi bi-heart-pulse-fill lead-ic"></i> Klinika
+                    <i class="bi bi-chevron-right chev"></i>
+                </div>
+                <div class="dbn-sub" x-show="open" x-collapse>
+                    {% if user.is_superuser or user.role.code == "doctor" or user.role.code == "chief_doctor" %}
+                    <a href="{% url 'clinical:my_templates' %}" class="{% if request.resolver_match.url_name == 'my_templates' %}active{% endif %}"><i class="bi bi-file-earmark-richtext"></i> Shablonlarim</a>
+                    {% endif %}
+                    {% if user.is_superuser or user.role.code == "doctor" or user.role.code == "chief_doctor" or user.role.code == "radiology" or user.role.code == "lab" %}
+                    <a href="{% url 'clinical:examiner_dashboard' %}" class="{% if request.resolver_match.url_name == 'examiner_dashboard' %}active{% endif %}"><i class="bi bi-clipboard2-pulse"></i> Mutaxassis Paneli</a>
+                    {% endif %}
+                    {% if user.is_superuser or user.role.code in "super_admin,administrator,reception,director,chief_doctor,doctor,surgeon,anesthesiologist,nurse,ward_nurse" %}
+                    <a href="{% url 'clinical:inpatient_dashboard' %}" class="{% if request.resolver_match.url_name == 'inpatient_dashboard' %}active{% endif %}"><i class="bi bi-hospital"></i> Stasionar</a>
+                    {% endif %}
+                    {% if user.is_superuser or user.role.code == "administrator" or user.role.code == "super_admin" or user.role.code == "surgery_admin" %}
+                    <a href="{% url 'clinical:surgery_admin_list' %}" class="{% if request.resolver_match.url_name == 'surgery_admin_list' %}active{% endif %}"><i class="bi bi-list-check"></i> Jarrohlik ro'yxati</a>
+                    {% endif %}
+                    {% if user.is_superuser or user.role.code == "surgeon" or user.role.code == "anesthesiologist" or user.role.code == "nurse" or user.role.code == "ward_nurse" or user.role.code == "sterilization" or user.role.code == "surgery_admin" or user.role.code == "administrator" or user.role.code == "super_admin" or user.role.code == "director" or user.role.code == "chief_doctor" or user.role.code == "reception" %}
+                    <a href="{% url 'clinical:operating_rooms_overview' %}" class="{% if request.resolver_match.url_name == 'operating_rooms_overview' %}active{% endif %}"><i class="bi bi-door-open"></i> Operatsion xonalar</a>
+                    {% endif %}
+                    {% if user.is_superuser or user.role.code == "super_admin" %}
+                    <a href="{% url 'clinical:ambulatory_rooms_settings' %}" class="{% if request.resolver_match.url_name == 'ambulatory_rooms_settings' %}active{% endif %}"><i class="bi bi-door-closed"></i> Ambulator xonalar</a>
+                    {% endif %}
+                    {% if user.is_superuser or user.role.code == "anesthesiologist" or user.role.code == "super_admin" or user.role.code == "administrator" %}
+                    <a href="{% url 'clinical:anesthesia_stock_page' %}" class="{% if request.resolver_match.url_name == 'anesthesia_stock_page' %}active{% endif %}"><i class="bi bi-capsule"></i> Anesteziolog ombori{% if anesthesia_sent_today %} <span class="badge bg-danger rounded-pill">{{ anesthesia_sent_today }}</span>{% endif %}</a>
+                    {% endif %}
+                    {% if user.is_superuser or user.role.code == "surgeon" or user.role.code == "anesthesiologist" or user.role.code == "nurse" or user.role.code == "administrator" or user.role.code == "super_admin" or user.role.code == "surgery_admin" %}
+                    <a href="{% url 'clinical:surgery_dashboard' %}" class="{% if request.resolver_match.url_name == 'surgery_dashboard' %}active{% endif %}"><i class="bi bi-heart-pulse"></i> Jarrohlik bloki</a>
+                    {% endif %}
+                    {% if user.is_superuser or user.role.code == "sterilization" %}
+                    <a href="{% url 'clinical:sterilization_dashboard' %}" class="{% if request.resolver_match.url_name == 'sterilization_dashboard' %}active{% endif %}"><i class="bi bi-shield-plus"></i> Avtoklav</a>
+                    <a href="{% url 'clinical:autoclave_dashboard' %}" class="{% if request.resolver_match.url_name == 'autoclave_dashboard' %}active{% endif %}"><i class="bi bi-droplet-half"></i> Avtoklav Paneli</a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if user.is_superuser or user.role.code == "cashier" or user.role.code == "accountant" or user.role.code == "director" or user.role.code == "administrator" or user.role.code == "super_admin" %}
+            <div class="nav-label">Moliya</div>
+            <div class="dbn-group{% if request.resolver_match.namespace == 'billing' %} open{% endif %}" x-data="{ open: {% if request.resolver_match.namespace == 'billing' %}true{% else %}false{% endif %} }" :class="open && 'open'">
+                <div class="grp-toggle" @click="open = !open">
+                    <i class="bi bi-cash-coin lead-ic"></i> Moliya
+                    <i class="bi bi-chevron-right chev"></i>
+                </div>
+                <div class="dbn-sub" x-show="open" x-collapse>
+                    {% if user.is_superuser or user.role.code == "cashier" or user.role.code == "accountant" or user.role.code == "director" or user.role.code == "super_admin" %}
+                    <a href="{% url 'billing:dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"><i class="bi bi-cash-coin"></i> Kassa (Hisob)</a>
+                    {% endif %}
+                    {% if user.is_superuser or user.role.code == "director" or user.role.code == "administrator" or user.role.code == "super_admin" %}
+                    <a href="{% url 'billing:doctor_prices' %}" class="{% if request.resolver_match.url_name == 'doctor_prices' %}active{% endif %}"><i class="bi bi-cash-stack"></i> Qabul narxlari</a>
+                    {% endif %}
+                    {% if user.is_superuser or user.role.code == "director" or user.role.code == "super_admin" %}
+                    <a href="{% url 'billing:superadmin_statistics' %}" class="{% if request.resolver_match.url_name == 'superadmin_statistics' %}active{% endif %}"><i class="bi bi-bar-chart-fill"></i> Umumiy Statistika</a>
+                    {% endif %}
+                    {% if user.is_superuser or user.role.code == "director" or user.role.code == "accountant" or user.role.code == "super_admin" %}
+                    <a href="{% url 'billing:revenue_report' %}" class="{% if request.resolver_match.url_name == 'revenue_report' %}active{% endif %}"><i class="bi bi-graph-up-arrow"></i> Hisobot</a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if user.is_superuser or user.role.code == "warehouse" or user.role.code == "super_admin" %}
+            <div class="nav-label">Ombor</div>
+            <a href="{% url 'pharmacy:dashboard' %}" class="{% if request.resolver_match.namespace == 'pharmacy' %}active{% endif %}"><i class="bi bi-box-seam"></i> Ombor (Sklad)</a>
+            {% endif %}
+
+            {% if user.is_superuser or user.role.code == "super_admin" %}
+            <div class="nav-label">Sozlamalar</div>
+            <div class="dbn-group{% if request.resolver_match.namespace == 'staff' or 'settings' in request.resolver_match.url_name %} open{% endif %}" x-data="{ open: {% if request.resolver_match.namespace == 'staff' or 'settings' in request.resolver_match.url_name %}true{% else %}false{% endif %} }" :class="open && 'open'">
+                <div class="grp-toggle" @click="open = !open">
+                    <i class="bi bi-gear-fill lead-ic"></i> Sozlamalar
+                    <i class="bi bi-chevron-right chev"></i>
+                </div>
+                <div class="dbn-sub" x-show="open" x-collapse>
+                    <a href="{% url 'staff:list' %}" class="{% if request.resolver_match.namespace == 'staff' and request.resolver_match.url_name == 'list' %}active{% endif %}"><i class="bi bi-people"></i> Xodimlar boshqaruvi</a>
+                    <a href="{% url 'staff:services' %}" class="{% if request.resolver_match.url_name == 'services' %}active{% endif %}"><i class="bi bi-grid-3x3-gap"></i> Xizmatlar katalogi</a>
+                    <a href="{% url 'clinical:rooms_settings' %}" class="{% if request.resolver_match.url_name == 'rooms_settings' %}active{% endif %}"><i class="bi bi-hospital"></i> Palatalar boshqaruvi</a>
+                    <a href="{% url 'clinical:service_settings' %}" class="{% if request.resolver_match.url_name == 'service_settings' %}active{% endif %}"><i class="bi bi-clipboard2-pulse"></i> Xizmatlar boshqaruvi</a>
+                    <a href="{% url 'clinical:surgery_settings' %}" class="{% if request.resolver_match.url_name == 'surgery_settings' %}active{% endif %}"><i class="bi bi-heart-pulse"></i> Jarrohlik boshqaruvi</a>
+                    <a href="{% url 'clinical:autoclave_settings' %}" class="{% if request.resolver_match.url_name == 'autoclave_settings' %}active{% endif %}"><i class="bi bi-shield-check"></i> Avtoklav boshqaruvi</a>
+                </div>
+            </div>
+            {% endif %}
+
+            {% block nav_items %}{% endblock %}
+        </nav>
+        <div class="dbn-sidebar-foot">© Doctor B Najot klinikasi</div>
+    </aside>
+    <div class="dbn-backdrop" :class="open && 'show'" @click="open = false"></div>
+
+    <div class="dbn-main">
+        <header class="dbn-topbar">
+            <button class="burger" @click="open = !open"><i class="bi bi-list"></i></button>
+            <div class="dbn-page-name">{% block page_name %}{% endblock %}</div>
+            <div class="ms-auto dropdown">
+                <div class="dbn-user" data-bs-toggle="dropdown">
+                    <span class="dbn-avatar">{{ user.first_name.0|default:user.username.0|upper }}</span>
+                    <div class="d-none d-sm-block lh-1">
+                        <div class="fw-semibold" style="font-size:.9rem">{{ user.get_full_name|default:user.username }}</div>
+                        {% if user.role %}<small class="text-muted" style="font-size:.75rem">{{ user.role.name }}</small>{% endif %}
+                    </div>
+                    <i class="bi bi-chevron-down text-muted small"></i>
+                </div>
+                <ul class="dropdown-menu dropdown-menu-end shadow border-0" style="border-radius:12px">
+                    <li><a class="dropdown-item" href="{% url 'audit:my_activity' %}"><i class="bi bi-clock-history"></i> Mening ishlarim</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    {% if user.is_staff %}
+                    <li><a class="dropdown-item" href="/admin/"><i class="bi bi-gear"></i> Boshqaruv</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    {% endif %}
+                    <li>
+                        <form method="post" action="{% url 'accounts:logout' %}">
+                            {% csrf_token %}
+                            <button type="submit" class="dropdown-item text-danger">
+                                <i class="bi bi-box-arrow-right"></i> Chiqish
+                            </button>
+                        </form>
+                    </li>
+                </ul>
+            </div>
+        </header>
+        <main class="dbn-content">
+{% else %}
+<main class="container-fluid py-4 px-4">
+{% endif %}
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" style="border-radius:12px">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+            {% block content %}{% endblock %}
+{% if user.is_authenticated and not word_export %}
+        </main>
+    </div>
+</div>
+{% else %}
+</main>
+{% endif %}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// === Universal modal + HTMX himoyasi (barcha bo'limlar) ===
+// 1) HTMX sahifani yangilaganda qolib ketgan modal-backdrop bosishni bloklashini oldini oladi
+//    (aks holda "modal ochilmaydi / tugma bosilmaydi" bug'i yuzaga keladi).
+function _dbnCleanupModals() {
+    if (!document.querySelector('.modal.show')) {
+        document.querySelectorAll('.modal-backdrop').forEach(function (el) { el.remove(); });
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('overflow');
+        document.body.style.removeProperty('padding-right');
+    }
+}
+document.body.addEventListener('htmx:afterSwap', _dbnCleanupModals);
+document.body.addEventListener('htmx:afterSettle', _dbnCleanupModals);
+// 2) Modal yopilganда backdrop kafolatli tozalansin
+document.addEventListener('hidden.bs.modal', function () { setTimeout(_dbnCleanupModals, 50); });
+// 3) Modal boshqa modal ustidan ochilsa yoki DOM'да takror bo'lsa — eng oxirgisini ishlatamiz
+document.addEventListener('show.bs.modal', function (e) {
+    var id = e.target && e.target.id;
+    if (!id) return;
+    var all = document.querySelectorAll('#' + CSS.escape(id));
+    if (all.length > 1) {  // dublikat bo'lsa, ko'rinmaganlarini o'chiramiz
+        for (var i = 0; i < all.length - 1; i++) all[i].remove();
+    }
+});
+
+// === Avtomatik yangilanish (HTMX polling) foydalanuvchiga xalaqit bermasin ===
+// Muammo: har 5s da sahifa yangilanib, tanlangan select/input asl holatiga qaytardi.
+// Yechim: foydalanuvchi forma bilan ishlayotgan paytda pollingni pauza qilamiz.
+window._dbnLastInteract = 0;
+function _dbnMarkInteract(e) {
+    // Faqat forma maydonlari (tanlov, kiritish) bilan ishlaganda
+    var t = e.target;
+    if (t && (t.tagName === 'SELECT' || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) {
+        window._dbnLastInteract = Date.now();
+    }
+}
+document.addEventListener('focusin', _dbnMarkInteract);
+document.addEventListener('change', _dbnMarkInteract);
+document.addEventListener('input', _dbnMarkInteract);
+// HTMX shu funksiyani tekshiradi: true bo'lsa — yangilanish o'tkazib yuboriladi
+window.htmxShouldPause = function () {
+    if (document.body.classList.contains('modal-open')) return true;       // modal ochiq
+    var a = document.activeElement;
+    if (a && (a.tagName === 'SELECT' || a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')) return true; // hozir yozyapti
+    if (Date.now() - window._dbnLastInteract < 25000) return true;         // oxirgi 25s ичida ishlagan
+    return false;
+};
+</script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

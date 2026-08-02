@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Xodimlar boshqaruvi | Doctor B Najot{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="page-title mb-0"><i class="bi bi-people-fill me-2 text-primary"></i>Xodimlar boshqaruvi</h1>
+        <p class="text-muted mb-0">Shifokorlar va tizim xodimlarini qo'shish, tahrirlash va boshqarish</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'staff:services' %}" class="btn btn-outline-primary">
+            <i class="bi bi-grid-3x3-gap me-1"></i> Xizmatlar katalogi
+        </a>
+        <a href="{% url 'staff:create' %}" class="btn btn-primary">
+            <i class="bi bi-person-plus-fill me-1"></i> Yangi xodim qo'shish
+        </a>
+    </div>
+</div>
+
+{# Filterlash #}
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label fw-semibold">Qidirish</label>
+                <input type="text" name="q" class="form-control" placeholder="Ism, familiya yoki login..." value="{{ search }}">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-semibold">Rol bo'yicha</label>
+                <select name="role" class="form-select">
+                    <option value="">— Barcha rollar —</option>
+                    {% for role in roles %}
+                    <option value="{{ role.code }}" {% if selected_role == role.code %}selected{% endif %}>{{ role.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-primary w-100"><i class="bi bi-search me-1"></i> Qidirish</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-list-ul me-2"></i>Xodimlar ro'yxati</span>
+        <span class="badge bg-primary">{{ users.count }} ta</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>#</th>
+                    <th>F.I.O</th>
+                    <th>Login</th>
+                    <th>Rol</th>
+                    <th>Mutaxassislik</th>
+                    <th>Telefon</th>
+                    <th class="text-center">Holati</th>
+                    <th class="text-end">Amallar</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr class="{% if not u.is_active %}table-secondary opacity-75{% endif %}">
+                    <td class="text-muted">{{ forloop.counter }}</td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="stat-icon bg-primary bg-opacity-10 text-primary" style="width:36px;height:36px;font-size:1rem;border-radius:9px;">
+                                <i class="bi bi-person-fill"></i>
+                            </div>
+                            <div>
+                                <div class="fw-semibold">{{ u.get_full_name|default:u.username }}</div>
+                                {% if u.email %}<small class="text-muted">{{ u.email }}</small>{% endif %}
+                            </div>
+                        </div>
+                    </td>
+                    <td><code class="bg-light px-2 py-1 rounded">{{ u.username }}</code></td>
+                    <td>
+                        {% if u.role %}
+                        <span class="badge bg-info text-dark">{{ u.role.name }}</span>
+                        {% else %}
+                        <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ u.specialty|default:"—" }}</td>
+                    <td>{{ u.phone|default:"—" }}</td>
+                    <td class="text-center">
+                        {% if u.is_active %}
+                        <span class="badge bg-success">Faol</span>
+                        {% else %}
+                        <span class="badge bg-danger">O'chirilgan</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        <div class="d-flex justify-content-end gap-1">
+                            <a href="{% url 'staff:edit' u.id %}" class="btn btn-sm btn-outline-secondary" title="Tahrirlash">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <a href="{% url 'staff:reset_password' u.id %}" class="btn btn-sm btn-outline-warning" title="Parol yangilash">
+                                <i class="bi bi-key"></i>
+                            </a>
+                            {% if u.is_active %}
+                            <a href="{% url 'staff:delete' u.id %}" class="btn btn-sm btn-outline-danger" title="O'chirish">
+                                <i class="bi bi-person-x"></i>
+                            </a>
+                            {% else %}
+                            <a href="{% url 'staff:restore' u.id %}" class="btn btn-sm btn-outline-success" title="Tiklash">
+                                <i class="bi bi-person-check"></i>
+                            </a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-4">
+                        <i class="bi bi-people fs-2 d-block mb-2 opacity-50"></i>
+                        Xodimlar topilmadi.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,93 @@
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead>
+            <tr>
+                <th>№</th>
+                <th>Bemor</th>
+                <th>Shifokor</th>
+                <th>Status</th>
+                {% if user.can_transition_visits %}<th class="text-end">Amallar</th>{% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for visit in visits %}
+            <tr>
+                <td><span class="badge bg-dark fs-6">{{ visit.queue_number }}</span></td>
+                <td>
+                    <a href="{% url 'patients:detail' visit.patient.pk %}">{{ visit.patient.full_name }}</a>
+                    <small class="text-muted d-block">{{ visit.patient.card_number }}</small>
+                </td>
+                <td>
+                    {% if visit.doctor %}
+                        <div class="fw-semibold">{{ visit.doctor.get_full_name|default:visit.doctor.username }}</div>
+                        <small class="text-muted">{{ visit.doctor.specialty|default:visit.doctor.role.name }}</small>
+                    {% else %}
+                        <span class="text-muted">—</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if visit.status == "waiting" %}<span class="badge bg-warning text-dark">
+                    {% elif visit.status == "accepted" %}<span class="badge bg-info">
+                    {% elif visit.status == "in_progress" %}<span class="badge bg-primary">
+                    {% elif visit.status == "completed" %}<span class="badge bg-success">
+                    {% elif visit.status == "cancelled" %}<span class="badge bg-danger">
+                    {% else %}<span class="badge bg-secondary">{% endif %}{{ visit.get_status_display }}</span>
+                </td>
+                {% if user.can_transition_visits %}
+                <td class="text-end">
+                    {% if visit.status == "waiting" %}
+                    <button class="btn btn-sm btn-info"
+                            hx-post="{% url 'registration:visit_transition' visit.pk %}"
+                            hx-vals='{"status": "accepted"}' hx-target="#queue-table">
+                        Qabul qilish
+                    </button>
+                    {% elif visit.status == "accepted" %}
+                    <button class="btn btn-sm btn-warning"
+                            hx-post="{% url 'registration:visit_transition' visit.pk %}"
+                            hx-vals='{"status": "waiting"}' hx-target="#queue-table">
+                        Kechiktirish
+                    </button>
+                    {% endif %}
+                    {% if user.role.code != 'administrator' and user.role.code != 'reception' %}
+                        {% if visit.status == 'accepted' or visit.status == 'waiting' %}
+                            <button type="button" class="btn btn-sm btn-outline-primary"
+                                hx-get="{% url 'clinical:admit_visit' visit.pk %}"
+                                hx-target="#modals-here">
+                                <i class="bi bi-hospital"></i> Yotqizish
+                            </button>
+                            <button type="button" class="btn btn-sm btn-success"
+                                hx-get="{% url 'clinical:consultation_modal' visit.pk %}"
+                                hx-target="#modals-here">
+                                <i class="bi bi-play-fill"></i> Boshlash
+                            </button>
+                        {% elif visit.status == 'in_progress' %}
+                            <button type="button" class="btn btn-sm btn-outline-primary"
+                                hx-get="{% url 'clinical:admit_visit' visit.pk %}"
+                                hx-target="#modals-here">
+                                <i class="bi bi-hospital"></i> Yotqizish
+                            </button>
+                            <button type="button" class="btn btn-sm btn-warning"
+                                hx-get="{% url 'clinical:consultation_modal' visit.pk %}"
+                                hx-target="#modals-here">
+                                <i class="bi bi-arrow-clockwise"></i> Davom etish
+                            </button>
+                        {% endif %}
+                    {% endif %}
+                    {% if visit.status == "waiting" or visit.status == "created" or visit.status == "accepted" %}
+                    <button class="btn btn-sm btn-outline-danger"
+                            hx-post="{% url 'registration:visit_transition' visit.pk %}"
+                            hx-vals='{"status": "cancelled", "reason": "Registratura bekor qildi"}'
+                            hx-confirm="Qabul bekor qilinsinmi?" hx-target="#queue-table">
+                        Bekor
+                    </button>
+                    {% endif %}
+                </td>
+                {% endif %}
+            </tr>
+            {% empty %}
+            <tr><td colspan="{% if user.can_transition_visits %}5{% else %}4{% endif %}" class="text-center text-muted py-4">Bugun qabullar yo'q</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+

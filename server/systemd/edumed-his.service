@@ -1,0 +1,58 @@
+; ============================================================
+;  Doctor B Najot — HIS. Asosiy veb-xizmat (gunicorn).
+;
+;  O'rnatish:
+;    sudo cp server/systemd/edumed-his.service /etc/systemd/system/
+;    sudo systemctl daemon-reload
+;    sudo systemctl enable --now edumed-his
+;
+;  Boshqarish:
+;    sudo systemctl status edumed-his     # holati
+;    sudo systemctl restart edumed-his    # qayta ishga tushirish
+;    sudo journalctl -u edumed-his -f     # jonli jurnal
+;
+;  Agar loyiha boshqa papkada bo'lsa, quyidagi yo'llarni to'g'rilang.
+; ============================================================
+[Unit]
+Description=Doctor B Najot HIS (gunicorn)
+After=network-online.target redis-server.service
+Wants=network-online.target
+
+[Service]
+Type=notify
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/edumed-his
+EnvironmentFile=/opt/edumed-his/.env
+Environment="DJANGO_SETTINGS_MODULE=config.settings.production"
+Environment="PYTHONUNBUFFERED=1"
+
+ExecStart=/opt/edumed-his/.venv/bin/gunicorn config.wsgi:application \
+    --bind 127.0.0.1:8000 \
+    --workers 3 \
+    --threads 2 \
+    --timeout 120 \
+    --graceful-timeout 30 \
+    --keep-alive 5 \
+    --max-requests 1000 \
+    --max-requests-jitter 100 \
+    --access-logfile /opt/edumed-his/logs/access.log \
+    --error-logfile /opt/edumed-his/logs/error.log \
+    --capture-output \
+    --name edumed-his
+
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+Restart=always
+RestartSec=5
+StartLimitBurst=5
+
+; --- Xavfsizlik ---
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/edumed-his/media /opt/edumed-his/logs /opt/edumed-his/backups
+
+[Install]
+WantedBy=multi-user.target

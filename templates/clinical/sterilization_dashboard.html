@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block title %}Avtoklav (Sterilizatsiya) - Doctor B Najot{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3"><i class="bi bi-shield-plus"></i> Avtoklav va Uskunalar Nazorati</h1>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addItemModal">
+        <i class="bi bi-plus-circle"></i> Yangi uskuna qo'shish
+    </button>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-header bg-white fw-bold">
+        Barcha uskunalar va klapanlar
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-3">Nomi</th>
+                    <th>Turi</th>
+                    <th>Sterilizatsiya usuli</th>
+                    <th>Seriya raqami</th>
+                    <th>Holati</th>
+                    <th>Kimga / kim boshchiligida ishlatilgan</th>
+                    <th class="text-end pe-3">Amallar</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr>
+                    <td class="ps-3 fw-bold">{{ item.name }}</td>
+                    <td>{{ item.get_item_type_display }}</td>
+                    <td><span class="badge bg-light text-dark border">{{ item.get_steril_method_display }}</span></td>
+                    <td>{{ item.serial_number|default:"-" }}</td>
+                    <td>
+                        {% if item.status == 'ready' %}
+                            <span class="badge bg-success">Tayyor (Toza)</span>
+                        {% elif item.status == 'in_use' %}
+                            <span class="badge bg-warning text-dark">Operatsiyada</span>
+                        {% elif item.status == 'used' %}
+                            <span class="badge bg-danger">Ifloslangan</span>
+                        {% endif %}
+                        {% if item.current_room %}<div class="small text-muted"><i class="bi bi-door-open"></i> {{ item.current_room.name }}</div>{% endif %}
+                    </td>
+                    <td class="small">
+                        {% with lu=item.last_use %}
+                            {% if lu %}
+                                <div>
+                                    <i class="bi bi-person-fill text-danger"></i>
+                                    <b>{{ lu.patient_snapshot|default:"—" }}</b>
+                                </div>
+                                <div class="text-muted">
+                                    <i class="bi bi-clipboard2-pulse"></i> {{ lu.surgeon_snapshot|default:"—" }}
+                                    {% if lu.surgery_snapshot %} · {{ lu.surgery_snapshot }}{% endif %}
+                                </div>
+                                <div class="text-muted">{{ lu.used_at|date:"d.m.Y H:i" }}{% if lu.room_snapshot %} · {{ lu.room_snapshot }}{% endif %}</div>
+                            {% else %}
+                                <span class="text-muted">— hali ishlatilmagan —</span>
+                            {% endif %}
+                        {% endwith %}
+                    </td>
+                    <td class="text-end pe-3 text-nowrap">
+                        <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#historyModal{{ item.id }}" title="To'liq tarix">
+                            <i class="bi bi-clock-history"></i>
+                        </button>
+                        {% if item.status == 'used' %}
+                        <form method="post" action="{% url 'clinical:clean_surgical_item' item.id %}" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-success">
+                                <i class="bi bi-check-circle"></i> Sterillandi
+                            </button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center py-4 text-muted">Bazada hech qanday uskuna mavjud emas.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% for item in items %}
+    {% include "clinical/_item_history_modal.html" with item=item %}
+{% endfor %}
+
+<!-- Yangi uskuna qo'shish Modal -->
+<div class="modal fade" id="addItemModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title"><i class="bi bi-plus-circle"></i> Yangi uskuna qo'shish</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="post" action="{% url 'clinical:add_surgical_item' %}">
+          {% csrf_token %}
+          <div class="modal-body">
+              <div class="mb-3">
+                  <label class="form-label fw-bold">Nomi</label>
+                  <input type="text" name="name" class="form-control" required placeholder="Masalan: Grijniy nabor, Sintetik klapan">
+              </div>
+              <div class="mb-3">
+                  <label class="form-label fw-bold">Turi</label>
+                  <select name="item_type" class="form-control" required>
+                      <option value="">-- Tanlang --</option>
+                      <option value="nabor">Jarrohlik nabori (Qayta ishlatiladigan)</option>
+                      <option value="mechanical_valve">Mexanik klapan</option>
+                      <option value="synthetic_valve">Sintetik klapan</option>
+                      <option value="implant">Boshqa implant/uskuna</option>
+                  <option value="linen">Belyo (material biks)</option>
+<option value="endo_instrument">Endoskopik anjom</option>
+</select>
+<div class="mb-2 mt-2">
+<label class="form-label small fw-bold">Sterilizatsiya usuli</label>
+<select name="steril_method" class="form-select form-select-sm">
+<option value="autoclave">Avtoklav (belyo va ochiq operatsiya anjomlari)</option>
+<option value="solution">Rastvor (endoskopik anjomlar)</option>
+</select></div>
+              </div>
+              <div class="mb-3">
+                  <label class="form-label fw-bold">Seriya raqami (ixtiyoriy)</label>
+                  <input type="text" name="serial_number" class="form-control" placeholder="ABC-12345">
+              </div>
+          </div>
+          <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>
+              <button type="submit" class="btn btn-primary">Saqlash</button>
+          </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

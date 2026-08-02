@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Statsionar hujjati - {{ stay.visit.patient.full_name }}{% endblock %}
+
+{% block content %}
+{% if not word_export %}
+<div class="d-print-none mb-3 text-end">
+    <a href="{% url 'clinical:stay_documentation' stay.id %}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Orqaga</a>
+    <a href="?format=word" class="btn btn-outline-primary"><i class="bi bi-file-word"></i> Word yuklab olish</a>
+    <button onclick="window.print()" class="btn btn-secondary"><i class="bi bi-printer"></i> Chop etish</button>
+</div>
+<style>@media print { .dbn-sidebar, header, .dbn-page-name, .d-print-none { display:none !important; } .dbn-main{ margin-left:0 !important; } body{ background:#fff; } }</style>
+{% endif %}
+<div style="max-width:800px; margin:0 auto; font-family:'Times New Roman',serif; color:#000;">
+
+    <!-- Klinika sarlavhasi -->
+    <div style="text-align:center; border-bottom:2px solid #000; padding-bottom:8px; margin-bottom:14px;">
+        <h2 style="margin:0;">{{ clinic_name }}</h2>
+        <div>{{ clinic_address }} · Tel: {{ clinic_phone }}</div>
+    </div>
+
+    <h3 style="text-align:center; margin:6px 0 16px;">STATSIONAR DAVOLANISH VARAQASI</h3>
+
+    <!-- Bemor ma'lumotlari -->
+    <table style="width:100%; border-collapse:collapse; margin-bottom:14px;">
+        <tr>
+            <td style="padding:3px 8px;"><b>Bemor:</b> {{ stay.visit.patient.full_name }}</td>
+            <td style="padding:3px 8px;"><b>Karta №:</b> {{ stay.visit.patient.card_number|default:"—" }}</td>
+        </tr>
+        <tr>
+            <td style="padding:3px 8px;"><b>Palata/Kravat:</b> {{ stay.bed.room.name }} — {{ stay.bed.number }}-o'rin</td>
+            <td style="padding:3px 8px;"><b>Yotqizilgan:</b> {{ stay.admission_date|date:"d.m.Y H:i" }}</td>
+        </tr>
+        <tr>
+            {% if stay.discharge_date %}
+            <td style="padding:3px 8px;"><b>Chiqarilgan:</b> {{ stay.discharge_date|date:"d.m.Y H:i" }}</td>
+            <td style="padding:3px 8px;"><b>Jami kunlar:</b> {{ stay.total_days|default:"—" }}</td>
+            {% else %}
+            <td style="padding:3px 8px;" colspan="2"><b>Holat:</b> Davolanmoqda (faol)</td>
+            {% endif %}
+        </tr>
+    </table>
+
+    <!-- Mas'ul xodimlar -->
+    <table style="width:100%; border-collapse:collapse; margin-bottom:14px;">
+        <tr>
+            <td style="padding:3px 8px;"><b>Mas'ul shifokor:</b> {{ stay.assigned_doctor.get_full_name|default:"—" }}</td>
+            <td style="padding:3px 8px;"><b>Hujjatlashtirish hamshirasi:</b> {{ stay.doc_nurse.get_full_name|default:"—" }}</td>
+        </tr>
+        <tr>
+            <td style="padding:3px 8px;"><b>Ukol/muolaja hamshirasi:</b> {{ stay.procedure_nurse.get_full_name|default:"—" }}</td>
+            <td style="padding:3px 8px;"></td>
+        </tr>
+    </table>
+
+    <!-- Operatsiyalar -->
+    {% for surgery in surgeries %}{% if surgery.status == "completed" %}
+    <div style="margin-bottom:12px;">
+        <div style="border-bottom:1px solid #000; font-weight:bold; margin-bottom:4px;">
+            Operatsiya: {{ surgery.surgery_type.name }} ({{ surgery.finished_at|date:"d.m.Y H:i" }})
+        </div>
+        <div style="padding-left:8px; font-size:14px;">
+            <div><b>Jarroh:</b> {{ surgery.surgeon.get_full_name }}{% if surgery.anesthesiologist %} · <b>Anesteziolog:</b> {{ surgery.anesthesiologist.get_full_name }}{% endif %}</div>
+            {% if surgery.report %}
+                {% if surgery.report.arrival_condition %}<div><b>Ahvoli:</b> {{ surgery.report.arrival_condition }}</div>{% endif %}
+                {% if surgery.report.performed_actions %}<div><b>Qilingan ishlar:</b> {{ surgery.report.performed_actions }}</div>{% endif %}
+                {% if surgery.report.medications %}<div><b>Dorilar:</b> {{ surgery.report.medications }}</div>{% endif %}
+                {% if surgery.report.injections %}<div><b>Ukollar:</b> {{ surgery.report.injections }}</div>{% endif %}
+                {% if surgery.report.anesthesia %}<div><b>Narkoz:</b> {{ surgery.report.anesthesia }}</div>{% endif %}
+                {% if surgery.report.consumables %}<div><b>Sarflar:</b> {{ surgery.report.consumables }}</div>{% endif %}
+                {% if surgery.report.notes %}<div><b>Izoh:</b> {{ surgery.report.notes }}</div>{% endif %}
+            {% endif %}
+            {% if surgery.postop_recommendations %}<div><b>Operatsiyadan keyingi tavsiyalar:</b> {{ surgery.postop_recommendations }}</div>{% endif %}
+        </div>
+    </div>
+    {% endif %}{% endfor %}
+
+    <!-- Tayinlangan tekshiruvlar -->
+    {% if service_orders %}
+    <div style="margin-bottom:12px;">
+        <div style="border-bottom:1px solid #000; font-weight:bold; margin-bottom:4px;">Tayinlangan tekshiruvlar va xizmatlar</div>
+        <table style="width:100%; border-collapse:collapse; font-size:14px;">
+            <tr><th style="border:1px solid #000; padding:3px;">Nomi</th><th style="border:1px solid #000; padding:3px;">Holati</th><th style="border:1px solid #000; padding:3px;">Sana</th></tr>
+            {% for o in service_orders %}
+            <tr>
+                <td style="border:1px solid #000; padding:3px;">{{ o.service.name }}</td>
+                <td style="border:1px solid #000; padding:3px;">{{ o.get_status_display }}</td>
+                <td style="border:1px solid #000; padding:3px;">{{ o.created_at|date:"d.m.Y H:i" }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- Muolajalar -->
+    {% if procedures %}
+    <div style="margin-bottom:12px;">
+        <div style="border-bottom:1px solid #000; font-weight:bold; margin-bottom:4px;">Bajarilgan muolaja/ukollar</div>
+        <table style="width:100%; border-collapse:collapse; font-size:14px;">
+            <tr><th style="border:1px solid #000; padding:3px;">Turi</th><th style="border:1px solid #000; padding:3px;">Nomi</th><th style="border:1px solid #000; padding:3px;">Hamshira</th><th style="border:1px solid #000; padding:3px;">Vaqt</th></tr>
+            {% for pr in procedures %}
+            <tr>
+                <td style="border:1px solid #000; padding:3px;">{{ pr.get_category_display }}</td>
+                <td style="border:1px solid #000; padding:3px;">{{ pr.name }}{% if pr.notes %} ({{ pr.notes }}){% endif %}</td>
+                <td style="border:1px solid #000; padding:3px;">{{ pr.nurse.get_full_name }}</td>
+                <td style="border:1px solid #000; padding:3px;">{{ pr.performed_at|date:"d.m.Y H:i" }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- Berilgan dorilar -->
+    {% if dispenses %}
+    <div style="margin-bottom:12px;">
+        <div style="border-bottom:1px solid #000; font-weight:bold; margin-bottom:4px;">Berilgan dorilar</div>
+        <table style="width:100%; border-collapse:collapse; font-size:14px;">
+            <tr><th style="border:1px solid #000; padding:3px;">Dori</th><th style="border:1px solid #000; padding:3px;">Miqdor</th><th style="border:1px solid #000; padding:3px;">Vaqt</th></tr>
+            {% for d in dispenses %}
+            <tr>
+                <td style="border:1px solid #000; padding:3px;">{{ d.batch.medicine.name }}</td>
+                <td style="border:1px solid #000; padding:3px;">{{ d.quantity }}</td>
+                <td style="border:1px solid #000; padding:3px;">{{ d.dispensed_at|date:"d.m.Y H:i" }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- Bemor imzosi (rasm) -->
+    <div style="margin-top:30px;">
+        <b>Bemor imzosi (hujjatlar bilan tanishdim):</b><br>
+        {% if stay.patient_signature %}
+        <img src="{{ stay.patient_signature }}" alt="Imzo" width="300"
+             style="width:300px; border:1px solid #000; margin-top:6px;"><br>
+        <span style="font-size:13px;">Imzolangan: {{ stay.signed_at|date:"d.m.Y H:i" }}</span>
+        {% else %}
+        <div style="border-bottom:1px solid #000; width:250px; margin-top:40px;"></div>
+        <span style="font-size:13px;">Imzo / sana</span>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

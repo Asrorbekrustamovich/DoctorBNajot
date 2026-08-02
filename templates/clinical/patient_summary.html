@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Umumiy hisobot - {{ patient.full_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2 d-print-none">
+    <h1 class="h3 mb-0"><i class="bi bi-person-lines-fill"></i> Bemor umumiy hisoboti</h1>
+    <div>
+        <button class="btn btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Chop etish</button>
+        <a href="{% url 'patients:detail' patient.pk %}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Bemor sahifasi</a>
+    </div>
+</div>
+
+<!-- Bemor pasporti -->
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-8">
+                <h4 class="mb-1">{{ patient.full_name }} <span class="badge bg-secondary">{{ patient.card_number }}</span></h4>
+                <div class="text-muted">
+                    {{ patient.birth_date|date:"d.m.Y" }} ({{ patient.age }} yosh) · {{ patient.get_gender_display }}
+                    {% if patient.phone %} · <i class="bi bi-telephone"></i> {{ patient.phone }}{% endif %}
+                </div>
+            </div>
+            <div class="col-md-4 text-md-end">
+                <div class="small text-muted">Jami tashriflar</div>
+                <div class="h4 mb-0">{{ visit_count }} ta</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Moliyaviy yakun -->
+<div class="row g-2 mb-3">
+    <div class="col-6 col-md-3"><div class="card shadow-sm text-center"><div class="card-body py-2">
+        <div class="small text-muted">Hisoblangan</div><div class="fw-bold">{{ totals.accrued|intcomma }} so'm</div>
+    </div></div></div>
+    <div class="col-6 col-md-3"><div class="card shadow-sm text-center"><div class="card-body py-2">
+        <div class="small text-muted">To'langan</div><div class="fw-bold text-success">{{ totals.paid|intcomma }} so'm</div>
+    </div></div></div>
+    <div class="col-6 col-md-3"><div class="card shadow-sm text-center"><div class="card-body py-2">
+        <div class="small text-muted">Qaytarilgan</div><div class="fw-bold text-secondary">{{ totals.refunded|intcomma }} so'm</div>
+    </div></div></div>
+    <div class="col-6 col-md-3"><div class="card shadow-sm text-center"><div class="card-body py-2">
+        <div class="small text-muted">Qarzdorlik</div><div class="fw-bold {% if totals.debt > 0 %}text-danger{% else %}text-success{% endif %}">{{ totals.debt|intcomma }} so'm</div>
+    </div></div></div>
+</div>
+
+<!-- Tashriflar xronologiyasi -->
+{% for visit in visits %}
+<div class="card shadow-sm mb-4 visit-block">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-1">
+        <span class="fw-bold">
+            <i class="bi bi-calendar3"></i> {{ visit.visit_date|date:"d.m.Y" }} · Navbat №{{ visit.queue_number }}
+            {% if visit.doctor %} · Shifokor: {{ visit.doctor.get_full_name }}{% endif %}
+        </span>
+        <span>
+            <span class="badge bg-info">{{ visit.get_status_display }}</span>
+            {% if visit.invoice %}
+            <span class="badge {% if visit.invoice.status == 'paid' %}bg-success{% elif visit.invoice.status == 'partial' %}bg-warning text-dark{% else %}bg-danger{% endif %}">
+                Chek: {{ visit.invoice.total_amount|intcomma }} so'm ({{ visit.invoice.get_status_display }})
+            </span>
+            {% endif %}
+        </span>
+    </div>
+    <div class="card-body">
+        {% if visit.complaint %}<p class="mb-2"><strong>Shikoyat:</strong> {{ visit.complaint }}</p>{% endif %}
+        {% if visit.referral %}
+        <div class="alert alert-info py-1 px-2 small mb-2"><strong>Yo'naltirish:</strong> {{ visit.referral|linebreaksbr }}</div>
+        {% endif %}
+
+        <!-- Shifokor xulosalari -->
+        {% for cons in visit.consultations.all %}
+        <div class="border rounded p-2 mb-2 bg-light">
+            <div class="d-flex justify-content-between align-items-center">
+                <strong class="text-primary"><i class="bi bi-file-medical"></i> Xulosa — {{ cons.doctor.get_full_name }}</strong>
+                <span>
+                    {% if cons.fee > 0 %}<span class="badge bg-light text-dark border">{{ cons.fee|intcomma }} so'm</span>{% endif %}
+                    <a href="{% url 'clinical:consultation_report' cons.pk %}" target="_blank" class="btn btn-sm btn-outline-primary d-print-none">Rasmiy ko'rinish</a>
+                </span>
+            </div>
+            {% if cons.report_html %}
+            <div class="mt-1 report-html">{{ cons.report_html|safe }}</div>
+            {% elif cons.diagnosis %}
+            <div class="mt-1 small"><strong>Tashxis:</strong> {{ cons.diagnosis }}</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+
+        <!-- Tekshiruvlar -->
+        {% if visit.service_orders.all %}
+        <div class="mb-2">
+            <strong class="small text-muted">TEKSHIRUVLAR:</strong>
+            {% for o in visit.service_orders.all %}
+            <span class="badge {% if o.status == 'completed' %}bg-success{% elif o.status == 'cancelled' %}bg-secondary text-decoration-line-through{% else %}bg-warning text-dark{% endif %}" title="{{ o.performed_by.get_full_name|default:'' }}">
+                {{ o.service.name }} {% if o.status == 'completed' %}✓{% elif o.status == 'cancelled' %}✗{% endif %}
+            </span>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Dorilar -->
+        {% if visit.dispensed_medicines.all %}
+        <div class="mb-2">
+            <strong class="small text-muted">DORILAR:</strong>
+            {% for d in visit.dispensed_medicines.all %}
+            <span class="badge bg-light text-dark border {% if d.is_returned %}text-decoration-line-through{% endif %}">
+                {{ d.batch.medicine.name }} ×{{ d.quantity }}{% if d.is_package %} (paket){% endif %}
+            </span>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Operatsiyalar -->
+        {% for surgery in visit.surgeries.all %}
+        <div class="border border-danger rounded p-2 mb-2">
+            <div class="d-flex justify-content-between flex-wrap">
+                <strong class="text-danger"><i class="bi bi-heart-pulse"></i> Operatsiya: {{ surgery.surgery_type.name }}</strong>
+                <span class="small">
+                    Jarroh: {{ surgery.surgeon.get_full_name }} · {{ surgery.scheduled_time|date:"d.m.Y H:i:s" }} ·
+                    <span class="badge {% if surgery.status == 'completed' %}bg-success{% elif surgery.status == 'cancelled' %}bg-secondary{% else %}bg-warning text-dark{% endif %}">{{ surgery.get_status_display }}</span>
+                    {% if surgery.actual_price %}· {{ surgery.actual_price|intcomma }} so'm{% endif %}
+                </span>
+            </div>
+            {% if surgery.report %}
+            <div class="row small mt-1">
+                {% if surgery.report.arrival_condition %}<div class="col-md-6"><strong>Ahvoli:</strong> {{ surgery.report.arrival_condition }}</div>{% endif %}
+                {% if surgery.report.performed_actions %}<div class="col-md-6"><strong>Qilindi:</strong> {{ surgery.report.performed_actions }}</div>{% endif %}
+                {% if surgery.report.medications %}<div class="col-md-6"><strong>Dorilar:</strong> {{ surgery.report.medications }}</div>{% endif %}
+                {% if surgery.report.anesthesia %}<div class="col-md-6"><strong>Narkoz:</strong> {{ surgery.report.anesthesia }}</div>{% endif %}
+                {% if surgery.report.consumables %}<div class="col-md-6"><strong>Sarflar:</strong> {{ surgery.report.consumables }}</div>{% endif %}
+                {% if surgery.report.notes %}<div class="col-md-6"><strong>Izoh:</strong> {{ surgery.report.notes }}</div>{% endif %}
+            </div>
+            <div class="text-end mt-2">
+                <a href="{% url 'clinical:surgery_report_print' surgery.id %}" class="btn btn-sm btn-outline-danger">Rasmiy ko'rinish</a>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+
+        <!-- Statsionar yotishlar -->
+        {% for stay in visit.inpatient_stays.all %}
+        {% if not stay.is_companion %}
+        <div class="border border-warning rounded p-2 mb-2">
+            <div class="d-flex justify-content-between flex-wrap">
+                <strong class="text-warning-emphasis"><i class="bi bi-hospital"></i> Statsionar: {{ stay.bed.room.name }} — {{ stay.bed.number }}-o'rin</strong>
+                <span class="small">
+                    <span class="badge {% if stay.stay_type == 'package' %}bg-warning text-dark{% else %}bg-info{% endif %}">{{ stay.get_stay_type_display }}</span>
+                    {{ stay.admission_date|date:"d.m.Y" }}{% if stay.discharge_date %} — {{ stay.discharge_date|date:"d.m.Y" }} ({{ stay.total_days }} kun, {{ stay.total_amount|intcomma }} so'm){% endif %}
+                    <a href="{% url 'clinical:stay_documentation' stay.id %}" class="btn btn-sm btn-outline-primary d-print-none">Hujjatlar</a>
+                </span>
+            </div>
+            <div class="small text-muted">
+                {% if stay.assigned_doctor %}Mas'ul shifokor: {{ stay.assigned_doctor.get_full_name }} · {% endif %}
+                {% if stay.doc_nurse %}Hujjat hamshirasi: {{ stay.doc_nurse.get_full_name }} · {% endif %}
+                {% if stay.procedure_nurse %}Ukol hamshirasi: {{ stay.procedure_nurse.get_full_name }}{% endif %}
+            </div>
+
+            {% if stay.checklist_items.all %}
+            <div class="small mt-1">
+                <strong class="text-muted">HUJJAT HISOBOTI:</strong>
+                {% for item in stay.checklist_items.all %}
+                <span class="badge {% if item.is_done %}bg-success{% else %}bg-danger{% endif %}" title="{{ item.done_by.get_full_name|default:'' }} {{ item.done_at|date:'d.m H:i'|default:'' }}">
+                    {{ item.title|truncatechars:35 }} {% if item.is_done %}+{% else %}−{% endif %}
+                </span>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if stay.procedure_records.all %}
+            <div class="small mt-1">
+                <strong class="text-muted">MUOLAJALAR:</strong>
+                {% for pr in stay.procedure_records.all %}
+                <span class="badge bg-info" title="{{ pr.nurse.get_full_name }} · {{ pr.performed_at|date:'d.m H:i' }}">{{ pr.get_category_display }}: {{ pr.name|truncatechars:30 }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if stay.patient_signature %}
+            <div class="mt-2">
+                <strong class="small text-muted">BEMOR IMZOSI:</strong>
+                <div><img src="{{ stay.patient_signature }}" alt="Bemor imzosi" class="border rounded bg-white" style="max-height:90px;"></div>
+                <div class="small text-muted">Imzolangan: {{ stay.signed_at|date:"d.m.Y H:i:s" }}</div>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+        {% endfor %}
+
+        <!-- Chek tafsiloti -->
+        {% if visit.invoice %}
+        <div class="small text-muted mt-1">
+            To'langan: {{ visit.invoice.paid_amount|intcomma }} so'm
+            {% if visit.invoice.refunded_amount > 0 %} · Qaytarilgan: {{ visit.invoice.refunded_amount|intcomma }} so'm{% endif %}
+            <a href="{% url 'billing:view_invoice' visit.pk %}" class="d-print-none">Chekni ochish</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% empty %}
+<div class="card shadow-sm"><div class="card-body text-center text-muted py-5">Bu bemorda hali tashriflar yo'q.</div></div>
+{% endfor %}
+
+<style>
+    .report-html table { border-collapse: collapse; }
+    .report-html td, .report-html th { border: 1px solid #bbb; padding: 4px 8px; }
+    .report-html { max-height: 320px; overflow: auto; background: #fff; padding: 8px; border-radius: 8px; }
+    @media print {
+        .d-print-none, .navbar { display: none !important; }
+        .report-html { max-height: none; overflow: visible; }
+        .visit-block { break-inside: avoid; }
+    }
+</style>
+{% endblock %}

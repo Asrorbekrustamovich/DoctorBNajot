@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+
+{% block title %}Shablonlarim - Doctor B Najot{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h1 class="h3 mb-0"><i class="bi bi-file-earmark-richtext"></i> Shablon ustaxonasi</h1>
+    <span class="text-muted small">Bu yerda yaratilgan shablonlar qabul paytida "Tibbiy Xulosa" oynasida chiqadi</span>
+</div>
+
+<div class="row g-3">
+    <!-- Chap: shablonlar ro'yxati -->
+    <div class="col-lg-3">
+        <div class="card shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Mening shablonlarim</span>
+                <button class="btn btn-sm btn-success" onclick="newTemplate()"><i class="bi bi-plus-lg"></i> Yangi</button>
+            </div>
+            <ul class="list-group list-group-flush" id="templateList">
+                {% for t in templates %}
+                <li class="list-group-item d-flex justify-content-between align-items-center template-item" data-id="{{ t.id }}" style="cursor:pointer">
+                    <span class="tname"><i class="bi bi-file-earmark-text text-primary"></i> {{ t.name }}</span>
+                    <button class="btn btn-sm btn-outline-danger border-0" onclick="event.stopPropagation(); deleteTemplate('{{ t.id }}')" title="O'chirish"><i class="bi bi-trash"></i></button>
+                </li>
+                {% empty %}
+                <li class="list-group-item text-center text-muted py-4" id="emptyHint">Hozircha shablon yo'q.<br>"Yangi" tugmasini bosing.</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <div class="card shadow-sm mt-3">
+            <div class="card-header py-2"><i class="bi bi-lightbulb"></i> Qanday ishlaydi?</div>
+            <div class="card-body small text-muted">
+                <p class="mb-2"><span class="badge" style="background:#0d9488">Bemor F.I.Sh.</span> — yashil emblema: qabul paytida bemorning haqiqiy ma'lumoti bilan <strong>avtomatik</strong> to'ladi (so'zning o'zi chiqmaydi, faqat qiymat).</p>
+                <p class="mb-2"><span class="badge bg-secondary">BO'SH JOY</span> — kulrang emblema: shablonni tanlaganda tizim shu joylarni <strong>to'ldirishni so'raydi</strong> (input → output).</p>
+                <p class="mb-0">Jadval, ro'yxat, sarlavha va boshqa shakllarni yuqoridagi editor panelidan qo'shasiz. Yorliq kerak bo'lsa (masalan "Jinsi:"), uni matnda o'zingiz yozib, yoniga emblema qo'ying.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- O'ng: editor -->
+    <div class="col-lg-9">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <div class="row g-2 align-items-center">
+                    <div class="col-md-4">
+                        <input type="text" id="templateName" class="form-control" placeholder="Shablon nomi (masalan: ORVI standart)">
+                    </div>
+                    <div class="col-md-8 d-flex flex-wrap gap-1 justify-content-end">
+                        <div class="dropdown">
+                            <button class="btn btn-warning btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                <i class="bi bi-stars"></i> Maxsus so'z qo'shish
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><h6 class="dropdown-header">Avtomatik to'ladigan joylar (emblema)</h6></li>
+                                <li><a class="dropdown-item" href="#" onclick="insertEmblem('BEMOR','Bemor F.I.Sh.');return false;">👤 Bemor F.I.Sh.</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="insertEmblem('YOSH','Yoshi');return false;">🎂 Yoshi</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="insertEmblem('JINSI','Jinsi');return false;">⚧ Jinsi</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="insertEmblem('KARTA','Karta raqami');return false;">💳 Karta raqami</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="insertEmblem('SANA','Sana');return false;">📅 Sana</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="insertEmblem('VAQT','Vaqt');return false;">🕐 Vaqt</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="insertEmblem('SHIKOYAT','Shikoyati');return false;">💬 Shikoyati</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="insertEmblem('SHIFOKOR','Shifokor F.I.Sh.');return false;">🩺 Shifokor F.I.Sh.</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="insertEmblem('MUTAXASSISLIK','Mutaxassislik');return false;">🎓 Mutaxassislik</a></li>
+                            </ul>
+                        </div>
+                        <button class="btn btn-secondary btn-sm" onclick="insertEmblem('BLANK','BO&#39;SH JOY')">
+                            <i class="bi bi-input-cursor-text"></i> Bo'sh joy qo'shish
+                        </button>
+                        <button class="btn btn-primary btn-sm" onclick="saveTemplate()">
+                            <i class="bi bi-check-lg"></i> Saqlash
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div id="editorWrap"><div id="editor"></div></div>
+            </div>
+            <div class="card-footer small text-muted" id="statusBar">Yangi shablon</div>
+        </div>
+    </div>
+</div>
+
+{{ templates_map|json_script:"templates-data" }}
+<form style="display:none">{% csrf_token %}</form>
+
+<style>
+    /* Word hujjati kabi: kulrang fon ustida oq A4 varaq */
+    #editorWrap { background: #e9edf1; padding: 26px 16px; border-radius: 0 0 14px 14px; }
+    .ck.ck-editor { max-width: 860px; margin: 0 auto; }
+    .ck.ck-toolbar { border-radius: 8px 8px 0 0 !important; border-color: #dbe2e8 !important; }
+    .ck-editor__editable.ck-content {
+        background: #fff !important;
+        min-height: 940px !important;
+        padding: 64px 74px !important;
+        box-shadow: 0 3px 18px rgba(16,35,58,.14);
+        border: 1px solid #dbe2e8 !important;
+        border-radius: 0 0 6px 6px;
+        font-family: 'Times New Roman', Georgia, serif;
+        font-size: 15pt; line-height: 1.55; color: #1a1a1a;
+    }
+    .ck-editor__editable.ck-content:focus { border-color: #1a7f6b !important; box-shadow: 0 3px 18px rgba(26,127,107,.2) !important; }
+    .template-item.active { background: #e6f7f2; border-left: 3px solid #1a7f6b; }
+    .ck-content img[alt^="TKN:"] { vertical-align: middle; display: inline-block; margin: 0 2px; }
+</style>
+
+<script src="https://cdn.ckeditor.com/ckeditor5/41.4.2/super-build/ckeditor.js"></script>
+<script>
+var editor = null;
+var currentId = null;
+var tmap = JSON.parse(document.getElementById("templates-data").textContent || "{}");
+
+// ---- TO'LIQ "WORD" PANELI (superbuild) ----
+// Premium/kerakmas plaginlarni o'chiramiz (faqat mavjudlarini — versiyaga chidamli)
+var _removeWanted = [
+    "AIAssistant", "CKBox", "CKFinder", "EasyImage", "MultiLevelList",
+    "RealTimeCollaborativeComments", "RealTimeCollaborativeTrackChanges",
+    "RealTimeCollaborativeRevisionHistory", "PresenceList",
+    "Comments", "TrackChanges", "TrackChangesData", "RevisionHistory",
+    "Pagination", "WProofreader", "MathType",
+    "SlashCommand", "Template", "DocumentOutline", "FormatPainter",
+    "TableOfContents", "PasteFromOfficeEnhanced", "CaseChange"
+];
+var _builtin = (CKEDITOR.ClassicEditor.builtinPlugins || []).map(function (p) { return p.pluginName; });
+var _removePlugins = _removeWanted.filter(function (n) { return _builtin.indexOf(n) !== -1; });
+
+var WORD_TOOLBAR = [
+    "undo", "redo", "|",
+    "heading", "fontSize", "|",
+    "bold", "italic", "underline", "fontColor", "highlight", "|",
+    "alignment", "bulletedList", "numberedList", "|",
+    "insertTable", "link", "removeFormat"
+];
+
+var WORD_CONFIG = {
+    toolbar: { items: WORD_TOOLBAR, shouldNotGroupWhenFull: false },
+    removePlugins: _removePlugins,
+    fontFamily: { supportAllValues: true },
+    fontSize: { options: [10, 12, "default", 14, 16, 18, 20, 24, 28, 36], supportAllValues: true },
+    table: {
+        contentToolbar: [
+            "tableColumn", "tableRow", "mergeTableCells",
+            "tableProperties", "tableCellProperties"
+        ]
+    },
+    placeholder: "Shablon matnini yozing... Word'dagi kabi: shrift, rang, hizalama, jadval, ro'yxatlar — hammasi yuqoridagi panelda."
+};
+
+CKEDITOR.ClassicEditor.create(document.querySelector("#editor"), WORD_CONFIG)
+  .then(function (ed) { editor = ed; })
+  .catch(function (e) { alert("Editor yuklanmadi: " + e.message); });
+
+function _csrf() {
+    var inp = document.querySelector("input[name=csrfmiddlewaretoken]");
+    if (inp) return inp.value;
+    var m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : "";
+}
+
+function _post(url, data) {
+    var body = new URLSearchParams();
+    for (var k in data) body.append(k, data[k]);
+    return fetch(url, {
+        method: "POST",
+        headers: { "X-CSRFToken": _csrf() },
+        body: body
+    }).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+            if (!r.ok) throw new Error(j.error || "Xatolik (" + r.status + ")");
+            return j;
+        });
+    });
+}
+
+// ---- EMBLEMA yaratish (SVG belgi sifatida qo'yiladi) ----
+// Shablon dizaynida maxsus joylar chiroyli emblema bo'lib turadi,
+// ishlatilganda esa toza qiymat bilan almashadi (so'z chiqmaydi).
+function emblemSrc(label, color) {
+    var w = Math.max(60, 22 + label.length * 8);
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="24">' +
+        '<rect rx="12" width="' + w + '" height="24" fill="' + color + '"/>' +
+        '<text x="' + (w / 2) + '" y="16" font-family="Arial,sans-serif" font-size="12" fill="#ffffff" text-anchor="middle" font-weight="bold">' +
+        label.replace(/&/g, "&amp;").replace(/</g, "&lt;") + '</text></svg>';
+    return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+}
+
+function insertEmblem(key, label) {
+    if (!editor) return;
+    // Bo'sh joy — Word'dagi kabi ko'rinadigan tag chiziq (_________).
+    // Qabul paytida tizim shu joyni to'ldirishni so'raydi (BLANK_RE: 5+ tag chiziq).
+    if (key === "BLANK") {
+        editor.model.change(function (writer) {
+            editor.model.insertContent(writer.createText("_________"));
+        });
+        editor.editing.view.focus();
+        return;
+    }
+    // Maxsus so'zlar — chiroyli emblema (qabulda toza qiymat bilan almashadi)
+    var html = '<img src="' + emblemSrc(label, "#0d9488") + '" alt="TKN:' + key + '">';
+    var viewFragment = editor.data.processor.toView(html);
+    var modelFragment = editor.data.toModel(viewFragment);
+    editor.model.insertContent(modelFragment);
+    editor.editing.view.focus();
+}
+
+function newTemplate() {
+    currentId = null;
+    document.getElementById("templateName").value = "";
+    editor.setData("");
+    document.getElementById("statusBar").textContent = "Yangi shablon";
+    document.querySelectorAll(".template-item").forEach(function (el) { el.classList.remove("active"); });
+}
+
+function openTemplate(id, el) {
+    currentId = id;
+    var t = tmap[id];
+    if (!t) return;
+    document.getElementById("templateName").value = t.name;
+    editor.setData(t.html || "");
+    document.getElementById("statusBar").textContent = "Tahrirlanmoqda: " + t.name;
+    document.querySelectorAll(".template-item").forEach(function (e2) { e2.classList.remove("active"); });
+    if (el) el.classList.add("active");
+}
+
+document.querySelectorAll(".template-item").forEach(function (el) {
+    el.addEventListener("click", function () { openTemplate(el.dataset.id, el); });
+});
+
+function saveTemplate() {
+    var name = document.getElementById("templateName").value.trim();
+    if (!name) { alert("Shablon nomini kiriting."); return; }
+    var html = editor.getData();
+    if (!html || html.trim().length === 0) { alert("Shablon matni bo'sh."); return; }
+
+    var url = currentId
+        ? "/clinical/template/modal/" + currentId + "/update/"
+        : "{% url 'clinical:template_save_modal' %}";
+    var payload = currentId ? { report_html: html, name: name } : { name: name, report_html: html };
+
+    _post(url, payload).then(function (resp) {
+        tmap[resp.id] = { name: resp.name, html: resp.report_html };
+        currentId = resp.id;
+        document.getElementById("statusBar").textContent = "Saqlandi: " + resp.name + " (" + new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}) + ")";
+        // Ro'yxatni yangilash
+        var list = document.getElementById("templateList");
+        var empty = document.getElementById("emptyHint");
+        if (empty) empty.remove();
+        var item = list.querySelector('.template-item[data-id="' + resp.id + '"]');
+        if (!item) {
+            item = document.createElement("li");
+            item.className = "list-group-item d-flex justify-content-between align-items-center template-item active";
+            item.dataset.id = resp.id;
+            item.style.cursor = "pointer";
+            item.innerHTML = '<span class="tname"><i class="bi bi-file-earmark-text text-primary"></i> ' + resp.name + '</span>' +
+                '<button class="btn btn-sm btn-outline-danger border-0" title="O\'chirish"><i class="bi bi-trash"></i></button>';
+            item.addEventListener("click", function () { openTemplate(resp.id, item); });
+            item.querySelector("button").addEventListener("click", function (e) {
+                e.stopPropagation(); deleteTemplate(resp.id);
+            });
+            list.appendChild(item);
+        } else {
+            item.querySelector(".tname").innerHTML = '<i class="bi bi-file-earmark-text text-primary"></i> ' + resp.name;
+        }
+    }).catch(function (e) { alert(e.message); });
+}
+
+function deleteTemplate(id) {
+    var t = tmap[id];
+    if (!confirm("'" + (t ? t.name : "") + "' shabloni o'chirilsinmi?")) return;
+    _post("/clinical/template/modal/" + id + "/delete/", {}).then(function () {
+        delete tmap[id];
+        var item = document.querySelector('.template-item[data-id="' + id + '"]');
+        if (item) item.remove();
+        if (currentId === id) newTemplate();
+    }).catch(function (e) { alert(e.message); });
+}
+</script>
+{% endblock %}

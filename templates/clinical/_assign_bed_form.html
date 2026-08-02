@@ -1,0 +1,114 @@
+{% load humanize %}
+<form hx-post="{% url 'clinical:assign_bed' bed.id %}" hx-swap="outerHTML">
+    {% csrf_token %}
+    <div class="mb-3">
+        <label class="form-label fw-bold">Kravat raqami</label>
+        <input type="text" class="form-control bg-light" value="{{ bed.room.name }} - {{ bed.number }}" readonly>
+        <div class="form-text">Oddiy: {{ bed.price_per_day|intcomma }} so'm/kun · Paketli (dori ichida): {{ bed.package_price_per_day|intcomma }} so'm/kun</div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label fw-bold text-primary"><i class="bi bi-search"></i> Tezkor qidiruv (JSHSHIR / Pasport)</label>
+        <input type="text" id="assign_quick_search" class="form-control border-primary bg-light" placeholder="14 ta raqam yoki AA1234567..." autocomplete="off">
+        <small class="form-text">Ma'lumot terilishi bilan pastdagi qutida qabul avtomatik tanlanadi.</small>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label fw-bold">Bemorning asosiy qabulini tanlang</label>
+        <select name="visit_id" id="assign_visit_select" class="form-select" required>
+            <option value="">-- Tanlang --</option>
+            {% for v in recent_visits %}
+            <option value="{{ v.id }}">{{ v.patient.full_name }} ({{ v.visit_date|date:"d.m.Y" }} | №{{ v.queue_number }}) JSHSHIR: {{ v.patient.pinfl|default:'-' }} SERIA: {{ v.patient.passport_number|default:'-' }}</option>
+            {% endfor %}
+        </select>
+        <div class="form-text">Asosiy bemor qabuli ustiga biriktiriladi.</div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label fw-bold">Statsionar turi <span class="text-danger">*</span></label>
+        <select name="stay_type" class="form-select" required
+                onchange="document.getElementById('assignPkgPriceBox').style.display = this.value === 'package' ? 'block' : 'none'">
+            <option value="standard">Oddiy — yotish + dorilar alohida to'lanadi</option>
+            <option value="package">Paketli — dori narxi yotish ichida (bemor faqat yotganiga to'laydi)</option>
+        </select>
+        <div class="form-text">Paketli turda dorilar klinika omboridan beriladi va chekka alohida tushmaydi.</div>
+    </div>
+
+    <div class="mb-3 p-2 border border-warning rounded bg-light" id="assignPkgPriceBox" style="display:none">
+        <label class="form-label fw-bold">Paketli kunlik narx (so'm)</label>
+        <input type="number" name="package_price" class="form-control" min="0" step="1000"
+               value="{% if bed.package_price_per_day > 0 %}{{ bed.package_price_per_day|floatformat:0 }}{% endif %}"
+               placeholder="Masalan: 500000">
+        <div class="form-text">
+            {% if bed.package_price_per_day > 0 %}
+            Kravatning joriy paketli narxi qo'yilgan — kerak bo'lsa o'zgartiring (kravatga saqlanadi).
+            {% else %}
+            Bu kravatga paketli narx hali kiritilmagan — shu yerda kiriting, kravatga saqlanadi. Eski yotishlarga ta'sir qilmaydi.
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label fw-bold">Hujjatlashtirish hamshirasi</label>
+        <select name="doc_nurse" class="form-select">
+            <option value="">-- Tanlang --</option>
+            {% for nurse in nurses %}
+            <option value="{{ nurse.id }}">{{ nurse.get_full_name|default:nurse.username }}</option>
+            {% endfor %}
+        </select>
+        <div class="form-text">Nima berildi/qilindi hisobotini (+/-) yuritadi.</div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label fw-bold">Ukol/muolaja hamshirasi</label>
+        <select name="procedure_nurse" class="form-select">
+            <option value="">-- Tanlang --</option>
+            {% for nurse in nurses %}
+            <option value="{{ nurse.id }}">{{ nurse.get_full_name|default:nurse.username }}</option>
+            {% endfor %}
+        </select>
+        <div class="form-text">Ukollar va muolajalarni bajarib, o'z hisobotiga kiritadi.</div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label fw-bold">Mas'ul shifokor</label>
+        <select name="assigned_doctor" class="form-select" required>
+            <option value="">-- Tanlang --</option>
+            {% for doctor in doctors %}
+            <option value="{{ doctor.id }}">{{ doctor.get_full_name|default:doctor.username }} ({{ doctor.role.name }})</option>
+            {% endfor %}
+        </select>
+        <div class="form-text">Bemorga mas'ul shifokor, unga Dori yozish tugmasi ko'rinadi.</div>
+    </div>
+
+    <div class="text-end">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>
+        <button type="submit" class="btn btn-success"><i class="bi bi-check-lg"></i> Yotqizish</button>
+    </div>
+</form>
+
+<script>
+    // HTMX orqali form yuklangandan so'ng ishlaydi
+    setTimeout(function() {
+        if($.fn.select2) {
+            $('#assign_visit_select').select2({
+                theme: 'bootstrap-5',
+                width: '100%',
+                dropdownParent: $('#assignModal')
+            });
+        }
+        
+        $('#assign_quick_search').on('input', function() {
+            var query = $(this).val().trim().toUpperCase();
+            if (query.length >= 5) {
+                $('#assign_visit_select option').each(function() {
+                    var text = $(this).text().toUpperCase();
+                    if (text.includes('JSHSHIR: ' + query) || text.includes('SERIA: ' + query) || text.includes(query)) {
+                        $('#assign_visit_select').val($(this).val()).trigger('change');
+                        return false; 
+                    }
+                });
+            }
+        });
+    }, 100);
+</script>

@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block title %}Operatsion xonalar — Doctor B Najot{% endblock %}
+{% block page_name %}Operatsion xonalar{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+        <h1 class="h4 page-title mb-1"><i class="bi bi-door-open"></i> Operatsion xonalar</h1>
+        <div class="text-muted small">Har xonada hozir turgan asboblar. Ishlatilmagan (toza) va ifloslangan asboblar avtoklav olib qaytmaguncha shu xonada qoladi.</div>
+    </div>
+    {% if can_manage %}
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addOpRoomModal">
+        <i class="bi bi-plus-circle"></i> Yangi operatsion xona
+    </button>
+    {% endif %}
+</div>
+
+{% if can_manage %}
+<!-- Qo'shish modali -->
+<div class="modal fade" id="addOpRoomModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-plus-circle"></i> Yangi operatsion xona</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'clinical:add_operating_room' %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Xona nomi <span class="text-danger">*</span></label>
+                        <input name="name" class="form-control" placeholder="Masalan: Operatsion blok 4" required>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Izoh</label>
+                        <input name="description" class="form-control" placeholder="Masalan: Laparoskopiya uchun">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Bekor</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Qo'shish</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Real-time: har 8 soniyada avtomatik yangilanadi -->
+<div class="row g-3"
+     hx-get="{% url 'clinical:operating_rooms_overview' %}"
+     hx-trigger="every 8s [!htmxShouldPause()]"
+     hx-select=".row.g-3 > div"
+     hx-target="this">
+    {% for row in room_rows %}
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-1">
+                <span><i class="bi bi-door-closed"></i> {{ row.room.name }}
+                    {% if not row.room.is_active %}<span class="badge bg-secondary ms-1">Faol emas</span>{% endif %}
+                </span>
+                <span class="d-flex align-items-center gap-1">
+                    {% if row.active_surgery %}
+                    <span class="badge bg-danger"><i class="bi bi-activity"></i> Operatsiyada: {{ row.active_surgery.visit.patient.full_name }}</span>
+                    {% else %}
+                    <span class="badge bg-success">Bo'sh</span>
+                    {% endif %}
+                    {% if can_manage %}
+                    <button type="button" class="btn btn-sm btn-outline-primary py-0" data-bs-toggle="modal" data-bs-target="#editOpRoom{{ row.room.id }}" title="Tahrirlash"><i class="bi bi-pencil"></i></button>
+                    <button type="button" class="btn btn-sm btn-outline-danger py-0" data-bs-toggle="modal" data-bs-target="#delOpRoom{{ row.room.id }}" title="O'chirish"><i class="bi bi-trash"></i></button>
+                    {% endif %}
+                </span>
+            </div>
+            <div class="card-body">
+                <div class="d-flex gap-2 mb-3">
+                    <span class="badge bg-success">Toza: {{ row.clean_count }}</span>
+                    <span class="badge bg-warning text-dark">Operatsiyada: {{ row.in_use_count }}</span>
+                    <span class="badge bg-danger">Ifloslangan: {{ row.dirty_count }}</span>
+                </div>
+                {% if row.items %}
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>Asbob</th><th>Turi</th><th>Seriya</th><th>Holati</th></tr></thead>
+                    <tbody>
+                        {% for it in row.items %}
+                        <tr>
+                            <td>{{ it.name }}</td>
+                            <td class="small text-muted">{{ it.get_item_type_display }}</td>
+                            <td class="small">{{ it.serial_number|default:"—" }}</td>
+                            <td>
+                                {% if it.status == 'ready' %}<span class="badge bg-success">Toza (ishlatilmadi)</span>
+                                {% elif it.status == 'in_use' %}<span class="badge bg-warning text-dark">Operatsiyada</span>
+                                {% else %}<span class="badge bg-danger">Ifloslangan</span>{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="text-center text-muted py-3">Xonaда asbob yo'q</div>
+                {% endif %}
+
+                {# === Qaytarilmagan materiallar (Xonada qolgan) === #}
+                {% if row.unreturned_anesthesia or row.unreturned_nurse %}
+                <hr class="my-2">
+                <div class="mb-1">
+                    <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle"></i> Xonada qolgan materiallar</span>
+                </div>
+                <table class="table table-sm table-bordered mb-0" style="font-size: 0.85rem;">
+                    <thead class="table-warning">
+                        <tr><th>Material</th><th class="text-center">Olingan</th><th class="text-center">Qaytarilgan</th><th class="text-center">Xonada</th><th>Operatsiya (Bemor)</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for ai in row.unreturned_anesthesia %}
+                        <tr>
+                            <td><i class="bi bi-capsule text-primary"></i> {{ ai.stock.name }}</td>
+                            <td class="text-center">{{ ai.quantity|floatformat:0 }}</td>
+                            <td class="text-center">{{ ai.returned_quantity|floatformat:0 }}</td>
+                            <td class="text-center"><span class="badge bg-danger">{{ ai.used_quantity|floatformat:0 }}</span></td>
+                            <td class="small text-muted">{{ ai.request.surgery.visit.patient.full_name }}</td>
+                        </tr>
+                        {% endfor %}
+                        {% for ni in row.unreturned_nurse %}
+                        <tr>
+                            <td><i class="bi bi-bandaid text-success"></i> {{ ni.stock.name }}</td>
+                            <td class="text-center">{{ ni.quantity|floatformat:0 }}</td>
+                            <td class="text-center">{{ ni.returned_quantity|floatformat:0 }}</td>
+                            <td class="text-center"><span class="badge bg-danger">{{ ni.used_quantity|floatformat:0 }}</span></td>
+                            <td class="small text-muted">{{ ni.surgery.visit.patient.full_name }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12"><div class="alert alert-secondary">Operatsion xona qo'shilmagan.</div></div>
+    {% endfor %}
+</div>
+
+{% if can_manage %}
+<!-- Modallar: HTMX yangilanadigan konteynerdan TASHQARIDA (aks holda yangilanish JS xatolik beradi) -->
+{% for row in room_rows %}
+<!-- Tahrirlash modali -->
+<div class="modal fade" id="editOpRoom{{ row.room.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog"><div class="modal-content">
+        <div class="modal-header bg-warning">
+            <h5 class="modal-title"><i class="bi bi-pencil"></i> Xonani tahrirlash</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <form method="post" action="{% url 'clinical:edit_operating_room' row.room.id %}">
+            {% csrf_token %}
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Xona nomi</label>
+                    <input name="name" class="form-control" value="{{ row.room.name }}" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Izoh</label>
+                    <input name="description" class="form-control" value="{{ row.room.description }}">
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="is_active" value="1" id="opAct{{ row.room.id }}" {% if row.room.is_active %}checked{% endif %}>
+                    <label class="form-check-label" for="opAct{{ row.room.id }}">Faol (jadvalda tanlanadi)</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Bekor</button>
+                <button type="submit" class="btn btn-warning"><i class="bi bi-check-lg"></i> Saqlash</button>
+            </div>
+        </form>
+    </div></div>
+</div>
+<!-- O'chirish modali (confirm() o'rniga — apostrof/JS muammosiz) -->
+<div class="modal fade" id="delOpRoom{{ row.room.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog"><div class="modal-content">
+        <div class="modal-header bg-danger text-white">
+            <h5 class="modal-title"><i class="bi bi-trash"></i> Xonani o'chirish</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <form method="post" action="{% url 'clinical:delete_operating_room' row.room.id %}">
+            {% csrf_token %}
+            <div class="modal-body">
+                <strong>{{ row.room.name }}</strong> operatsion xonasi o'chirilsinmi?
+                <div class="text-muted small mt-2">Ichida rejalashtirilgan/davom etayotgan operatsiya yoki asbob bo'lsa, o'chirilmaydi.</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Bekor</button>
+                <button type="submit" class="btn btn-danger"><i class="bi bi-trash"></i> O'chirish</button>
+            </div>
+        </form>
+    </div></div>
+</div>
+{% endfor %}
+{% endif %}
+{% endblock %}

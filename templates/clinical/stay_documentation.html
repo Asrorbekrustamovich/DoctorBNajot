@@ -1,0 +1,508 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Statsionar hujjatlari - {{ stay.visit.patient.full_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h1 class="h3 mb-0"><i class="bi bi-journal-medical"></i> Statsionar hujjatlari: {{ stay.visit.patient.full_name }}
+        {% if stay.is_locked %}<span class="badge bg-dark ms-2"><i class="bi bi-lock-fill"></i> Qulflangan</span>{% endif %}
+    </h1>
+    <div>
+        {% if stay.is_locked %}
+            {% if user.is_superuser or user.role.code == 'super_admin' %}
+            <form method="post" action="{% url 'clinical:document_lock' 'inpatient_stay' stay.id %}" class="d-inline" onsubmit="return confirm('Qulf ochilsinmi?');">
+                {% csrf_token %}<input type="hidden" name="action" value="unlock">
+                <button class="btn btn-outline-danger"><i class="bi bi-unlock"></i> Ochish</button>
+            </form>
+            {% endif %}
+        {% else %}
+        <form method="post" action="{% url 'clinical:document_lock' 'inpatient_stay' stay.id %}" class="d-inline"
+              onsubmit="return confirm('Statsionar hujjatlari o\'zgarmas qilib qulflansinmi? Keyin faqat superadmin ochadi.');">
+            {% csrf_token %}<input type="hidden" name="action" value="lock">
+            <button class="btn btn-danger"><i class="bi bi-lock-fill"></i> O'zgarmas qilib saqlash</button>
+        </form>
+        {% endif %}
+        <a href="{% url 'clinical:patient_summary' stay.visit.patient.pk %}" class="btn btn-primary"><i class="bi bi-person-lines-fill"></i> Umumiy hisobot</a>
+        <a href="?official=1" class="btn btn-outline-dark"><i class="bi bi-file-earmark-text"></i> Rasmiy hujjat (Word/Chop)</a>
+        <a href="{% url 'clinical:inpatient_dashboard' %}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Orqaga</a>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-3">
+        <div class="card shadow-sm h-100"><div class="card-body">
+            <div class="small text-muted">Bemor / Kravat</div>
+            <div class="fw-bold">{{ stay.visit.patient.full_name }}</div>
+            <div>{{ stay.bed.room.name }} — {{ stay.bed.number }}-o'rin</div>
+            <span class="badge {% if stay.stay_type == 'package' %}bg-warning text-dark{% else %}bg-info{% endif %}">{{ stay.get_stay_type_display }}</span>
+            <span class="badge {% if stay.status == 'active' %}bg-success{% else %}bg-secondary{% endif %}">{{ stay.get_status_display }}</span>
+        </div></div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm h-100"><div class="card-body">
+            <div class="small text-muted">Mas'ul shifokor</div>
+            <div class="fw-bold text-primary">{{ stay.assigned_doctor.get_full_name|default:"Biriktirilmagan" }}</div>
+            <div class="small text-muted mt-2">Hujjatlashtirish hamshirasi</div>
+            <div class="fw-bold">{{ stay.doc_nurse.get_full_name|default:"Biriktirilmagan" }}</div>
+        </div></div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm h-100"><div class="card-body">
+            <div class="small text-muted">Ukol/muolaja hamshirasi</div>
+            <div class="fw-bold">{{ stay.procedure_nurse.get_full_name|default:"Biriktirilmagan" }}</div>
+            <div class="small text-muted mt-2">Yotqizilgan</div>
+            <div>{{ stay.admission_date|date:"d.m.Y H:i:s" }}</div>
+        </div></div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm h-100"><div class="card-body">
+            {% if stay.discharge_date %}
+            <div class="small text-muted">Chiqarilgan</div>
+            <div>{{ stay.discharge_date|date:"d.m.Y H:i:s" }}</div>
+            {% if stay.total_days %}
+            <div class="small text-muted mt-1">Jami kunlar: {{ stay.total_days }}</div>
+            {% endif %}
+            {% if stay.total_amount %}
+            <div class="small text-muted">Jami summa: {{ stay.total_amount|intcomma }} so'm</div>
+            {% endif %}
+            {% else %}
+            <div class="small text-muted">Holat</div>
+            <div class="fw-bold text-success">Yotibdi (Faol)</div>
+            {% endif %}
+        </div></div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <!-- Shifokor tayinlagan tekshiruvlar va operatsiyalar -->
+    <div class="col-lg-7">
+        <div class="card shadow-sm mb-3">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-clipboard2-check"></i> Tayinlangan tekshiruvlar va xizmatlar</span>
+                {% if user.is_superuser or user.role.code == "doctor" or user.role.code == "chief_doctor" or user.role.code == "surgeon" or user.role.code == "surgery_admin" or user.role.code == "director" %}
+                <button type="button" class="btn btn-sm btn-danger d-print-none" data-bs-toggle="modal" data-bs-target="#surgeryModalStay">
+                    <i class="bi bi-heart-pulse"></i> Operatsiya tayinlash
+                </button>
+                {% endif %}
+            </div>
+
+            {% include "clinical/modals/_schedule_surgery_modal.html" with visit=stay.visit modal_id="Stay" %}
+
+            <div class="card-body p-0">
+                <table class="table table-sm table-hover mb-0 align-middle">
+                    <thead><tr><th class="ps-3">Turi</th><th>Nomi</th><th>Narxi</th><th>Holat</th><th>Kim/Qachon</th><th class="text-end pe-3 d-print-none">Amal</th></tr></thead>
+                    <tbody>
+                        {% for order in service_orders %}
+                        <tr>
+                            <td class="ps-3"><span class="badge bg-info">Tekshiruv</span></td>
+                            <td>{{ order.service.name }}</td>
+                            <td class="small">{{ order.price_snapshot|intcomma }} so'm</td>
+                            <td>
+                                {% if order.status == 'completed' %}<span class="badge bg-success fs-6">✓ Bajarildi</span>
+                                {% elif order.status == 'in_progress' %}<span class="badge bg-warning text-dark fs-6">⏳ Jarayonda</span>
+                                {% else %}<span class="badge bg-danger fs-6">✗ Bajarilmadi</span>{% endif %}
+                            </td>
+                            <td class="small text-muted">{% if order.performed_by %}{{ order.performed_by.get_full_name|default:"—" }}{% endif %}</td>
+                            <td class="text-end pe-3 d-print-none">
+                                {% if order.status != 'completed' %}
+                                {% if user.is_superuser or user == stay.doc_nurse %}
+                                <form method="post" action="{% url 'clinical:stay_checklist_toggle' order.id %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="type" value="service_order">
+                                    <button class="btn btn-sm btn-outline-success"><i class="bi bi-check-lg"></i> Bajarildi</button>
+                                </form>
+                                {% endif %}
+                                {% else %}
+                                {% if order.result_text %}
+                                <button type="button" class="btn btn-sm btn-info text-white" data-bs-toggle="modal" data-bs-target="#resultModal-{{ order.id }}">
+                                    <i class="bi bi-eye"></i> Xulosa
+                                </button>
+                                <!-- Natija Modal -->
+                                <div class="modal fade text-start" id="resultModal-{{ order.id }}" tabindex="-1" aria-hidden="true">
+                                    <div class="modal-dialog">
+                                        <div class="modal-content">
+                                            <div class="modal-header bg-info text-white">
+                                                <h5 class="modal-title">{{ order.service.name }} Xulosasi</h5>
+                                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <div class="text-muted small mb-2">Bajardi: {{ order.performed_by.get_full_name|default:"-" }}</div>
+                                                <div style="white-space: pre-wrap;">{{ order.result_text }}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                                {% if user.is_superuser or user == stay.doc_nurse %}
+                                <form method="post" action="{% url 'clinical:stay_checklist_toggle' order.id %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="type" value="service_order">
+                                    <button class="btn btn-sm btn-outline-danger" title="Bekor qilish" onclick="return confirm('Bajarilganligini bekor qilasizmi?');"><i class="bi bi-arrow-counterclockwise"></i></button>
+                                </form>
+                                {% endif %}
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="6" class="text-center text-muted py-3">Tekshiruvlar tayinlanmagan</td></tr>
+                        {% endfor %}
+
+                        {% for surgery in surgeries %}
+                        <tr>
+                            <td class="ps-3"><span class="badge bg-danger">Operatsiya</span></td>
+                            <td>{{ surgery.surgery_type.name }}<div class="small text-muted">Jarroh: {{ surgery.surgeon.get_full_name }}</div></td>
+                            <td class="small">{{ surgery.actual_price|intcomma }} so'm</td>
+                            <td>
+                                {% if surgery.status == 'completed' %}<span class="badge bg-success fs-6">✓ Bajarildi</span>
+                                {% elif surgery.status == 'in_progress' %}<span class="badge bg-warning text-dark fs-6">⏳ Jarayonda</span>
+                                {% else %}<span class="badge bg-secondary fs-6">📅 Rejalashtirilgan</span>{% endif %}
+                            </td>
+                            <td class="small text-muted">{{ surgery.scheduled_time|date:"d.m H:i:s" }}</td>
+                            <td class="text-end pe-3 d-print-none">
+                                {% if surgery.status != 'completed' %}
+                                {% if user.is_superuser or user == stay.procedure_nurse %}
+                                <form method="post" action="{% url 'clinical:stay_checklist_toggle' surgery.id %}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="type" value="surgery">
+                                    <button class="btn btn-sm btn-outline-success"><i class="bi bi-check-lg"></i> Bajarildi</button>
+                                </form>
+                                {% endif %}
+                                {% elif surgery.report %}
+                                <button type="button" class="btn btn-sm btn-info text-white" data-bs-toggle="modal" data-bs-target="#surgeryReportModal-{{ surgery.id }}">
+                                    <i class="bi bi-eye"></i> Bayonnoma
+                                </button>
+                                <!-- Bayonnoma Modal -->
+                                <div class="modal fade text-start" id="surgeryReportModal-{{ surgery.id }}" tabindex="-1" aria-hidden="true">
+                                    <div class="modal-dialog modal-lg">
+                                        <div class="modal-content">
+                                            <div class="modal-header bg-info text-white">
+                                                <h5 class="modal-title">Operatsiya Bayonnomasi</h5>
+                                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <div class="row">
+                                                    <div class="col-md-6 mb-3">
+                                                        <div class="fw-bold text-muted small">Bemor ahvoli (qanday keldi):</div>
+                                                        <div>{{ surgery.report.arrival_condition|default:"Kiritilmagan" }}</div>
+                                                    </div>
+                                                    <div class="col-md-6 mb-3">
+                                                        <div class="fw-bold text-muted small">Nimalar qilindi:</div>
+                                                        <div>{{ surgery.report.performed_actions|default:"Kiritilmagan" }}</div>
+                                                    </div>
+                                                    <div class="col-md-6 mb-3">
+                                                        <div class="fw-bold text-muted small">Yozilgan dorilar:</div>
+                                                        <div>{{ surgery.report.medications|default:"Kiritilmagan" }}</div>
+                                                    </div>
+                                                    <div class="col-md-6 mb-3">
+                                                        <div class="fw-bold text-muted small">Narkoz:</div>
+                                                        <div>{{ surgery.report.anesthesia|default:"Kiritilmagan" }}</div>
+                                                    </div>
+                                                    <div class="col-md-12">
+                                                        <div class="fw-bold text-muted small">Izohlar:</div>
+                                                        <div>{{ surgery.report.notes|default:"Kiritilmagan" }}</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        
+                        {% if surgery.report or surgery.anesthesiologist or surgery.operating_nurse %}
+                        <tr class="bg-light">
+                            <td colspan="6" class="px-4 py-2 small border-bottom">
+                                <div class="row text-muted">
+                                    <div class="col-12 mb-2">
+                                        <strong class="text-dark"><i class="bi bi-people"></i> Jamoat:</strong> 
+                                        <span class="me-3">Jarroh: <b>{{ surgery.surgeon.get_full_name|default:"—" }}</b></span>
+                                        <span class="me-3">Anesteziolog: <b>{{ surgery.anesthesiologist.get_full_name|default:"—" }}</b></span>
+                                        <span class="me-3">Hamshira: <b>{{ surgery.operating_nurse.get_full_name|default:"—" }}</b></span>
+                                        <span class="me-3">Asistent: <b>{{ surgery.assistant.get_full_name|default:"—" }}</b></span>
+                                    </div>
+                                    {% if surgery.report %}
+                                    {% if surgery.report.arrival_condition %}<div class="col-md-6 mb-1"><strong class="text-dark">Ahvoli:</strong> {{ surgery.report.arrival_condition }}</div>{% endif %}
+                                    {% if surgery.report.performed_actions %}<div class="col-md-6 mb-1"><strong class="text-dark">Qilingan ishlar:</strong> {{ surgery.report.performed_actions }}</div>{% endif %}
+                                    {% if surgery.report.medications %}<div class="col-md-6 mb-1"><strong class="text-dark">Dorilar/Ukollar:</strong> {{ surgery.report.medications }}</div>{% endif %}
+                                    {% if surgery.report.consumables %}<div class="col-md-6 mb-1"><strong class="text-dark">Asbob-uskuna va sarflar:</strong> {{ surgery.report.consumables }}</div>{% endif %}
+                                    {% if surgery.report.anesthesia %}<div class="col-md-6 mb-1"><strong class="text-dark">Narkoz:</strong> {{ surgery.report.anesthesia }}</div>{% endif %}
+                                    {% if surgery.report.notes %}<div class="col-md-6 mb-1"><strong class="text-dark">Izoh:</strong> {{ surgery.report.notes }}</div>{% endif %}
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% empty %}
+                        {% if not service_orders %}
+                        <tr><td colspan="6" class="text-center text-muted py-3">Hech qanday tayinlov yo'q</td></tr>
+                        {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Berilgan dorilar -->
+        <div class="card shadow-sm mb-3">
+            <div class="card-header"><i class="bi bi-capsule"></i> Berilgan dorilar</div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead><tr><th class="ps-3">Dori</th><th>Miqdor</th><th>Narx</th><th class="pe-3">Holati / Vaqt</th></tr></thead>
+                    <tbody>
+                        {% for d in dispenses %}
+                        <tr {% if d.is_returned %}class="text-decoration-line-through text-muted"{% endif %}>
+                            <td class="ps-3">{{ d.batch.medicine.name }}</td>
+                            <td>{{ d.quantity }}</td>
+                            <td>{% if d.is_package %}<span class="badge bg-warning text-dark">Paket ichida</span>{% else %}{{ d.price_at_dispense|intcomma }} so'm{% endif %}</td>
+                            <td class="pe-3">
+                                {% if d.status == 'pending' %}<span class="badge bg-warning text-dark mb-1">Kutmoqda</span>
+                                {% elif d.status == 'delivered' %}<span class="badge bg-success mb-1">Ombordan berildi</span>
+                                {% endif %}
+                                <div class="small text-muted" style="font-size:0.7rem;">{{ d.dispensed_at|date:"d.m.Y H:i:s" }}</div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="4" class="text-center text-muted py-3">Dorilar berilmagan</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ukol/muolaja hamshirasi hisoboti -->
+    <div class="col-lg-5">
+        <div class="card shadow-sm mb-3">
+            <div class="card-header"><i class="bi bi-droplet"></i> Ukol/muolaja hamshirasi hisoboti</div>
+            <div class="card-body p-0">
+                <ul class="list-group list-group-flush">
+                    {% for pr in procedures %}
+                    <li class="list-group-item">
+                        <div class="d-flex justify-content-between">
+                            <span><span class="badge bg-info">{{ pr.get_category_display }}</span> <strong>{{ pr.name }}</strong></span>
+                            <small class="text-muted">{{ pr.performed_at|date:"d.m H:i:s" }}</small>
+                        </div>
+                        <div class="small text-muted">{{ pr.nurse.get_full_name }}{% if pr.notes %} · {{ pr.notes }}{% endif %}</div>
+                    </li>
+                    {% empty %}
+                    <li class="list-group-item text-center text-muted py-3">Qaydlar yo'q</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% if user == stay.procedure_nurse %}
+            <div class="card-footer d-print-none bg-light">
+                <form method="post" action="{% url 'clinical:stay_procedure_add' stay.id %}" class="row g-2">
+                    {% csrf_token %}
+                    <!-- category can be a hidden input now if it's always medicine, or leave it -->
+                    <div class="col-4">
+                        <select name="category" class="form-select form-select-sm">
+                            <option value="injection">Ukol</option>
+                            <option value="procedure">Muolaja</option>
+                            <option value="infusion">Osma ukol (Kapelnitsa)</option>
+                        </select>
+                    </div>
+                    <div class="col-8">
+                        <select name="name" class="form-select form-select-sm" required>
+                            <option value="">-- Shifokor yozgan dorini tanlang --</option>
+                            {% for d in dispenses %}
+                            {% if d.status == 'delivered' %}
+                            <option value="{{ d.batch.medicine.name }}">{{ d.batch.medicine.name }} ({{ d.quantity|intcomma }} {{ d.batch.medicine.unit }})</option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-8"><input name="notes" class="form-control form-control-sm" placeholder="Izoh (doza, natija...)"></div>
+                    <div class="col-4"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-plus-lg"></i> Kiritish</button></div>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Bemor imzosi -->
+        <div class="card shadow-sm">
+            <div class="card-header"><i class="bi bi-pen"></i> Bemor imzosi (hujjatlar bilan tanishdim)</div>
+            <div class="card-body">
+                {% if stay.patient_signature %}
+                    <div class="text-center mb-2">
+                        <img src="{{ stay.patient_signature }}" alt="Bemor imzosi" class="border rounded" style="max-width:100%; max-height:160px;">
+                        <div class="small text-muted mt-1">Imzolangan: {{ stay.signed_at|date:"d.m.Y H:i:s" }}</div>
+                    </div>
+                {% endif %}
+                <!-- Operatsiyadan keyingi tavsiyalar — FAQAT biriktirilgan hamshira yozadi -->
+{% for surg in stay.visit.surgeries.all %}{% if surg.status == "completed" %}
+{% with can_write_postop=stay.doc_nurse %}
+{% if user.is_superuser or user.role.code == "super_admin" or user == stay.doc_nurse or surg.postop_recommendations %}
+<div class="card shadow-sm mb-3">
+    <div class="card-header bg-success bg-opacity-10"><i class="bi bi-clipboard2-heart"></i> Operatsiyadan keyingi tavsiyalar — {{ surg.surgery_type.name }} ({{ surg.finished_at|date:"d.m.Y H:i" }})</div>
+    <div class="card-body">
+        {% if user.is_superuser or user.role.code == "super_admin" or user == stay.doc_nurse %}
+        <!-- Biriktirilgan hamshira (yoki superadmin) — tahrirlaydi -->
+        <form method="post" action="{% url 'clinical:surgery_postop_recommendations' surg.id %}">
+            {% csrf_token %}
+            <textarea name="postop_recommendations" class="form-control mb-2" rows="3" placeholder="Parhez, dori, harakat rejimi, bog'lam almashtirish...">{{ surg.postop_recommendations }}</textarea>
+            <button class="btn btn-sm btn-success"><i class="bi bi-check-lg"></i> Tavsiyalarni saqlash</button>
+        </form>
+        {% else %}
+        <!-- Boshqalar (shifokor, boshqaruv) — faqat ko'radi -->
+        <div class="text-muted small mb-1">Tavsiyani {{ stay.doc_nurse.get_full_name|default:"biriktirilgan hamshira" }} yozadi:</div>
+        <div class="border rounded p-2 bg-light">{{ surg.postop_recommendations|linebreaksbr|default:"— hali yozilmagan —" }}</div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endwith %}
+{% endif %}{% endfor %}
+
+<div class="d-print-none">
+                    <button type="button" class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#sigModal">
+                        <i class="bi bi-pen"></i> {% if stay.patient_signature %}Imzoni qayta qo'yish{% else %}Imzo qo'yish{% endif %}
+                    </button>
+                    <div class="form-text text-muted">
+                        Imzo faqat <b>grafik planshet qalami</b> (HUION H640P) bilan qo'yiladi. Sichqoncha ishlamaydi.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== IMZO MODALI — faqat grafik planshet (HUION H640P) qalami bilan ===== -->
+<div class="modal fade" id="sigModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-xl modal-dialog-centered" style="max-width:min(1400px, 96vw);">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-pen"></i> Bemor imzosi — planshet qalami bilan</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Yopish"></button>
+      </div>
+      <div class="modal-body">
+        <div id="sigPenStatus" class="alert alert-warning py-2 mb-2">
+          <i class="bi bi-usb-plug"></i> Planshetni ulang va <b>qalamni maydon ustiga yaqinlashtiring</b>.
+        </div>
+        <div class="border rounded bg-white position-relative" style="touch-action:none;">
+          <canvas id="sigCanvas" width="1400" height="560"
+                  style="width:100%; height:min(560px, 58vh); cursor:crosshair; display:block;"></canvas>
+          <div id="sigHint" class="position-absolute top-50 start-50 translate-middle text-muted"
+               style="pointer-events:none; user-select:none;">Shu yerga qalam bilan imzo cheking</div>
+        </div>
+        <div class="form-text text-muted mt-1">
+          HUION drayverida <b>«Pen mode / Qalam rejimi»</b> yoqilgan bo'lsin (Mouse mode emas).
+          Sichqoncha va barmoq bilan chizish o'chirilgan.
+        </div>
+      </div>
+      <div class="modal-footer d-flex gap-2">
+        <button type="button" class="btn btn-outline-secondary" onclick="clearSig()">
+          <i class="bi bi-eraser"></i> Tozalash
+        </button>
+        <form method="post" action="{% url 'clinical:stay_save_signature' stay.id %}" id="sigForm" class="m-0 flex-grow-1">
+          {% csrf_token %}
+          <input type="hidden" name="signature" id="sigData">
+          <button type="submit" class="btn btn-success w-100" id="sigSaveBtn" disabled>
+            <i class="bi bi-check-lg"></i> Imzoni saqlash
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+    const canvas = document.getElementById("sigCanvas");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    ctx.lineWidth = 2; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = "#0f172a";
+
+    const statusEl = document.getElementById("sigPenStatus");
+    const hintEl   = document.getElementById("sigHint");
+    const saveBtn  = document.getElementById("sigSaveBtn");
+    const modalEl  = document.getElementById("sigModal");
+
+    let drew = false, penDown = false, lastX = 0, lastY = 0;
+
+    function setStatus(html, cls) {
+        if (!statusEl) return;
+        statusEl.innerHTML = html;
+        statusEl.className = "alert py-2 mb-2 " + cls;
+    }
+    function isPen(e) { return e.pointerType === "pen"; }
+
+    function pos(e) {
+        const r = canvas.getBoundingClientRect();
+        return { x: (e.clientX - r.left) * (canvas.width / r.width),
+                 y: (e.clientY - r.top) * (canvas.height / r.height) };
+    }
+
+    // --- Qalam yaqinlashganda (hover / kirish) aniqlash ---
+    canvas.addEventListener("pointerenter", function (e) {
+        if (isPen(e)) {
+            setStatus("<i class='bi bi-check-circle'></i> Planshet qalami aniqlandi — imzo chekishingiz mumkin.", "alert-success");
+        } else if (e.pointerType === "mouse") {
+            setStatus("<i class='bi bi-x-circle'></i> Sichqoncha bilan imzo qo'yib bo'lmaydi. <b>Planshet qalamidan</b> foydalaning.", "alert-danger");
+        } else {
+            setStatus("<i class='bi bi-x-circle'></i> Barmoq/teginish bilan imzo qo'yib bo'lmaydi. <b>Planshet qalamidan</b> foydalaning.", "alert-danger");
+        }
+    });
+
+    canvas.addEventListener("pointerdown", function (e) {
+        e.preventDefault();
+        if (!isPen(e)) {
+            setStatus("<i class='bi bi-x-circle'></i> Faqat <b>grafik planshet qalami</b> (HUION H640P) qabul qilinadi.", "alert-danger");
+            return;
+        }
+        if (canvas.setPointerCapture) { try { canvas.setPointerCapture(e.pointerId); } catch (err) {} }
+        penDown = true;
+        const p = pos(e);
+        lastX = p.x; lastY = p.y;
+        if (hintEl) hintEl.style.display = "none";
+    });
+
+    canvas.addEventListener("pointermove", function (e) {
+        if (!penDown || !isPen(e)) return;
+        e.preventDefault();
+        const pts = (e.getCoalescedEvents ? e.getCoalescedEvents() : [e]);
+        for (let i = 0; i < pts.length; i++) {
+            const ev = pts[i];
+            const p = pos(ev);
+            ctx.lineWidth = ev.pressure && ev.pressure > 0 ? Math.max(1.2, ev.pressure * 5) : 2;
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(p.x, p.y);
+            ctx.stroke();
+            lastX = p.x; lastY = p.y;
+        }
+        drew = true;
+        if (saveBtn) saveBtn.disabled = false;
+    });
+
+    function endStroke(e) {
+        if (e && !isPen(e)) return;
+        penDown = false;
+    }
+    canvas.addEventListener("pointerup", endStroke);
+    canvas.addEventListener("pointercancel", endStroke);
+    canvas.addEventListener("pointerleave", endStroke);
+
+    window.clearSig = function () {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drew = false; penDown = false;
+        if (saveBtn) saveBtn.disabled = true;
+        if (hintEl) hintEl.style.display = "";
+    };
+
+    if (modalEl) {
+        modalEl.addEventListener("shown.bs.modal", function () { window.clearSig(); });
+    }
+
+    const sigForm = document.getElementById("sigForm");
+    if (sigForm) {
+        sigForm.addEventListener("submit", function (e) {
+            if (!drew) { e.preventDefault(); setStatus("<i class='bi bi-x-circle'></i> Avval qalam bilan imzo cheking.", "alert-danger"); return; }
+            document.getElementById("sigData").value = canvas.toDataURL("image/png");
+        });
+    }
+})();
+</script>
+
+{% endblock %}

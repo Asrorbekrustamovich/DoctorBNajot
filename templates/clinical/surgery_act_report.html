@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+
+{% block title %}Operatsiya dalolatnomasi - {{ surgery.visit.patient.full_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 d-print-none">
+    <h1 class="h4 mb-0"><i class="bi bi-file-earmark-medical"></i> Operatsiya tayyorgarligi va sarf-xarajatlari dalolatnomasi</h1>
+    <div>
+        <button class="btn btn-primary" onclick="window.print()"><i class="bi bi-printer"></i> Chop etish</button>
+        <a href="javascript:history.back()" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Orqaga</a>
+    </div>
+</div>
+
+<div class="card shadow-sm report-sheet">
+    <div class="card-body p-5">
+        <div class="report-head">
+            <h2>{{ clinic_name }}</h2>
+            <div>{{ clinic_address }} &middot; Tel: {{ clinic_phone }}</div>
+        </div>
+
+        <h4 class="text-center mt-4 mb-4" style="text-transform: uppercase;">Operatsiya dalolatnomasi <br><small class="text-muted" style="text-transform: none; font-size: 14px;">(Bemor tayyorgarligi va moddiy sarflar bayonnomasi)</small></h4>
+
+        <table class="report-meta w-100 mb-4">
+            <tr>
+                <td width="50%"><strong>Bemor:</strong> {{ surgery.visit.patient.full_name }} ({{ surgery.visit.patient.age }} yosh)</td>
+                <td width="50%" class="text-end"><strong>Karta raqami:</strong> {{ surgery.visit.patient.card_number }}</td>
+            </tr>
+            <tr>
+                <td><strong>Operatsiya:</strong> {{ surgery.surgery_type.name }}</td>
+                <td class="text-end"><strong>Sana:</strong> {{ today|date:"d.m.Y H:i" }}</td>
+            </tr>
+            <tr>
+                <td><strong>Operatsion xona:</strong> {{ surgery.operating_room.name|default:"-" }}</td>
+                <td class="text-end"></td>
+            </tr>
+        </table>
+        
+        <hr>
+
+        <div class="report-body">
+            
+            <div class="mb-4">
+                <h5 class="fw-bold border-bottom pb-2">1. Bemorning operatsiyagacha holati (Bo'lim hamshirasi)</h5>
+                {% if surgery.patient_prepared %}
+                <p class="mb-1"><i class="bi bi-check-circle-fill text-success"></i> Bemorni bo'lim hamshirasi tomonidan operatsiyaga tayyorlandi: <strong>{{ surgery.patient_prepared_at|date:"d.m.Y H:i" }}</strong></p>
+                <p class="mb-1"><strong>Izoh:</strong> {{ surgery.patient_prepared_notes|default:"-" }}</p>
+                {% else %}
+                <p class="text-danger">Bemor hali to'liq tayyorlanmagan.</p>
+                {% endif %}
+            </div>
+            
+            <div class="mb-4">
+                <h5 class="fw-bold border-bottom pb-2">2. Operatsion xona va asbob-uskunalar (Sterilizatsiya)</h5>
+                <table class="table table-sm table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Asbob/Belyo nomi</th>
+                            <th width="150">Holati</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in surgical_items %}
+                        <tr>
+                            <td>{{ item.name }}</td>
+                            <td>
+                                {% if item.status == "ready" %}
+                                Ishlatilmadi
+                                {% elif item.status == "used" %}
+                                Ishlatildi
+                                {% elif item.status == "in_use" %}
+                                Operatsiyada
+                                {% else %}
+                                {{ item.get_status_display }}
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="2" class="text-center text-muted">Biriktirilgan asboblar yo'q</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="mb-4">
+                <h5 class="fw-bold border-bottom pb-2">3. Operatsion hamshira sarf-xarajatlari</h5>
+                <table class="table table-sm table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Mahsulot nomi</th>
+                            <th width="120" class="text-center">So'ralgan (Olingan)</th>
+                            <th width="120" class="text-center">Qaytarilgan</th>
+                            <th width="120" class="text-center">Amalda ishlatilgan</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for usage in nurse_usages %}
+                        <tr>
+                            <td>{{ usage.stock.name }}</td>
+                            <td class="text-center">{{ usage.quantity|floatformat:2 }} {{ usage.stock.unit }}</td>
+                            <td class="text-center">{{ usage.returned_quantity|default:"0"|floatformat:2 }} {{ usage.stock.unit }}</td>
+                            <td class="text-center fw-bold">{{ usage.used_quantity|floatformat:2 }} {{ usage.stock.unit }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="4" class="text-center text-muted">Sarf qilinmagan</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="mb-4">
+                <h5 class="fw-bold border-bottom pb-2">4. Anesteziolog sarf-xarajatlari</h5>
+                <table class="table table-sm table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Mahsulot nomi</th>
+                            <th width="120" class="text-center">So'ralgan (Olingan)</th>
+                            <th width="120" class="text-center">Qaytarilgan</th>
+                            <th width="120" class="text-center">Amalda ishlatilgan</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for usage in anesthesia_usages %}
+                        <tr>
+                            <td>{{ usage.stock.name }}</td>
+                            <td class="text-center">{{ usage.quantity|floatformat:2 }} {{ usage.stock.unit }}</td>
+                            <td class="text-center">{{ usage.returned_quantity|default:"0"|floatformat:2 }} {{ usage.stock.unit }}</td>
+                            <td class="text-center fw-bold">{{ usage.used_quantity|floatformat:2 }} {{ usage.stock.unit }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="4" class="text-center text-muted">Sarf qilinmagan</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+
+        <div class="report-sig row mt-5">
+            <div class="col-4 text-center">
+                <strong>Bo'lim hamshirasi</strong><br>
+                {{ surgery.ward_nurse.get_full_name|default:"Tayinlanmagan" }}<br>
+                {% if surgery.ward_nurse %}
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=Tasdiqladi:+{{ surgery.ward_nurse.get_full_name|urlencode }}+|+Bo'lim+hamshirasi+|+Sana:+{{ today|date:'Y-m-d H:i'|urlencode }}&margin=0" class="mt-2 border rounded p-1" style="width: 90px; height: 90px;" alt="QR Code">
+                {% else %}
+                <div style="height: 90px;" class="mt-2"></div>
+                {% endif %}
+            </div>
+            <div class="col-4 text-center">
+                <strong>Operatsion hamshira</strong><br>
+                {{ surgery.operating_nurse.get_full_name|default:"Tayinlanmagan" }}<br>
+                {% if surgery.operating_nurse %}
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=Tasdiqladi:+{{ surgery.operating_nurse.get_full_name|urlencode }}+|+Operatsion+hamshira+|+Sana:+{{ today|date:'Y-m-d H:i'|urlencode }}&margin=0" class="mt-2 border rounded p-1" style="width: 90px; height: 90px;" alt="QR Code">
+                {% else %}
+                <div style="height: 90px;" class="mt-2"></div>
+                {% endif %}
+            </div>
+            <div class="col-4 text-center">
+                <strong>Anesteziolog</strong><br>
+                {{ surgery.anesthesiologist.get_full_name|default:"Tayinlanmagan" }}<br>
+                {% if surgery.anesthesiologist %}
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=Tasdiqladi:+{{ surgery.anesthesiologist.get_full_name|urlencode }}+|+Anesteziolog+|+Sana:+{{ today|date:'Y-m-d H:i'|urlencode }}&margin=0" class="mt-2 border rounded p-1" style="width: 90px; height: 90px;" alt="QR Code">
+                {% else %}
+                <div style="height: 90px;" class="mt-2"></div>
+                {% endif %}
+            </div>
+        </div>
+        
+    </div>
+</div>
+
+<style>
+    .report-sheet { max-width: 950px; margin: 0 auto; font-family: 'Times New Roman', Times, serif; color: #111; }
+    .report-head { text-align: center; border-bottom: 2px solid #0d9488; padding-bottom: 10px; margin-bottom: 16px; }
+    .report-head h2 { margin: 0; color: #0f766e; }
+    .report-meta { font-size: 15px; }
+    .report-meta td { padding: 4px; }
+    .report-body { font-size: 15px; line-height: 1.5; min-height: 200px; }
+    .report-sig { margin-top: 40px; font-size: 15px; }
+    @media print {
+        body { background-color: #fff; }
+        .d-print-none { display: none !important; }
+        .card { box-shadow: none !important; border: none !important; }
+        .report-sheet { max-width: 100%; margin: 0; padding: 0; }
+        .report-head h2 { color: #000; }
+        .report-head { border-bottom-color: #000; }
+        .table-light th { background-color: #eee !important; -webkit-print-color-adjust: exact; }
+    }
+</style>
+{% endblock %}

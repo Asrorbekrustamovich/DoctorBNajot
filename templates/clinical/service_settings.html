@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Xizmatlar sozlamalari - Doctor B Najot{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3"><i class="bi bi-gear"></i> Xizmatlar katalogi va narxlari</h1>
+</div>
+
+{% if messages %}
+<div class="mb-3">
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-primary text-white"><i class="bi bi-plus-lg"></i> Yangi xizmat qo'shish</div>
+    <div class="card-body">
+        <form method="post" action="{% url 'clinical:add_service' %}" class="row g-2 align-items-end">
+            {% csrf_token %}
+            <div class="col-md-6">
+                <label class="form-label">Xizmat nomi</label>
+                <input name="name" class="form-control" placeholder="Masalan: UZI, EKG, Qon analizi" required>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Narxi (so'm)</label>
+                <input name="price" type="number" step="0.01" min="0" class="form-control" placeholder="50000" required>
+            </div>
+            <div class="col-md-3">
+                <button class="btn btn-primary w-100"><i class="bi bi-plus-lg"></i> Qo'shish</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header">Barcha xizmatlar</div>
+    <div class="card-body p-0">
+        <table class="table table-hover table-sm mb-0 align-middle">
+            <thead>
+                <tr>
+                    <th class="ps-3">Xizmat nomi</th>
+                    <th>Joriy narxi</th>
+                    <th>Holat</th>
+                    <th class="text-end pe-3">Amallar</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for svc in services %}
+                <tr {% if not svc.is_active %}class="text-muted"{% endif %}>
+                    <td class="ps-3 fw-bold">{{ svc.name }}</td>
+                    <td>{{ svc.price|intcomma }} so'm</td>
+                    <td>
+                        {% if svc.is_active %}
+                        <span class="badge bg-success">Faol</span>
+                        {% else %}
+                        <span class="badge bg-secondary">O'chirilgan</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end pe-3">
+                        <form method="post" action="{% url 'clinical:update_service_price' svc.id %}" class="d-inline-flex gap-1 align-items-center">
+                            {% csrf_token %}
+                            <input name="price" type="number" step="0.01" min="0" class="form-control form-control-sm" style="width:120px;" value="{{ svc.price }}" required>
+                            <button class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></button>
+                        </form>
+                        <form method="post" action="{% url 'clinical:toggle_service' svc.id %}" class="d-inline ms-1">
+                            {% csrf_token %}
+                            {% if svc.is_active %}
+                            <button class="btn btn-sm btn-outline-danger" title="O'chirish"><i class="bi bi-x-lg"></i></button>
+                            {% else %}
+                            <button class="btn btn-sm btn-outline-success" title="Faollashtirish"><i class="bi bi-check-lg"></i></button>
+                            {% endif %}
+                        </form>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4" class="text-center text-muted py-3">Xizmatlar qo'shilmagan</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

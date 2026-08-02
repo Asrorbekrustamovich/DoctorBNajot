@@ -1,0 +1,137 @@
+{% load humanize %}
+{% comment %}
+============================================================
+OPERATSIYAGA YOZISH — umumiy oyna.
+Qayerdan chaqirilsa ham bir xil maydonlar chiqadi.
+
+Chaqirish: bu faylni "with visit=... modal_id=..." bilan include qiling.
+Kontekst kerak: surgery_team_context() —
+surgery_types, surgeons, assistants, anesthesiologists,
+operating_nurses, ward_nurses, operating_rooms.
+
+DIQQAT: bu izoh {% comment %} bilan yozilgan. Ko'p qatorli {#...#}
+Django'da izoh HISOBLANMAYDI — ichidagi teglar bajarilib ketadi.
+============================================================
+{% endcomment %}
+<div class="modal fade text-start" id="surgeryModal{{ modal_id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title"><i class="bi bi-heart-pulse"></i> Operatsiyaga yozish</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Yopish"></button>
+      </div>
+      <form method="post" action="{% url 'clinical:schedule_surgery' %}">
+        {% csrf_token %}
+        <input type="hidden" name="visit_id" value="{{ visit.pk }}">
+        <div class="modal-body">
+
+          <div class="alert alert-info py-2 mb-3">
+            <strong>Bemor:</strong> {{ visit.patient.full_name }}<br>
+            <strong>Asosiy qabul:</strong> {{ visit.visit_date|date:"d.m.Y" }} | №{{ visit.queue_number }}
+          </div>
+
+          {# ---- Asosiy ---- #}
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label fw-bold">Operatsiya turi <span class="text-danger">*</span></label>
+              <select name="surgery_type_id" class="form-select" required>
+                <option value="">-- Tanlang --</option>
+                {% for st in surgery_types %}
+                <option value="{{ st.id }}">{{ st.name }} ({{ st.price|intcomma }} so'm)</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label fw-bold">Jarroh <span class="text-danger">*</span></label>
+              <select name="surgeon_id" class="form-select" required>
+                <option value="">-- Tanlang --</option>
+                {% for s in surgeons %}
+                <option value="{{ s.id }}">{{ s.get_full_name|default:s.username }}{% if s.specialty %} ({{ s.specialty }}){% endif %}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label fw-bold">Sana va vaqt <span class="text-danger">*</span></label>
+              <input type="datetime-local" lang="ru" name="scheduled_time" class="form-control" required>
+            </div>
+          </div>
+
+          {# ---- Jamoa ---- #}
+          <hr class="my-3">
+          <div class="fw-bold mb-2 text-muted small text-uppercase">
+            <i class="bi bi-people"></i> Operatsiya jamoasi (keyin ham o'zgartirsa bo'ladi)
+          </div>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Operatsion asistent</label>
+              <select name="assistant_id" class="form-select">
+                <option value="">-- Tanlang --</option>
+                {% for u in assistants %}
+                <option value="{{ u.id }}">{{ u.get_full_name|default:u.username }}{% if u.specialty %} ({{ u.specialty }}){% endif %}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">Anesteziolog</label>
+              <select name="anesthesiologist_id" class="form-select">
+                <option value="">-- Tanlang --</option>
+                {% for u in anesthesiologists %}
+                <option value="{{ u.id }}">{{ u.get_full_name|default:u.username }}</option>
+                {% empty %}
+                <option value="" disabled>— anesteziolog roli bilan xodim yo'q —</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">Operatsion hamshira</label>
+              <select name="operating_nurse_id" class="form-select">
+                <option value="">-- Tanlang --</option>
+                {% for u in operating_nurses %}
+                <option value="{{ u.id }}">{{ u.get_full_name|default:u.username }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">Bo'lim hamshirasi</label>
+              <select name="ward_nurse_id" class="form-select">
+                <option value="">-- Tanlang --</option>
+                {% for u in ward_nurses %}
+                <option value="{{ u.id }}">{{ u.get_full_name|default:u.username }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">Operatsion xona</label>
+              <select name="operating_room_id" class="form-select">
+                <option value="">-- Tanlang --</option>
+                {% for r in operating_rooms %}
+                <option value="{{ r.id }}">{{ r.name }}</option>
+                {% empty %}
+                <option value="" disabled>— operatsion xona kiritilmagan —</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+          {# ---- Izoh ---- #}
+          <hr class="my-3">
+          <div>
+            <label class="form-label">Qo'shimcha izohlar</label>
+            <textarea name="notes" class="form-control" rows="2" placeholder="Qo'shimcha ma'lumot..."></textarea>
+          </div>
+
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>
+          <button type="submit" class="btn btn-danger"><i class="bi bi-check-lg"></i> Saqlash</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

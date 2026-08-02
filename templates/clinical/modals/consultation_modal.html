@@ -1,0 +1,580 @@
+<!-- templates/clinical/modals/consultation_modal.html -->
+<div class="modal fade" id="consultationModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-file-medical"></i> Tibbiy Xulosa: {{ visit.patient.full_name }}</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body bg-light">
+
+                <!-- Bemor ma'lumotlari paneli -->
+                <div class="card shadow-sm mb-3">
+                    <div class="card-body py-2 d-flex flex-wrap gap-3 small">
+                        <span><i class="bi bi-person"></i> <strong>{{ visit.patient.full_name }}</strong></span>
+                        <span><i class="bi bi-cake2"></i> {{ visit.patient.age }} yosh</span>
+                        <span><i class="bi bi-gender-ambiguous"></i> {{ visit.patient.get_gender_display }}</span>
+                        <span><i class="bi bi-credit-card-2-front"></i> {{ visit.patient.card_number }}</span>
+                        <span><i class="bi bi-calendar3"></i> {{ visit.visit_date|date:"d.m.Y" }} · №{{ visit.queue_number }}</span>
+                        {% if visit.complaint %}<span class="text-danger"><i class="bi bi-chat-left-text"></i> {{ visit.complaint|truncatechars:60 }}</span>{% endif %}
+                    </div>
+                </div>
+
+                <!-- Shablon tanlash -->
+                <div class="card shadow-sm mb-3 border-info">
+                    <div class="card-body py-2">
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="fw-semibold small"><i class="bi bi-collection"></i> Shablon tanlang</span>
+                            <a href="{% url 'clinical:my_templates' %}" target="_blank" class="btn btn-sm btn-outline-secondary ms-auto">
+                                <i class="bi bi-gear"></i> Shablonlarni boshqarish
+                            </a>
+                        </div>
+                        <select id="editorTemplateSelect" class="d-none">
+                            <option value="">-- Bo'sh xulosa --</option>
+                            {% for t in templates %}
+                            <option value="{{ t.id }}">{{ t.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="tpl-cards">
+                            <div class="tpl-card active" data-tid="" onclick="pickTemplateCard(this, '')">
+                                <i class="bi bi-file-earmark"></i><span>Bo'sh xulosa</span>
+                            </div>
+                            {% for t in templates %}
+                            <div class="tpl-card" data-tid="{{ t.id }}" onclick="pickTemplateCard(this, '{{ t.id }}')">
+                                <i class="bi bi-file-earmark-text"></i><span>{{ t.name }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="form-text mb-0 mt-2">Shablon ustiga bosing — «maxsus so'zlar» bemor ma'lumoti bilan avtomatik to'ladi, <code>_________</code> bo'sh joylarni tizim so'raydi.</div>
+                    </div>
+                </div>
+
+                <!-- BO'SH JOYLARNI TO'LDIRISH paneli -->
+                <div class="card shadow-sm mb-3 border-warning d-none" id="blanksPanel">
+                    <div class="card-header bg-warning text-dark py-2">
+                        <i class="bi bi-input-cursor-text"></i> Shablondagi bo'sh joylarni to'ldiring
+                    </div>
+                    <div class="card-body py-2" id="blanksInputs"></div>
+                    <div class="card-footer py-2 d-flex gap-2">
+                        <button type="button" class="btn btn-sm btn-success" onclick="applyBlanks()">
+                            <i class="bi bi-check-lg"></i> To'ldirib joylash
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="skipBlanks()">
+                            O'tkazib yuborish (keyin qo'lda yozaman)
+                        </button>
+                    </div>
+                </div>
+
+                <form id="consultationForm" method="post" action="{% url 'clinical:consultation_save_modal' visit.pk %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="report_html" id="report_html_input">
+                    <input type="hidden" name="status" id="visit_status_input" value="completed">
+
+                    <div class="card shadow-sm mb-3 border-primary">
+                        <div class="card-header bg-primary text-white fw-bold py-2">
+                            <i class="bi bi-ui-checks-grid"></i> Qo'shimcha tekshiruvlar tayinlash (UZI, EKG, Analizlar)
+                        </div>
+                        <div class="card-body py-2">
+                            <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-2" id="servicesCheckboxes">
+                                {% for svc in services %}
+                                <div class="col">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="recommended_services" value="{{ svc.id }}" id="svc_{{ svc.id }}" {% if svc.id in existing_orders %}checked disabled{% endif %}>
+                                        <label class="form-check-label {% if svc.id in existing_orders %}text-muted{% endif %}" for="svc_{{ svc.id }}">
+                                            {{ svc.name }}
+                                            {% if svc.id in existing_orders %}
+                                                <span class="badge bg-secondary ms-1" style="font-size: 0.65em;">Tayinlangan</span>
+                                            {% endif %}
+                                        </label>
+                                    </div>
+                                </div>
+                                {% empty %}
+                                <div class="col-12 text-muted small">Faol xizmatlar topilmadi. Tizim sozlamalaridan xizmat qo'shing.</div>
+                                {% endfor %}
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mt-3">
+                                <div class="form-text mb-0"><i class="bi bi-info-circle"></i> Belgilangan xizmatlar kassaga va tekshiruv xonasiga tushadi.</div>
+                                <button type="button" class="btn btn-sm btn-primary" onclick="assignServicesAjax('{% url 'clinical:consultation_assign_services' visit.pk %}')">
+                                    <i class="bi bi-send"></i> Belgilanganlarni jo'natish
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card shadow-sm mb-3 border-info">
+                        <div class="card-header bg-info text-white fw-bold py-2">
+                            <i class="bi bi-person-lines-fill"></i> Boshqa shifokorga yo'naltirish
+                        </div>
+                        <div class="card-body py-2">
+                            <div class="row g-2 align-items-center">
+                                <div class="col-md-4">
+                                    <select id="referredDoctorSelect" class="form-select form-select-sm">
+                                        <option value="">-- Shifokorni tanlang --</option>
+                                        {% for d in doctors %}
+                                            <option value="{{ d.id }}">{{ d.get_full_name|default:d.username }} ({{ d.specialty|default:"Shifokor" }})</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-5">
+                                    <input type="text" id="referralNotesInput" class="form-control form-control-sm" placeholder="Yo'naltirish sababi yoki izoh...">
+                                </div>
+                                <div class="col-md-3 text-end">
+                                    <button type="button" class="btn btn-sm btn-info text-white" onclick="referDoctorAjax('{% url 'clinical:consultation_redirect' visit.pk %}')">
+                                        <i class="bi bi-arrow-right-circle"></i> Yo'naltirish
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="form-text mt-2 mb-0"><i class="bi bi-info-circle"></i> Bemor tanlangan shifokor navbatiga o'tadi va sizning ishingiz yakunlanadi. Hozirgacha yozgan xulosangiz saqlanib qoladi.</div>
+                        </div>
+                    </div>
+
+                    <div class="card shadow-sm">
+                        <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-pencil-square"></i> Xulosa matni</span>
+                            <span id="autosaveBadge" class="badge bg-light text-muted fw-normal"></span>
+                        </div>
+                        <div class="card-body p-0">
+                            <div id="ck-editor-area"></div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer bg-light d-flex justify-content-between flex-wrap gap-2">
+                <div>
+                    <button class="btn btn-outline-secondary" onclick="printReport()">
+                        <i class="bi bi-printer"></i> Chop etish
+                    </button>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Yopish</button>
+                    <button type="button" class="btn btn-warning text-dark me-2" onclick="submitConsultation('in_progress')">
+                        <i class="bi bi-save"></i> Saqlab turish
+                    </button>
+                    <button type="button" class="btn btn-success" onclick="submitConsultation('completed')">
+                        <i class="bi bi-check-all"></i> Saqlash va Yakunlash
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Ma'lumotlar (XSSdan himoyalangan json_script orqali) -->
+{{ templates_map|json_script:"templates-data" }}
+{{ existing_report|default:""|json_script:"existing-report-data" }}
+{{ visit.patient.full_name|json_script:"pd-name" }}
+{{ visit.patient.get_gender_display|json_script:"pd-gender" }}
+{{ visit.patient.card_number|default:""|json_script:"pd-card" }}
+{{ visit.complaint|default:""|json_script:"pd-complaint" }}
+{{ request.user.get_full_name|default:""|json_script:"pd-doctor" }}
+
+<style>
+    #consultationModal .ck-editor__editable.ck-content {
+        background: #fff !important; min-height: 520px !important;
+        padding: 40px 52px !important; box-shadow: 0 2px 12px rgba(16,35,58,.12);
+        border: 1px solid #dbe2e8 !important;
+        font-family: 'Times New Roman', Georgia, serif; font-size: 14pt; line-height: 1.5;
+    }
+    #consultationModal .ck.ck-editor { background: #e9edf1; padding: 18px; border-radius: 8px; }
+    .tpl-cards { display: flex; flex-wrap: wrap; gap: .5rem; }
+    .tpl-card {
+        display: flex; align-items: center; gap: .5rem; cursor: pointer;
+        border: 1.5px solid #e2e8f0; border-radius: 10px; padding: .55rem .8rem;
+        background: #fff; font-size: .9rem; font-weight: 500; transition: .15s; min-width: 150px;
+    }
+    .tpl-card i { font-size: 1.2rem; color: #1a7f6b; }
+    .tpl-card:hover { border-color: #1a7f6b; background: #f0faf7; }
+    .tpl-card.active { border-color: #1a7f6b; background: #1a7f6b; color: #fff; }
+    .tpl-card.active i { color: #fff; }
+</style>
+
+<script>
+var ckEditor = null;
+var AUTOSAVE_KEY = "xulosa_draft_{{ visit.pk }}";
+var pendingHtml = null; // bo'sh joylar to'ldirilishini kutayotgan shablon
+
+(function () {
+    var modalElement = document.getElementById('consultationModal');
+    if (modalElement) new bootstrap.Modal(modalElement).show();
+
+    function js(id) {
+        var el = document.getElementById(id);
+        try { return el ? JSON.parse(el.textContent) : ""; } catch (e) { return ""; }
+    }
+
+    var tmap = js("templates-data") || {};
+    window.templateData = {};
+    Object.keys(tmap).forEach(function (id) { window.templateData[id] = tmap[id].html || ""; });
+
+    // ---- «MAXSUS SO'ZLAR» — avtomatik to'ladi ----
+    var now = new Date();
+    var pad = function (n) { return String(n).padStart(2, "0"); };
+    var V = {
+        "BEMOR": js("pd-name"),
+        "YOSH": "{{ visit.patient.age }}",
+        "JINSI": js("pd-gender"),
+        "KARTA": js("pd-card"),
+        "SANA": pad(now.getDate()) + "." + pad(now.getMonth() + 1) + "." + now.getFullYear(),
+        "VAQT": pad(now.getHours()) + ":" + pad(now.getMinutes()),
+        "SHIKOYAT": js("pd-complaint"),
+        "SHIFOKOR": js("pd-doctor"),
+        "MUTAXASSISLIK": "{{ request.user.specialty|default:''|escapejs }}"
+    };
+    window.PLACEHOLDERS = V;
+
+    // INPUT -> OUTPUT: shablondagi EMBLEMALAR (va eski «KEY»/{KEY} yozuvlar)
+    // faqat TOZA QIYMAT bilan almashtiriladi — hech qanday ortiqcha so'z
+    // qo'shilmaydi. Yorliq kerak bo'lsa, shifokor uni shablon dizaynining
+    // o'zida yozadi.
+    window.fillPlaceholders = function (html) {
+        var out = html;
+        // 1) Emblema-rasmlar: <img alt="TKN:BEMOR" ...>
+        out = out.replace(/<img[^>]*alt="TKN:([A-Z_]+)"[^>]*>/g, function (m, key) {
+            if (key === "BLANK") return "_________";
+            return (V[key] !== undefined && V[key] !== "") ? V[key] : "_________";
+        });
+        // 2) Eski matnli formatlar ham ishlayveradi
+        for (var key in V) {
+            var val = V[key] || "";
+            out = out.split("«" + key + "»").join(val);
+            out = out.split("{" + key + "}").join(val);
+        }
+        return out;
+    };
+
+    // ---- CKEditor superbuild: to'liq "Word" imkoniyatlari ----
+    function loadCK(cb) {
+        if (typeof CKEDITOR !== "undefined" && CKEDITOR.ClassicEditor) { cb(); return; }
+        var s = document.createElement("script");
+        s.src = "https://cdn.ckeditor.com/ckeditor5/41.4.2/super-build/ckeditor.js";
+        s.onload = cb;
+        document.head.appendChild(s);
+    }
+
+    loadCK(function () {
+        var _removeWanted = [
+            "AIAssistant", "CKBox", "CKFinder", "EasyImage", "MultiLevelList",
+            "RealTimeCollaborativeComments", "RealTimeCollaborativeTrackChanges",
+            "RealTimeCollaborativeRevisionHistory", "PresenceList",
+            "Comments", "TrackChanges", "TrackChangesData", "RevisionHistory",
+            "Pagination", "WProofreader", "MathType",
+            "SlashCommand", "Template", "DocumentOutline", "FormatPainter",
+            "TableOfContents", "PasteFromOfficeEnhanced", "CaseChange"
+        ];
+        var _builtin = (CKEDITOR.ClassicEditor.builtinPlugins || []).map(function (p) { return p.pluginName; });
+        var _removePlugins = _removeWanted.filter(function (n) { return _builtin.indexOf(n) !== -1; });
+
+        CKEDITOR.ClassicEditor.create(document.querySelector("#ck-editor-area"), {
+            toolbar: {
+                items: [
+                    "undo", "redo", "|",
+                    "heading", "|",
+                    "fontFamily", "fontSize", "fontColor", "fontBackgroundColor", "highlight", "|",
+                    "bold", "italic", "underline", "strikethrough", "subscript", "superscript", "removeFormat", "|",
+                    "alignment", "outdent", "indent", "|",
+                    "bulletedList", "numberedList", "todoList", "|",
+                    "insertTable", "horizontalLine", "specialCharacters", "pageBreak", "blockQuote", "link", "|",
+                    "findAndReplace"
+                ],
+                shouldNotGroupWhenFull: false
+            },
+            removePlugins: _removePlugins,
+            fontFamily: { supportAllValues: true },
+            fontSize: { options: [10, 12, "default", 14, 16, 18, 20, 24, 28, 36], supportAllValues: true },
+            table: {
+                contentToolbar: [
+                    "tableColumn", "tableRow", "mergeTableCells",
+                    "tableProperties", "tableCellProperties"
+                ]
+            },
+            placeholder: "Xulosa matnini yozing... yoki yuqoridan shablon tanlab «Qo'llash» bosing"
+        }).then(function (ed) {
+            ckEditor = ed;
+
+            var existingHtml = js("existing-report-data");
+            var draft = null;
+            try { draft = localStorage.getItem(AUTOSAVE_KEY); } catch (e) {}
+
+            if (existingHtml) {
+                ed.setData(existingHtml);
+            } else if (draft && draft.length > 10) {
+                if (confirm("Saqlanmagan qoralama topildi. Tiklansinmi?")) {
+                    ed.setData(draft);
+                } else {
+                    try { localStorage.removeItem(AUTOSAVE_KEY); } catch (e) {}
+                    ed.setData("<p><strong>Shikoyati:</strong> <br></p><p><strong>Kasallik tarixi (Anamnez):</strong> <br></p><p><strong>Obyektiv holat:</strong> <br></p><p><strong>Yakuniy tashxis:</strong> <br></p><p><strong>Dori-darmonlar (Retsept):</strong> <br></p><p><strong>Tavsiyalar:</strong> <br></p>");
+                }
+            } else {
+                ed.setData("<p><strong>Shikoyati:</strong> <br></p><p><strong>Kasallik tarixi (Anamnez):</strong> <br></p><p><strong>Obyektiv holat:</strong> <br></p><p><strong>Yakuniy tashxis:</strong> <br></p><p><strong>Dori-darmonlar (Retsept):</strong> <br></p><p><strong>Tavsiyalar:</strong> <br></p>");
+            }
+
+            // AVTOSAQLASH
+            var badge = document.getElementById("autosaveBadge");
+            var t = null;
+            ed.model.document.on("change:data", function () {
+                if (t) clearTimeout(t);
+                t = setTimeout(function () {
+                    try {
+                        localStorage.setItem(AUTOSAVE_KEY, ed.getData());
+                        if (badge) badge.textContent = "Qoralama saqlandi " + new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
+                    } catch (e) {}
+                }, 2000);
+            });
+        }).catch(function (e) { alert("Editor yuklanmadi: " + e.message); });
+    });
+})();
+
+function _csrf() {
+    return document.querySelector('#consultationForm input[name=csrfmiddlewaretoken]').value;
+}
+
+function _post(url, data) {
+    var body = new URLSearchParams();
+    body.append('csrfmiddlewaretoken', _csrf());
+    for (var k in data) body.append(k, data[k]);
+    return fetch(url, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': _csrf() },
+        body: body
+    }).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+            if (!r.ok) throw new Error(j.error || "Xatolik yuz berdi (" + r.status + ")");
+            return j;
+        });
+    });
+}
+
+var BLANK_RE = /_{5,}/g;
+
+// ---- Kartochka tanlash (yashirin select qiymatini beradi) ----
+function pickTemplateCard(el, id) {
+    var sel = document.getElementById('editorTemplateSelect');
+    if (sel) sel.value = id;
+    document.querySelectorAll('.tpl-card').forEach(function (c) { c.classList.remove('active'); });
+    el.classList.add('active');
+    applySelectedTemplate();
+}
+
+// ---- Shablonni QO'LLASH ----
+function applySelectedTemplate() {
+    var sel = document.getElementById('editorTemplateSelect');
+    if (!ckEditor) return;
+    if (!sel.value) { ckEditor.setData("<p><strong>Shikoyati:</strong> <br></p><p><strong>Kasallik tarixi (Anamnez):</strong> <br></p><p><strong>Obyektiv holat:</strong> <br></p><p><strong>Yakuniy tashxis:</strong> <br></p><p><strong>Dori-darmonlar (Retsept):</strong> <br></p><p><strong>Tavsiyalar:</strong> <br></p>"); hideBlanksPanel(); return; }
+
+    // 1) «Maxsus so'zlar»ni bemor ma'lumoti bilan to'ldiramiz
+    var html = window.fillPlaceholders(window.templateData[sel.value] || "");
+
+    // 2) Bo'sh joylar bo'lsa — to'ldirish panelini ko'rsatamiz
+    var blanks = html.match(BLANK_RE);
+    if (blanks && blanks.length > 0) {
+        pendingHtml = html;
+        showBlanksPanel(html, blanks.length);
+    } else {
+        hideBlanksPanel();
+        ckEditor.setData(html);
+    }
+}
+
+// ---- Bo'sh joylar paneli ----
+function showBlanksPanel(html, count) {
+    var panel = document.getElementById("blanksPanel");
+    var box = document.getElementById("blanksInputs");
+    box.innerHTML = "";
+
+    // Kontekst uchun oddiy matn (teglar olib tashlanadi)
+    var tmp = document.createElement("div");
+    tmp.innerHTML = html.replace(/<\/(p|div|td|th|li|h[1-6])>/gi, " | ");
+    var plain = tmp.textContent || "";
+
+    var esc = function (t) { return t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); };
+    var idx = 0, m, re = /_{5,}/g;
+    while ((m = re.exec(plain)) !== null) {
+        idx++;
+        // Bo'sh joy OLDIDAN kelgan matn (eng yaqin jumla/ustun boshidan)
+        var rawBefore = plain.slice(0, m.index);
+        var cut = Math.max(rawBefore.lastIndexOf("|"), rawBefore.lastIndexOf("."), rawBefore.lastIndexOf(";"));
+        var before = rawBefore.slice(cut + 1).trim();
+        if (before.length > 80) before = "…" + before.slice(-80);
+        // Bo'sh joydan KEYINGI matn (nima uchun ekanini bilish uchun)
+        var after = plain.slice(re.lastIndex).replace(/_{5,}/g, "").split("|")[0].split(".")[0].trim().slice(0, 35);
+        var row = document.createElement("div");
+        row.className = "mb-3 p-2 border rounded bg-white";
+        row.innerHTML =
+            '<div class="small mb-1 lh-base">' +
+            '<span class="badge bg-secondary me-1">' + idx + '</span>' +
+            (before ? '<span class="text-dark">' + esc(before) + '</span> ' : '') +
+            '<span class="px-2 fw-bold" style="background:#fff3cd;border:1px dashed #d39e00;border-radius:4px;color:#9a6d00">' + idx + '-bo\'sh joy</span>' +
+            (after ? ' <span class="text-muted">' + esc(after) + '</span>' : '') +
+            '</div>' +
+            '<input class="form-control form-control-sm blank-input" placeholder="Shu joyga yoziladigan matnni kiriting...">';
+        box.appendChild(row);
+    }
+    panel.classList.remove("d-none");
+    panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function hideBlanksPanel() {
+    document.getElementById("blanksPanel").classList.add("d-none");
+    document.getElementById("blanksInputs").innerHTML = "";
+    pendingHtml = null;
+}
+
+function applyBlanks() {
+    if (pendingHtml === null) return;
+    var inputs = document.querySelectorAll("#blanksInputs .blank-input");
+    var values = [];
+    inputs.forEach(function (i) { values.push(i.value.trim()); });
+    var n = 0;
+    var filled = pendingHtml.replace(BLANK_RE, function (match) {
+        var v = values[n++];
+        return v ? "<u><strong>" + v.replace(/</g, "&lt;") + "</strong></u>" : match;
+    });
+    ckEditor.setData(filled);
+    hideBlanksPanel();
+}
+
+function skipBlanks() {
+    if (pendingHtml !== null) ckEditor.setData(pendingHtml);
+    hideBlanksPanel();
+}
+
+// ---- Saqlash / Yakunlash ----
+function submitConsultation(status) {
+    if (!ckEditor) return;
+    var html = ckEditor.getData();
+    var tmp = document.createElement("div"); tmp.innerHTML = html;
+    if ((tmp.textContent || "").trim().length === 0) {
+        alert("Xulosa matni bo'sh bo'lishi mumkin emas!"); return;
+    }
+    html = window.fillPlaceholders(html);
+
+    var formObj = document.getElementById('consultationForm');
+    var body = new FormData(formObj);
+    body.set('report_html', html);
+    body.set('status', status);
+
+    fetch(formObj.action, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': _csrf() },
+        body: body
+    }).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+            if (!r.ok) throw new Error(j.error || "Xatolik yuz berdi (" + r.status + ")");
+            return j;
+        });
+    }).then(function () {
+        try { localStorage.removeItem(AUTOSAVE_KEY); } catch (e) {}
+        location.reload();
+    }).catch(function (e) { alert(e.message); });
+}
+
+// ---- Bemor uchun chiroyli chop etish ----
+function printReport() {
+    if (!ckEditor) return;
+    var html = window.fillPlaceholders(ckEditor.getData());
+    var tmp = document.createElement("div"); tmp.innerHTML = html;
+    if ((tmp.textContent || "").trim().length === 0) { alert("Matn bo'sh."); return; }
+    var V = window.PLACEHOLDERS;
+    var w = window.open('', '_blank');
+    w.document.write(
+        '<html><head><title>Tibbiy xulosa</title>' +
+        '<style>body{font-family:Georgia,serif;margin:40px;color:#111}' +
+        'table{border-collapse:collapse}td,th{border:1px solid #999;padding:6px 10px}' +
+        'mark{background:#fdfd77}.page-break{page-break-after:always}ul.todo-list{list-style:none;padding-left:0}' +
+        '.head{text-align:center;border-bottom:2px solid #0d9488;padding-bottom:10px;margin-bottom:16px}' +
+        '.head h2{margin:0;color:#0f766e}.meta{font-size:14px;margin-bottom:18px}' +
+        '.meta td{border:none;padding:2px 12px 2px 0}.sig{margin-top:60px;display:flex;justify-content:space-between;font-size:14px}' +
+        '</style></head><body>' +
+        '<div class="head"><h2>{{ clinic_name|escapejs }}</h2><div>{{ clinic_address|escapejs }} · Tel: {{ clinic_phone|escapejs }}</div></div>' +
+        '<table class="meta">' +
+        '<tr><td><b>Bemor:</b></td><td>' + V["BEMOR"] + ' (' + V["YOSH"] + ' yosh, ' + V["JINSI"] + ')</td></tr>' +
+        '<tr><td><b>Karta:</b></td><td>' + V["KARTA"] + '</td></tr>' +
+        '<tr><td><b>Sana:</b></td><td>' + V["SANA"] + ' ' + V["VAQT"] + '</td></tr>' +
+        '</table><hr>' + html +
+        '<div class="sig"><span><b>Shifokor:</b> ' + V["SHIFOKOR"] + '</span><span>Imzo: ______________</span></div>' +
+        '</body></html>');
+    w.document.close();
+    w.focus();
+    setTimeout(function () { w.print(); }, 400);
+}
+// ---- Xizmatlarni (UZI, EKG) oynani yopmasdan turib tayinlash ----
+function assignServicesAjax(url) {
+    var recServices = [];
+    document.querySelectorAll("input[name='recommended_services']:checked").forEach(function(el) {
+        if (!el.disabled) recServices.push(el.value);
+    });
+
+    if (recServices.length === 0) {
+        alert("Jo'natish uchun xizmat(lar)ni tanlang!");
+        return;
+    }
+
+    var body = new URLSearchParams();
+    body.append('csrfmiddlewaretoken', _csrf());
+    recServices.forEach(function(val) { body.append('services', val); });
+
+    fetch(url, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': _csrf() },
+        body: body
+    }).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+            if (!r.ok) throw new Error(j.error || "Xatolik yuz berdi (" + r.status + ")");
+            return j;
+        });
+    }).then(function (res) {
+        alert(res.message);
+        // Disable the sent checkboxes and mark them as assigned
+        document.querySelectorAll("input[name='recommended_services']:checked").forEach(function(el) {
+            if (!el.disabled) {
+                el.disabled = true;
+                var label = el.nextElementSibling;
+                if (label) {
+                    label.classList.add('text-muted');
+                    label.innerHTML += ' <span class="badge bg-secondary ms-1" style="font-size: 0.65em;">Tayinlangan</span>';
+                }
+            }
+        });
+    }).catch(function (e) { alert(e.message); });
+}
+
+// ---- Boshqa shifokorga yo'naltirish ----
+function referDoctorAjax(url) {
+    var doctorId = document.getElementById('referredDoctorSelect').value;
+    var notes = document.getElementById('referralNotesInput').value.trim();
+
+    if (!doctorId) {
+        alert("Iltimos, yo'naltiriladigan shifokorni tanlang!");
+        return;
+    }
+
+    if (!confirm("Haqiqatan ham bemorni bu shifokorga yo'naltirmoqchimisiz? Bemor sizning navbatingizdan o'chiriladi.")) {
+        return;
+    }
+
+    var html = ckEditor ? ckEditor.getData() : "";
+    html = window.fillPlaceholders(html);
+
+    var body = new URLSearchParams();
+    body.append('csrfmiddlewaretoken', _csrf());
+    body.append('referred_doctor', doctorId);
+    body.append('referral_notes', notes);
+    body.append('report_html', html); // save whatever they wrote so far
+
+    fetch(url, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': _csrf() },
+        body: body
+    }).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+            if (!r.ok) throw new Error(j.error || "Xatolik yuz berdi (" + r.status + ")");
+            return j;
+        });
+    }).then(function (res) {
+        alert(res.message);
+        try { localStorage.removeItem(AUTOSAVE_KEY); } catch (e) {}
+        location.reload(); // Reload page so modal closes and patient is gone from this queue
+    }).catch(function (e) { alert(e.message); });
+}
+
+</script>

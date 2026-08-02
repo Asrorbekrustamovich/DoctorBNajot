@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Tibbiy xulosa - {{ visit.patient.full_name }}{% endblock %}
+
+{% block content %}
+{% if not word_export %}
+<div class="d-flex justify-content-between align-items-center mb-3 d-print-none">
+    <h1 class="h4 mb-0"><i class="bi bi-file-medical"></i> Tibbiy xulosa (rasmiy ko'rinish)</h1>
+    <div>
+        <a href="?format=word" class="btn btn-outline-primary"><i class="bi bi-file-word"></i> Word ga yuklash</a>
+        <button class="btn btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Chop etish</button>
+        <a href="javascript:history.back()" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Orqaga</a>
+    </div>
+</div>
+{% endif %}
+
+<div class="card shadow-sm report-sheet">
+    <div class="card-body p-5">
+        <div class="report-head">
+            <h2>{{ clinic_name }}</h2>
+            <div>{{ clinic_address }} · Tel: {{ clinic_phone }}</div>
+        </div>
+
+        <table class="report-meta">
+            <tr><td><strong>Ismi familiyasi:</strong></td><td>{{ visit.patient.full_name }} ({{ visit.patient.age }} yosh, {{ visit.patient.get_gender_display }})</td></tr>
+            <tr><td><strong>Karta raqami:</strong></td><td>{{ visit.patient.card_number }}</td></tr>
+            <tr><td><strong>Sana:</strong></td><td>{{ consultation.updated_at|date:"d.m.Y H:i:s" }} (qabul: {{ visit.visit_date|date:"d.m.Y" }} · №{{ visit.queue_number }})</td></tr>
+        </table>
+        <hr>
+
+        <div class="report-body">
+            {% if consultation.report_html %}
+                {{ consultation.report_html|safe }}
+            {% else %}
+                {% if consultation.complaint %}<p><strong>Shikoyat:</strong> {{ consultation.complaint }}</p>{% endif %}
+                {% if consultation.anamnesis %}<p><strong>Anamnez:</strong> {{ consultation.anamnesis }}</p>{% endif %}
+                {% if consultation.objective_status %}<p><strong>Obyektiv holat:</strong> {{ consultation.objective_status }}</p>{% endif %}
+                {% if consultation.diagnosis %}<p><strong>Tashxis:</strong> {{ consultation.diagnosis }}</p>{% endif %}
+                {% if consultation.prescription %}<p><strong>Retsept:</strong> {{ consultation.prescription }}</p>{% endif %}
+                {% if consultation.recommendations %}<p><strong>Tavsiyalar:</strong> {{ consultation.recommendations }}</p>{% endif %}
+            {% endif %}
+        </div>
+
+        <div class="report-sig">
+            <span><strong>Shifokor:</strong> {{ consultation.doctor.get_full_name }}{% if consultation.doctor.specialty %} ({{ consultation.doctor.specialty }}){% endif %}</span>
+            <span>Imzo: ________________</span>
+        </div>
+    </div>
+</div>
+
+<style>
+    .report-sheet { max-width: 900px; margin: 0 auto; font-family: Georgia, serif; color: #111; }
+    .report-head { text-align: center; border-bottom: 2px solid #0d9488; padding-bottom: 10px; margin-bottom: 16px; }
+    .report-head h2 { margin: 0; color: #0f766e; }
+    .report-meta { font-size: 15px; margin-bottom: 8px; }
+    .report-meta td { padding: 2px 12px 2px 0; vertical-align: top; }
+    .report-body { font-size: 16px; line-height: 1.7; min-height: 200px; }
+    .report-body table { border-collapse: collapse; margin: 10px 0; }
+    .report-body td, .report-body th { border: 1px solid #999; padding: 6px 10px; }
+    .report-body mark { background: #fdfd77; }
+    .report-body .page-break { page-break-after: always; }
+    .report-body ul.todo-list { list-style: none; padding-left: 0; }
+    .report-body figure.table { margin: 10px 0; }
+    .report-sig { margin-top: 60px; display: flex; justify-content: space-between; font-size: 15px; }
+    @media print {
+        .navbar, .d-print-none { display: none !important; }
+        .report-sheet { box-shadow: none !important; border: none !important; max-width: 100%; }
+        body { background: #fff !important; }
+    }
+</style>
+{% endblock %}

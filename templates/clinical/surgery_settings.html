@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Operatsiya Turlari Sozlamasi — Doctor B Najot{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 page-title mb-1">Operatsiya turlari va narxlari</h1>
+        <p class="text-muted">Bu yerdagi narx o'zgarishlari faqat yangi qo'shiladigan bemorlarga ta'sir qiladi.</p>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0"><i class="bi bi-list-check me-2"></i> Barcha Operatsiyalar</h5>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addTypeModal">
+            <i class="bi bi-plus-lg"></i> Yangi turi qo'shish
+        </button>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">Operatsiya nomi</th>
+                        <th>Joriy Narxi</th>
+                        <th>Holati</th>
+                        <th class="text-end pe-4">Amallar</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for st in surgery_types %}
+                    <tr>
+                        <td class="ps-4 fw-bold">{{ st.name }}</td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <span class="fs-5 text-dark fw-semibold me-3">{{ st.price|intcomma }} so'm</span>
+                            </div>
+                        </td>
+                        <td>
+                            {% if st.is_active %}
+                            <span class="badge bg-success">Faol</span>
+                            {% else %}
+                            <span class="badge bg-danger">Faol emas</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-4">
+                            <!-- Narxni o'zgartirish -->
+                            <button class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#editPriceModal-{{ st.id }}" title="Narxni tahrirlash">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <!-- Faolligini o'zgartirish -->
+                            <form method="post" action="{% url 'clinical:toggle_surgery_type' st.id %}" style="display: inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm {% if st.is_active %}btn-outline-danger{% else %}btn-outline-success{% endif %}" title="{% if st.is_active %}O'chirish{% else %}Yoqish{% endif %}">
+                                    <i class="bi {% if st.is_active %}bi-power{% else %}bi-check-circle{% endif %}"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-center py-4 text-muted">
+                            <i class="bi bi-inbox fs-2 d-block mb-2"></i>
+                            Operatsiya turlari hali qo'shilmagan.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Narx tahrirlash modallari (jadval TASHQARISIDA — aks holda ochilmaydi) -->
+{% for st in surgery_types %}
+<div class="modal fade text-start" id="editPriceModal-{{ st.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'clinical:update_surgery_type_price' st.id %}">
+                {% csrf_token %}
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">{{ st.name }} - Narxni yangilash</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Yangi Narx (so'm)</label>
+                        <input type="number" step="0.01" min="0" name="price" class="form-control" value="{{ st.price|floatformat:'0' }}" required>
+                    </div>
+                    <div class="alert alert-info small mb-0">
+                        <i class="bi bi-info-circle"></i> O'zgarishlar faqat endi belgilanadigan operatsiyalar uchun amal qiladi. Oldin yozilgan bemorlarga ta'sir qilmaydi.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>
+                    <button type="submit" class="btn btn-primary">Saqlash</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<!-- Add Type Modal -->
+<div class="modal fade text-start" id="addTypeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'clinical:add_surgery_type' %}">
+                {% csrf_token %}
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Yangi Operatsiya Turini Qo'shish</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Operatsiya Nomi <span class="text-danger">*</span></label>
+                        <input type="text" name="name" class="form-control" placeholder="Masalan: Appenditsit" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Dastlabki Narxi (so'm) <span class="text-danger">*</span></label>
+                        <input type="number" step="0.01" min="0" name="price" class="form-control" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>
+                    <button type="submit" class="btn btn-primary">Qo'shish</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

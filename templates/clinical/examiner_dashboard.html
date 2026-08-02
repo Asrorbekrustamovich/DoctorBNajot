@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Mutaxassis Dashbordi - Doctor B Najot{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-1"><i class="bi bi-activity"></i> Mutaxassis Dashbordi</h1>
+        <p class="text-muted mb-0">Rolingiz: {{ user.role.name|default:"Mutaxassis" }}</p>
+    </div>
+</div>
+
+{# ===== HOZIR QABUL QILINGANLAR (bemor ichkarida) ===== #}
+{% if in_progress_orders %}
+<div class="card shadow-sm mb-4 border-warning">
+    <div class="card-header bg-warning bg-opacity-25 py-3">
+        <h5 class="mb-0"><i class="bi bi-person-check-fill"></i> Hozir bajarilmoqda (bemor ichkarida)</h5>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-hover align-middle mb-0">
+            <tbody>
+                {% for order in in_progress_orders %}
+                <tr>
+                    <td class="ps-3" style="width:130px;">
+                        <span class="badge bg-warning text-dark">Bajarilmoqda</span>
+                        <div class="small text-muted mt-1">{{ order.accepted_at|time:"H:i" }} dan</div>
+                    </td>
+                    <td>
+                        <div class="fw-bold">{{ order.visit.patient.full_name }}</div>
+                        <div class="small text-muted">{{ order.service.name }}</div>
+                    </td>
+                    <td class="small text-muted">
+                        Qabul qildi:
+                        {{ order.accepted_by.get_full_name|default:order.accepted_by.username|default:"—" }}
+                    </td>
+                    <td class="text-end pe-3 text-nowrap">
+                        <button type="button" class="btn btn-sm btn-outline-secondary"
+                                data-bs-toggle="modal" data-bs-target="#deferModal-{{ order.id }}">
+                            <i class="bi bi-clock-history"></i> Kechiktirish
+                        </button>
+                        <button type="button" class="btn btn-sm btn-success"
+                                data-bs-toggle="modal" data-bs-target="#performModal-{{ order.id }}">
+                            <i class="bi bi-pencil-square"></i> Xulosa yozish
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<div class="row g-4">
+    <!-- Chap tomon: Navbatda turgan xizmatlar -->
+    <div class="col-md-7">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0 text-primary"><i class="bi bi-hourglass-split"></i> Kutayotgan tekshiruvlar</h5>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-3">Vaqt</th>
+                            <th>Bemor</th>
+                            <th>Xizmat</th>
+                            <th class="text-end pe-3">Harakat</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for order in pending_orders %}
+                        <tr {% if order.deferred_at %}class="table-warning"{% endif %}>
+                            <td class="ps-3">
+                                {{ order.created_at|time:"H:i" }}
+                                {% if order.status == 'waiting' %}
+                                    <div><span class="badge bg-danger-subtle text-danger-emphasis">To'lanmagan</span></div>
+                                {% elif order.status == 'paid' %}
+                                    <div><span class="badge bg-success-subtle text-success-emphasis">To'langan</span></div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="fw-bold">{{ order.visit.patient.full_name }}</div>
+                                <div class="small text-muted">{{ order.visit.doctor.get_full_name|default:"-" }}</div>
+                                {% if order.deferred_at %}
+                                <div class="small text-warning-emphasis">
+                                    <i class="bi bi-clock-history"></i>
+                                    {{ order.defer_count }}× kechiktirilgan — {{ order.deferred_reason }}
+                                    <span class="text-muted">({{ order.deferred_by.get_full_name|default:"—" }}, {{ order.deferred_at|date:"d.m H:i" }})</span>
+                                </div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-info text-dark">{{ order.service.name }}</span>
+                                {% if order.service.room or order.service.responsible_staff %}
+                                <div class="small text-muted mt-1">
+                                    <i class="bi bi-geo-alt"></i> {{ order.service.destination }}
+                                </div>
+                                {% endif %}
+                            </td>
+                            <td class="text-end pe-3 text-nowrap">
+                                <form method="post" action="{% url 'clinical:examiner_order_accept' order.id %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-primary">
+                                        <i class="bi bi-box-arrow-in-right"></i> Qabul qildim
+                                    </button>
+                                </form>
+                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                        data-bs-toggle="modal" data-bs-target="#deferModal-{{ order.id }}">
+                                    <i class="bi bi-clock-history"></i> Kechiktirish
+                                </button>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center py-4 text-muted">
+                                <i class="bi bi-inbox fs-2 d-block mb-2"></i>
+                                Hozircha navbatda tekshiruvlar yo'q
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- O'ng tomon: Bajarilgan xizmatlar -->
+    <div class="col-md-5">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0 text-success"><i class="bi bi-check2-all"></i> Bajarilgan tekshiruvlar (oxirgi 20 ta)</h5>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-3">Vaqt</th>
+                            <th>Bemor</th>
+                            <th>Xizmat</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for order in completed_orders %}
+                        <tr>
+                            <td class="ps-3 small">{{ order.updated_at|time:"H:i" }}</td>
+                            <td class="small">{{ order.visit.patient.full_name }}</td>
+                            <td><span class="badge bg-light text-dark border">{{ order.service.name }}</span></td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="3" class="text-center py-4 text-muted small">
+                                Hali hech qanday tekshiruv bajarmadingiz
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ===== MODALLAR: xulosa yozish va kechiktirish ===== #}
+{% for order in pending_orders %}{% include "clinical/_examiner_modals.html" with order=order %}{% endfor %}
+{% for order in in_progress_orders %}{% include "clinical/_examiner_modals.html" with order=order %}{% endfor %}
+{% endblock %}

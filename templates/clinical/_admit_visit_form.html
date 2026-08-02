@@ -1,0 +1,99 @@
+{% load humanize %}
+<div class="modal fade" id="admitModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-hospital"></i> Statsionarga yotqizish</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form hx-post="{% url 'clinical:admit_visit' visit.id %}" hx-swap="outerHTML">
+                    {% csrf_token %}
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Bemor</label>
+                        <input type="text" class="form-control bg-light" value="{{ visit.patient.full_name }}" readonly>
+                        <div class="form-text">Asosiy qabul: №{{ visit.queue_number }} ({{ visit.visit_date|date:"d.m.Y" }})</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Kravatni tanlang <span class="text-danger">*</span></label>
+                        <select name="bed_id" class="form-select" required>
+                            <option value="">-- Bo'sh kravatni tanlang --</option>
+                            {% for b in empty_beds %}
+                            <option value="{{ b.id }}">{{ b.room.name }} - {{ b.number }} (Oddiy: {{ b.price_per_day|intcomma }} / Paketli: {{ b.package_price_per_day|intcomma }} so'm)</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Statsionar turi <span class="text-danger">*</span></label>
+                        <select name="stay_type" class="form-select" required
+                                onchange="document.getElementById('admitPkgPriceBox').style.display = this.value === 'package' ? 'block' : 'none'">
+                            <option value="standard">Oddiy — yotish + dorilar alohida to'lanadi</option>
+                            <option value="package">Paketli — dori narxi yotish ichida (bemor faqat yotganiga to'laydi)</option>
+                        </select>
+                        <div class="form-text">Paketli turda dorilar klinika omboridan beriladi va chekka alohida tushmaydi.</div>
+                    </div>
+
+                    <div class="mb-3 p-2 border border-warning rounded bg-light" id="admitPkgPriceBox" style="display:none">
+                        <label class="form-label fw-bold">Paketli kunlik narx (so'm)</label>
+                        <input type="number" name="package_price" class="form-control" min="0" step="1000" placeholder="Masalan: 500000">
+                        <div class="form-text">Bo'sh qoldirsangiz — tanlangan kravatning saqlangan paketli narxi olinadi. Kiritilsa — shu yotish uchun ishlatiladi va kravatga saqlanadi (eski yotishlarga ta'sir qilmaydi).</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Hujjatlashtirish hamshirasi</label>
+                        <select name="doc_nurse" class="form-select">
+                            <option value="">-- Tanlang --</option>
+                            {% for nurse in nurses %}
+                            <option value="{{ nurse.id }}">{{ nurse.get_full_name|default:nurse.username }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Nima berildi/qilindi hisobotini (+/-) yuritadi.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Ukol/muolaja hamshirasi</label>
+                        <select name="procedure_nurse" class="form-select">
+                            <option value="">-- Tanlang --</option>
+                            {% for nurse in nurses %}
+                            <option value="{{ nurse.id }}">{{ nurse.get_full_name|default:nurse.username }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Ukollar va muolajalarni bajarib, o'z hisobotiga kiritadi.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Mas'ul shifokor</label>
+                        <select name="assigned_doctor" class="form-select" required>
+                            <option value="">-- Tanlang --</option>
+                            {% for doctor in doctors %}
+                            <option value="{{ doctor.id }}">{{ doctor.get_full_name|default:doctor.username }} ({{ doctor.role.name }})</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Bemorga mas'ul shifokor, unga Dori yozish tugmasi ko'rinadi.</div>
+                    </div>
+
+                    <div class="text-end mt-4">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Yopish</button>
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-check-circle"></i> Yotqizish</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function(){
+        var modalEl = document.getElementById('admitModal');
+        if (modalEl) {
+            var m = new bootstrap.Modal(modalEl);
+            m.show();
+            modalEl.addEventListener('hidden.bs.modal', function () {
+                modalEl.remove();
+            });
+        }
+    })();
+</script>

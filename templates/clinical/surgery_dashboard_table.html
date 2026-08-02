@@ -1,0 +1,79 @@
+{% for surgery in surgeries %}
+<tr>
+    <td class="ps-3 fw-bold">{{ surgery.scheduled_time|date:"d.m.Y H:i:s" }}</td>
+    <td>{{ surgery.visit.patient.full_name }}</td>
+    <td>{{ surgery.surgery_type.name }}</td>
+    <td>{{ surgery.surgeon.get_full_name }}</td>
+    <td>
+        {% if surgery.status == 'scheduled' or surgery.status == 'pre_op' %}
+            <span class="badge bg-secondary">Rejalashtirilgan</span>
+        {% elif surgery.status == 'in_progress' %}
+            <span class="badge bg-warning text-dark">Bajarilmoqda</span>
+        {% elif surgery.status == 'completed' %}
+            <span class="badge bg-success">Yakunlangan</span>
+        {% else %}
+            <span class="badge bg-danger">Bekor qilingan</span>
+        {% endif %}
+    </td>
+    <td class="text-end pe-3">
+        {% if can_surgeon %}
+        {% if surgery.status == 'scheduled' or surgery.status == 'pre_op' %}
+            <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#startModal-{{ surgery.id }}">
+                Boshlash
+            </button>
+            <form method="post" action="{% url 'clinical:update_surgery_status' surgery.id %}" class="d-inline">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="cancelled">
+                <button type="submit" class="btn btn-sm btn-danger ms-1" onclick="return confirm('Bekor qilasizmi?');">
+                    Bekor qilish
+                </button>
+            </form>
+        {% elif surgery.status == 'in_progress' %}
+            <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#finishModal-{{ surgery.id }}">
+                Yakunlash
+            </button>
+        {% endif %}
+        {% endif %}
+        
+        <!-- Protokollar Dropdown (faqat tegishli rollar) -->
+        {% if can_surgeon or can_anesth or can_nurse %}
+        <div class="dropdown d-inline ms-1">
+            <button class="btn btn-sm btn-outline-dark dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                <i class="bi bi-gear"></i> Protokollar
+            </button>
+            <ul class="dropdown-menu">
+                {% if can_surgeon %}
+                <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#preopModal-{{ surgery.id }}"><i class="bi bi-clipboard2-pulse"></i> Operatsiyagacha ko'rik (jarroh)</a></li>
+                {% endif %}
+                {% if can_anesth %}
+                <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#vitalsModal-{{ surgery.id }}"><i class="bi bi-heart-pulse"></i> Intra-Op (Vitals)</a></li>
+                {% endif %}
+                {% if can_nurse and can_surgeon or can_nurse and can_anesth %}<li><hr class="dropdown-divider"></li>{% endif %}
+                {% if can_nurse %}
+                <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#nurseModal-{{ surgery.id }}"><i class="bi bi-bandaid"></i> Hamshira Sarfi</a></li>
+                {% endif %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <button type="button" class="btn btn-sm btn-outline-info ms-1" data-bs-toggle="modal" data-bs-target="#viewModal-{{ surgery.id }}">
+            <i class="bi bi-eye"></i> Batafsil
+        </button>
+        {% if can_schedule %}
+        <button type="button" class="btn btn-sm btn-outline-warning ms-1" data-bs-toggle="modal" data-bs-target="#editModal-{{ surgery.id }}">
+            <i class="bi bi-pencil"></i> Tahrirlash
+        </button>
+        {% endif %}
+        <a href="{% url 'clinical:surgery_process' surgery.id %}" class="btn btn-sm btn-danger mb-1"><i class="bi bi-activity"></i> Jarayon</a>
+        {% if can_report %}
+        <button type="button" class="btn btn-sm btn-outline-primary ms-1" data-bs-toggle="modal" data-bs-target="#reportModal-{{ surgery.id }}">
+            <i class="bi bi-journal-text"></i> Bayonnoma
+        </button>
+        {% endif %}
+    </td>
+</tr>
+{% empty %}
+<tr>
+    <td colspan="6" class="text-center text-muted">Ro'yxat bo'sh</td>
+</tr>
+{% endfor %}

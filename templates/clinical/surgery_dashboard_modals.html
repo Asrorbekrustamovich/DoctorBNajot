@@ -1,0 +1,328 @@
+{# Operatsiya modallari — jadval TASHQARISIDA render qilinadi (5s yangilanishга tushmaydi) #}
+{% for surgery in surgeries %}
+        <!-- Tahrirlash Modal -->
+        <div class="modal fade text-start" id="editModal-{{ surgery.id }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-warning">
+                        <h5 class="modal-title"><i class="bi bi-pencil"></i> Operatsiya jamoasini tahrirlash</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <form method="post" action="{% url 'clinical:edit_surgery_schedule' surgery.id %}">
+                        {% csrf_token %}
+                        <div class="modal-body">
+                            <p class="text-muted mb-3">Bemor: <strong>{{ surgery.visit.patient.full_name }}</strong> — {{ surgery.surgery_type.name }}</p>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Jarroh</label>
+                                <select name="surgeon_id" class="form-select">
+                                    <option value="">-- Tanlang --</option>
+                                    {% for u in surgeons %}
+                                    <option value="{{ u.id }}" {% if surgery.surgeon_id == u.id %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Operatsion asistent</label>
+                                <select name="assistant_id" class="form-select">
+                                    <option value="">-- Yo'q --</option>
+                                    {% for u in assistants %}
+                                    <option value="{{ u.id }}" {% if surgery.assistant_id == u.id %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Anesteziolog</label>
+                                <select name="anesthesiologist_id" class="form-select">
+                                    <option value="">-- Yo'q --</option>
+                                    {% for u in anesthesiologists %}
+                                    <option value="{{ u.id }}" {% if surgery.anesthesiologist_id == u.id %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Operatsion hamshira</label>
+                                <select name="operating_nurse_id" class="form-select">
+                                    <option value="">-- Yo'q --</option>
+                                    {% for u in operating_nurses %}
+                                    <option value="{{ u.id }}" {% if surgery.operating_nurse_id == u.id %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Bo'lim hamshirasi</label>
+                                <select name="ward_nurse_id" class="form-select">
+                                    <option value="">-- Yo'q --</option>
+                                    {% for u in ward_nurses %}
+                                    <option value="{{ u.id }}" {% if surgery.ward_nurse_id == u.id %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label fw-bold text-danger">Tahrirlash sababi <span class="text-danger">*</span></label>
+                                <input type="text" name="audit_reason" class="form-control" placeholder="Masalan: jarroh almashtirildi" required>
+                                <div class="form-text">Sabab audit tarixiga yoziladi.</div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>
+                            <button type="submit" class="btn btn-warning"><i class="bi bi-check-lg"></i> Saqlash</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Start Modal -->
+        <div class="modal fade text-start" id="startModal-{{ surgery.id }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-warning">
+                <h5 class="modal-title">Operatsiyani Boshlash</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="post" action="{% url 'clinical:update_surgery_status' surgery.id %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="status" value="in_progress">
+                    <div class="modal-body">
+                        <p>Bemor: {{ surgery.visit.patient.full_name }}</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-warning">Boshlash</button>
+                    </div>
+                </form>
+            </div>
+            </div>
+        </div>
+
+        <!-- Finish Modal -->
+        <div class="modal fade text-start" id="finishModal-{{ surgery.id }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">Operatsiyani Yakunlash</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="post" action="{% url 'clinical:update_surgery_status' surgery.id %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="status" value="completed">
+                    <div class="modal-body">
+                        <p>Operatsiya tugatildimi?</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-success">Yakunlash</button>
+                    </div>
+                </form>
+            </div>
+            </div>
+        </div>
+
+        <!-- View Modal -->
+        <div class="modal fade text-start" id="viewModal-{{ surgery.id }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white">
+                <h5 class="modal-title">Batafsil</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <table class="table table-sm">
+                        <tr><th>Bemor:</th><td>{{ surgery.visit.patient.full_name }}</td></tr>
+                        <tr><th>Turi:</th><td>{{ surgery.surgery_type.name }}</td></tr>
+                        <tr><th>Jarroh:</th><td>{{ surgery.surgeon.get_full_name }}</td></tr>
+                        <tr><th>Anesteziolog:</th><td>{{ surgery.anesthesiologist.get_full_name|default:"-" }}</td></tr>
+                        <tr><th>Operatsion hamshira:</th><td>{{ surgery.operating_nurse.get_full_name|default:"-" }}</td></tr>
+                        <tr><th>Bo'lim hamshirasi:</th><td>{{ surgery.ward_nurse.get_full_name|default:"-" }}</td></tr>
+                    </table>
+                </div>
+            </div>
+            </div>
+        </div>
+        
+        <!-- PreOp Modal -->
+        <div class="modal fade text-start" id="preopModal-{{ surgery.id }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-dark text-white">
+                        <h5 class="modal-title"><i class="bi bi-clipboard2-pulse"></i> Operatsiyagacha ko'rik (jarroh) — {{ surgery.visit.patient.full_name }}</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <form method="post" action="{% url 'clinical:preop_evaluation_save' surgery.id %}">
+                        {% csrf_token %}
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Operatsiyagacha ko'rik</label>
+                                <textarea name="pre_op_evaluation" class="form-control" rows="3">{{ surgery.anesthesia_request.pre_op_evaluation|default:"" }}</textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Tayyorgarlik (Preparation)</label>
+                                <textarea name="preparation_notes" class="form-control" rows="3">{{ surgery.anesthesia_request.preparation_notes|default:"" }}</textarea>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="submit" class="btn btn-dark">Saqlash</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vitals Modal -->
+        <div class="modal fade text-start" id="vitalsModal-{{ surgery.id }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-danger text-white">
+                        <h5 class="modal-title">Intra-Op Vitals (Qon bosimi)</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <form method="post" action="{% url 'clinical:surgery_vitals_add' surgery.id %}">
+                        {% csrf_token %}
+                        <div class="modal-body">
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <label class="form-label">Davleniya</label>
+                                    <input type="text" name="blood_pressure" class="form-control" placeholder="120/80">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Puls</label>
+                                    <input type="number" name="pulse" class="form-control" placeholder="75">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">SpO2 (%)</label>
+                                    <input type="number" name="spo2" class="form-control" placeholder="98">
+                                </div>
+                                <div class="col-12 mt-3">
+                                    <label class="form-label">Izoh / Qilingan ish</label>
+                                    <input type="text" name="note" class="form-control" placeholder="...">
+                                </div>
+                            </div>
+                            
+                            <h6 class="mt-4">Oldingi yozuvlar:</h6>
+                            <ul class="list-group">
+                                {% for v in surgery.vitals.all %}
+                                <li class="list-group-item small">
+                                    <b>{{ v.recorded_at|time:"H:i" }}</b> - BP: {{ v.blood_pressure }}, P: {{ v.pulse }}, SpO2: {{ v.spo2 }} <br>
+                                    <i>{{ v.note }}</i>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="submit" class="btn btn-danger">Qo'shish</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Nurse Usage Modal -->
+        <div class="modal fade text-start" id="nurseModal-{{ surgery.id }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-success text-white">
+                        <h5 class="modal-title">Operatsion Hamshira Sarfi</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <form method="post" action="{% url 'clinical:nurse_usage_add' surgery.id %}">
+                        {% csrf_token %}
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label class="form-label">Anesteziolog omboridan tanlang</label>
+                                <select name="stock_id" class="form-select" required>
+                                    <option value="">-- Tanlang --</option>
+                                    {% for item in anesthesia_stocks %}
+                                        <option value="{{ item.id }}">{{ item.name }} (Qoldiq: {{ item.quantity }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Soni</label>
+                                <input type="number" step="0.01" name="quantity" class="form-control" value="1" required>
+                            </div>
+                            
+                            <h6 class="mt-4">Sarflanganlar:</h6>
+                            <ul class="list-group">
+                                {% for n in surgery.nurse_usages.all %}
+                                <li class="list-group-item small d-flex justify-content-between">
+                                    <span>{{ n.stock.name }} (x{{ n.quantity|floatformat:"0" }})</span>
+                                    <span>{{ n.price|floatformat:"0" }} so'm</span>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="submit" class="btn btn-success">Sarfga chiqarish</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bayonnoma Modal -->
+        <div class="modal fade text-start" id="reportModal-{{ surgery.id }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title"><i class="bi bi-journal-text"></i> Operatsiya bayonnomasi — {{ surgery.visit.patient.full_name }}
+                            {% if surgery.report.is_locked %}<span class="badge bg-light text-dark ms-2"><i class="bi bi-lock-fill"></i> Qulflangan</span>{% endif %}
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <form method="post" action="{% url 'clinical:surgery_report_save' surgery.id %}">
+                        {% csrf_token %}
+                        <fieldset {% if surgery.report.is_locked and not user.is_superuser and user.role.code != 'super_admin' %}disabled{% endif %}>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Bemor ahvoli (qanday keldi)</label>
+                                <textarea name="arrival_condition" class="form-control" rows="2">{{ surgery.report.arrival_condition }}</textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Nimalar qilindi (jarayon tavsifi)</label>
+                                <textarea name="performed_actions" class="form-control" rows="3">{{ surgery.report.performed_actions }}</textarea>
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Yozilgan/berilgan dorilar</label>
+                                    <textarea name="medications" class="form-control" rows="2">{{ surgery.report.medications }}</textarea>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Qilingan ukollar</label>
+                                    <textarea name="injections" class="form-control" rows="2">{{ surgery.report.injections }}</textarea>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Narkoz (turi, dozasi, anesteziolog)</label>
+                                    <textarea name="anesthesia" class="form-control" rows="2">{{ surgery.report.anesthesia }}</textarea>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Sarflangan materiallar</label>
+                                    <textarea name="consumables" class="form-control" rows="2">{{ surgery.report.consumables }}</textarea>
+                                </div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Qo'shimcha izohlar</label>
+                                <textarea name="notes" class="form-control" rows="2">{{ surgery.report.notes }}</textarea>
+                            </div>
+                        </div>
+                        </fieldset>
+                        <div class="modal-footer">
+                            <a href="{% url 'clinical:surgery_report_print' surgery.id %}" target="_blank" class="btn btn-outline-dark me-auto"><i class="bi bi-file-earmark-text"></i> Rasmiy ko'rinish (Word/Chop)</a>
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Yopish</button>
+                            {% if surgery.report.is_locked %}
+                                {% if user.is_superuser or user.role.code == 'super_admin' %}
+                                <button type="submit" formaction="{% url 'clinical:document_lock' 'surgery_report' surgery.report.id %}" name="action" value="unlock" class="btn btn-outline-danger"><i class="bi bi-unlock"></i> Ochish (superadmin)</button>
+                                <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Saqlash</button>
+                                {% else %}
+                                <span class="text-muted small"><i class="bi bi-lock-fill"></i> Qulflangan — faqat superadmin o'zgartiradi</span>
+                                {% endif %}
+                            {% else %}
+                            <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Saqlash</button>
+                            <button type="submit" name="lock" value="1" class="btn btn-danger"
+                                onclick="return confirm('Bayonnoma o\'zgarmas qilib qulflansinmi? Keyin faqat superadmin ochadi.');">
+                                <i class="bi bi-lock-fill"></i> O'zgarmas qilib saqlash
+                            </button>
+                            {% endif %}
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+{% endfor %}

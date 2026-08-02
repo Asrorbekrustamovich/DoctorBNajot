@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Yo'llanma - {{ visit.patient.full_name }}{% endblock %}
+
+{% block content %}
+<div class="d-print-none mb-3 text-end">
+    <a href="{% url 'patients:detail' visit.patient.pk %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Orqaga
+    </a>
+    <button onclick="window.print()" class="btn btn-primary"><i class="bi bi-printer"></i> Chop etish</button>
+</div>
+<style>@media print { .dbn-sidebar, header, .dbn-page-name, .d-print-none { display:none !important; } .dbn-main{ margin-left:0 !important; } body{ background:#fff; } }</style>
+
+<div style="max-width:760px; margin:0 auto; font-family:'Times New Roman',serif; color:#000;">
+
+    <div style="text-align:center; border-bottom:2px solid #000; padding-bottom:8px; margin-bottom:14px;">
+        <h2 style="margin:0;">{{ clinic_name }}</h2>
+        <div>{{ clinic_address }} · Tel: {{ clinic_phone }}</div>
+    </div>
+
+    <h3 style="text-align:center; margin:6px 0 16px;">TEKSHIRUVGA YO'LLANMA</h3>
+
+    <table style="width:100%; border-collapse:collapse; margin-bottom:14px;">
+        <tr>
+            <td style="padding:3px 8px;"><b>Bemor:</b> {{ visit.patient.full_name }}</td>
+            <td style="padding:3px 8px;"><b>Karta №:</b> {{ visit.patient.card_number|default:"—" }}</td>
+        </tr>
+        <tr>
+            <td style="padding:3px 8px;"><b>Yo'llagan shifokor:</b> {{ visit.doctor.get_full_name|default:"—" }}</td>
+            <td style="padding:3px 8px;"><b>Sana:</b> {{ now|date:"d.m.Y H:i" }}</td>
+        </tr>
+    </table>
+
+    <table style="width:100%; border-collapse:collapse; font-size:14px;">
+        <thead>
+            <tr style="background:#eee;">
+                <th style="border:1px solid #000; padding:6px; width:30px;">№</th>
+                <th style="border:1px solid #000; padding:6px;">Tekshiruv</th>
+                <th style="border:1px solid #000; padding:6px;">Qayerga borish</th>
+                <th style="border:1px solid #000; padding:6px; width:110px;">Narxi</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in orders %}
+            <tr>
+                <td style="border:1px solid #000; padding:6px; text-align:center;">{{ forloop.counter }}</td>
+                <td style="border:1px solid #000; padding:6px;">{{ order.service.name }}</td>
+                <td style="border:1px solid #000; padding:6px;">
+                    {% if order.service.room %}
+                        <b>{{ order.service.room.name }}</b>
+                    {% endif %}
+                    {% if order.service.responsible_staff %}
+                        <div>{{ order.service.responsible_staff.get_full_name }}
+                            {% if order.service.responsible_staff.specialty %}
+                                ({{ order.service.responsible_staff.specialty }})
+                            {% endif %}
+                        </div>
+                    {% elif order.service.allowed_role %}
+                        <div>{{ order.service.allowed_role.name }} bo'limi</div>
+                    {% endif %}
+                    {% if not order.service.room and not order.service.responsible_staff and not order.service.allowed_role %}
+                        <span style="color:#666;">registraturadan so'rang</span>
+                    {% endif %}
+                </td>
+                <td style="border:1px solid #000; padding:6px; text-align:right;">{{ order.price_snapshot|floatformat:0 }} so'm</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="4" style="border:1px solid #000; padding:14px; text-align:center;">
+                    Tayinlangan tekshiruv yo'q.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        {% if orders %}
+        <tfoot>
+            <tr>
+                <td colspan="3" style="border:1px solid #000; padding:6px; text-align:right;"><b>JAMI:</b></td>
+                <td style="border:1px solid #000; padding:6px; text-align:right;"><b>{{ total|floatformat:0 }} so'm</b></td>
+            </tr>
+        </tfoot>
+        {% endif %}
+    </table>
+
+    <div style="margin-top:24px; font-size:13px;">
+        <i>Eslatma: tekshiruvdan oldin kassaga to'lov qiling. Yo'llanmani o'zingiz bilan olib boring.</i>
+    </div>
+
+    <div style="margin-top:36px; display:flex; justify-content:space-between;">
+        <div>Shifokor imzosi: ______________</div>
+        <div>Bemor imzosi: ______________</div>
+    </div>
+</div>
+{% endblock %}

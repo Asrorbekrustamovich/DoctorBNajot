@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}Avtoklav Paneli — Doctor B Najot{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 page-title mb-1">Avtoklav (Sterilizatsiya) Paneli</h1>
+        <p class="text-muted">Ifloslangan jarrohlik asboblarini tozalash va nazorat qilish.</p>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Ifloslangan Asboblar -->
+    <div class="col-md-6 mb-4">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-header bg-danger text-white py-3">
+                <h5 class="card-title mb-0"><i class="bi bi-exclamation-triangle-fill me-2"></i> Ifloslangan / Ishlatilgan Asboblar</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    {% for item in dirty_items %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center p-3">
+                            <div>
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <h6 class="mb-0 fw-bold">{{ item.name }}</h6>
+                                    <span class="badge bg-secondary">{{ item.get_item_type_display }}</span>
+                                    <button type="button" class="btn btn-link p-0 text-info" data-bs-toggle="modal" data-bs-target="#historyModal{{ item.id }}" title="Tarixni ko'rish">
+                                        <i class="bi bi-clock-history"></i>
+                                    </button>
+                                </div>
+                                <small class="text-muted">SN: {{ item.serial_number|default:"-" }} · {{ item.get_steril_method_display }}</small>
+                                {% if item.current_room %}
+                                    <small class="d-block text-warning-emphasis"><i class="bi bi-door-open"></i> {{ item.current_room.name }} da turibdi</small>
+                                {% endif %}
+                                {% with lu=item.last_use %}
+                                    {% if lu %}
+                                        <div class="mt-1 small">
+                                            <span class="badge bg-danger-subtle text-danger-emphasis">
+                                                <i class="bi bi-person-fill"></i> {{ lu.patient_snapshot|default:"—" }}
+                                            </span>
+                                            <span class="badge bg-primary-subtle text-primary-emphasis">
+                                                <i class="bi bi-clipboard2-pulse"></i> {{ lu.surgeon_snapshot|default:"—" }}
+                                            </span>
+                                            <span class="text-muted">
+                                                {{ lu.surgery_snapshot }} · {{ lu.used_at|date:"d.m.Y H:i" }}
+                                            </span>
+                                        </div>
+                                    {% else %}
+                                        <small class="text-muted d-block mt-1"><i class="bi bi-info-circle"></i> Operatsiyaga bog'lanmagan</small>
+                                    {% endif %}
+                                {% endwith %}
+                            </div>
+                            <form method="post" action="{% url 'clinical:update_item_status' item.id %}" class="d-flex align-items-center gap-2">
+                                {% csrf_token %}
+                                <input type="hidden" name="status" value="ready">
+                                <select name="cleaned_by_id" class="form-select form-select-sm" required style="max-width: 180px;">
+                                    <option value="" selected disabled>Kim tozaladi?</option>
+                                    {% for s in staff %}
+                                        <option value="{{ s.id }}">{{ s.get_full_name|default:s.username }} ({{ s.role.name|default:"Xodim" }})</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" class="btn btn-success btn-sm text-nowrap">
+                                    <i class="bi bi-check-circle"></i> Tozalandi
+                                </button>
+                            </form>
+                        </div>
+                    {% empty %}
+                        <div class="p-4 text-center text-muted">
+                            <i class="bi bi-check-all fs-2 d-block mb-2"></i>
+                            Hozircha ifloslangan asboblar yo'q.
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tayyor Asboblar -->
+    <div class="col-md-6 mb-4">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-header bg-success text-white py-3">
+                <h5 class="card-title mb-0"><i class="bi bi-check-circle-fill me-2"></i> Tayyor Asboblar</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    {% for item in ready_items %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center p-3">
+                            <div>
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <h6 class="mb-0 fw-bold">{{ item.name }}</h6>
+                                    <span class="badge bg-secondary">{{ item.get_item_type_display }}</span>
+                                    <button type="button" class="btn btn-link p-0 text-info" data-bs-toggle="modal" data-bs-target="#historyModal{{ item.id }}" title="Tarixni ko'rish">
+                                        <i class="bi bi-clock-history"></i>
+                                    </button>
+                                </div>
+                                <small class="text-muted">SN: {{ item.serial_number|default:"-" }} · {{ item.get_steril_method_display }}</small>
+                                {% with lu=item.last_use %}
+                                    {% if lu %}
+                                        <small class="text-muted d-block mt-1">
+                                            <i class="bi bi-arrow-counterclockwise"></i>
+                                            Oxirgi bemor: <b>{{ lu.patient_snapshot|default:"—" }}</b>
+                                            ({{ lu.surgeon_snapshot|default:"—" }}, {{ lu.used_at|date:"d.m.Y" }})
+                                        </small>
+                                    {% else %}
+                                        <small class="text-muted d-block mt-1">Hali ishlatilmagan</small>
+                                    {% endif %}
+                                {% endwith %}
+                            </div>
+                            <!-- In case they need to manually mark as used or in use -->
+                            <form method="post" action="{% url 'clinical:update_item_status' item.id %}">
+                                {% csrf_token %}
+                                <select name="status" class="form-select form-select-sm d-inline-block w-auto me-1" onchange="this.form.submit()">
+                                    <option value="ready" selected>Tayyor</option>
+                                    <option value="in_use">Operatsiyada</option>
+                                    <option value="used">Ifloslangan</option>
+                                </select>
+                            </form>
+                        </div>
+                    {% empty %}
+                        <div class="p-4 text-center text-muted">
+                            <i class="bi bi-inbox fs-2 d-block mb-2"></i>
+                            Tayyor (steril) asboblar yo'q.
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% for item in items %}
+    {% include "clinical/_item_history_modal.html" with item=item %}
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}{{ patient.full_name }} — Doctor B Najot{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3">
+        <i class="bi bi-person-vcard"></i> {{ patient.full_name }}
+        <span class="badge bg-secondary">{{ patient.card_number }}</span>
+    </h1>
+    <div class="d-flex gap-2">
+        <a href="{% url 'clinical:patient_summary' patient.pk %}" class="btn btn-primary">
+            <i class="bi bi-person-lines-fill"></i> Umumiy hisobot
+        </a>
+        {% if user.can_write_visits %}
+        <a href="{% url 'registration:visit_create' %}?patient={{ patient.pk }}" class="btn btn-success">
+            <i class="bi bi-clipboard-plus"></i> Qabulga olish
+        </a>
+        {% endif %}
+        {% if user.can_write_patients %}
+        <a href="{% url 'billing:patient_invoices' patient.pk %}" class="btn btn-outline-success">
+            <i class="bi bi-receipt"></i> Cheklar
+        </a>
+        <a href="{% url 'patients:update' patient.pk %}" class="btn btn-outline-primary">
+            <i class="bi bi-pencil"></i> Tahrirlash
+        </a>
+        {% endif %}
+    </div>
+</div>
+<div class="row g-3">
+    <div class="col-md-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header">Shaxsiy ma'lumotlar</div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-5">Tug'ilgan sana</dt><dd class="col-sm-7">{{ patient.birth_date|date:"d.m.Y" }} ({{ patient.age }} yosh)</dd>
+                    <dt class="col-sm-5">Jinsi</dt><dd class="col-sm-7">{{ patient.get_gender_display }}</dd>
+                    <dt class="col-sm-5">JSHSHIR</dt><dd class="col-sm-7">{{ patient.jshshir|default:"—" }}</dd>
+                    <dt class="col-sm-5">Pasport</dt><dd class="col-sm-7">{{ patient.passport|default:"—" }}</dd>
+                    <dt class="col-sm-5">Telefon</dt><dd class="col-sm-7">{{ patient.phone|default:"—" }}</dd>
+                    <dt class="col-sm-5">Manzil</dt><dd class="col-sm-7">{{ patient.address|default:"—" }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header">Izoh</div>
+            <div class="card-body">
+                {% if patient.notes %}
+                <p class="mb-0">{{ patient.notes }}</p>
+                {% else %}
+                <p class="text-muted mb-0">Izoh yo'q.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header">Tashriflar tarixi</div>
+            <div class="card-body p-0">
+                <table class="table table-sm table-hover mb-0">
+                    <thead><tr><th class="ps-3">Sana</th><th>Navbat</th><th>Shifokor</th><th>Shikoyat</th><th>Status</th><th class="text-end pe-3">Amallar</th></tr></thead>
+                    <tbody>
+                        {% for visit in patient.visits.all|dictsortreversed:"created_at" %}
+                        <tr>
+                            <td class="ps-3">{{ visit.visit_date|date:"d.m.Y" }}</td>
+                            <td>№{{ visit.queue_number }}</td>
+                            <td>{{ visit.doctor|default:"—" }}</td>
+                            <td>{{ visit.complaint|truncatechars:40|default:"—" }}</td>
+                            <td><span class="badge bg-info">{{ visit.get_status_display }}</span></td>
+                            <td class="text-end pe-3">
+                                {% if visit.consultations.all %}
+                                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#visitModal{{ visit.pk }}">
+                                    <i class="bi bi-info-circle"></i> Info
+                                </button>
+                                
+                                {% if user.can_write_visits %}
+                                <button type="button" class="btn btn-sm btn-outline-danger ms-1" data-bs-toggle="modal" data-bs-target="#surgeryModal{{ visit.pk }}">
+                                    <i class="bi bi-heart-pulse"></i> Operatsiyaga yozish
+                                </button>
+                                
+                                {% include "clinical/modals/_schedule_surgery_modal.html" with visit=visit modal_id=visit.pk %}
+                                {% endif %}
+                                
+                                <!-- Modal for this visit -->
+                                <div class="modal fade text-start" id="visitModal{{ visit.pk }}" tabindex="-1" aria-hidden="true">
+                                  <div class="modal-dialog modal-lg">
+                                    <div class="modal-content">
+                                      <div class="modal-header bg-primary text-white">
+                                        <h5 class="modal-title"><i class="bi bi-file-medical"></i> Tashrif ma'lumotlari: {{ visit.visit_date|date:"d.m.Y" }}</h5>
+                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                      </div>
+                                      <div class="modal-body">
+                                        {% for cons in visit.consultations.all %}
+                                        <div class="d-flex justify-content-between align-items-center border-bottom pb-2 {% if not forloop.first %}mt-4{% endif %}">
+                                            <h6 class="text-primary fw-bold mb-0">Shifokor xulosasi ({{ cons.doctor.get_full_name|default:cons.doctor }})</h6>
+                                            <a href="{% url 'clinical:consultation_report' cons.pk %}" class="btn btn-sm btn-outline-primary" target="_blank">
+                                                <i class="bi bi-file-earmark-medical"></i> Rasmiy ko'rinishda ochish
+                                            </a>
+                                        </div>
+                                        <div class="mb-3 mt-2">
+                                            {% if cons.report_html %}
+                                                <div class="border rounded p-3 bg-white report-content" style="max-height:400px; overflow:auto;">
+                                                    <style>
+                                                        .report-content table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+                                                        .report-content th, .report-content td { border: 1px solid #dee2e6; padding: 0.5rem; }
+                                                        .report-content p { margin-bottom: 0.5rem; }
+                                                        .report-content strong { color: #2c3e50; }
+                                                    </style>
+                                                    {{ cons.report_html|safe }}
+                                                </div>
+                                            {% else %}
+                                                <p class="mb-1"><strong>Tashxis:</strong> {{ cons.diagnosis|default:"Kiritilmagan" }}</p>
+                                                <p class="mb-1"><strong>Retsept:</strong> {{ cons.prescription|default:"Kiritilmagan" }}</p>
+                                                <p class="mb-0"><strong>Tavsiyalar:</strong> {{ cons.recommendations|default:"Kiritilmagan" }}</p>
+                                            {% endif %}
+                                        </div>
+                                        {% endfor %}
+                                        {% if visit.referral %}
+                                        <div class="alert alert-info py-2">
+                                            <strong>Yo'naltirish tarixi:</strong><br>{{ visit.referral|linebreaksbr }}
+                                        </div>
+                                        {% endif %}
+
+                                        <h6 class="text-primary fw-bold border-bottom pb-2 mt-4">Belgilangan tekshiruvlar (UZI, EKG, Lab)</h6>
+                                        <ul class="list-group list-group-flush">
+                                            {% for order in visit.service_orders.all %}
+                                            <li class="list-group-item px-0">
+                                                <div class="d-flex justify-content-between align-items-start">
+                                                    <div>
+                                                        <div class="fw-semibold">{{ order.service.name }}</div>
+                                                        {% if order.service.destination %}
+                                                        <div class="small text-primary">
+                                                            <i class="bi bi-geo-alt-fill"></i> {{ order.service.destination }}
+                                                        </div>
+                                                        {% else %}
+                                                        <div class="small text-muted">
+                                                            <i class="bi bi-question-circle"></i> Kabinet ko'rsatilmagan — registraturadan so'ralsin
+                                                        </div>
+                                                        {% endif %}
+                                                        {% if order.deferred_at %}
+                                                        <div class="small text-warning-emphasis">
+                                                            <i class="bi bi-clock-history"></i>
+                                                            {{ order.defer_count }}× kechiktirilgan — {{ order.deferred_reason }}
+                                                        </div>
+                                                        {% endif %}
+                                                    </div>
+                                                    <span class="badge {% if order.status == 'completed' %}bg-success{% elif order.status == 'in_progress' %}bg-warning text-dark{% elif order.status == 'cancelled' %}bg-danger{% else %}bg-secondary{% endif %} text-nowrap">
+                                                        {{ order.get_status_display }}
+                                                    </span>
+                                                </div>
+                                            </li>
+                                            {% empty %}
+                                            <li class="list-group-item px-0 text-muted">Hech qanday tekshiruvga yuborilmagan.</li>
+                                            {% endfor %}
+                                        </ul>
+                                      </div>
+                                      <div class="modal-footer justify-content-between">
+                                        {% if visit.service_orders.all %}
+                                        <a href="{% url 'clinical:service_referral' visit.id %}" target="_blank" class="btn btn-outline-primary">
+                                            <i class="bi bi-printer"></i> Yo'llanma chop etish
+                                        </a>
+                                        {% else %}<span></span>{% endif %}
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Yopish</button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                                {% else %}
+                                {% if user.is_superuser or user.role.code in "administrator,super_admin" %}
+                                <button type="button" class="btn btn-sm btn-outline-danger ms-1" data-bs-toggle="modal" data-bs-target="#surgeryModal{{ visit.pk }}">
+                                    <i class="bi bi-heart-pulse"></i> Operatsiyaga yozish
+                                </button>
+                                
+                                {% include "clinical/modals/_schedule_surgery_modal.html" with visit=visit modal_id=visit.pk %}
+                                {% endif %}
+                                <span class="text-muted small">Xulosa yo'q</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="6" class="text-center text-muted py-3">Tashriflar yo'q</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

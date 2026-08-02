@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}Panel — Doctor B Najot{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 page-title mb-1">Xush kelibsiz, {{ user.first_name|default:user.username }}!</h1>
+        <p class="text-muted mb-0">
+            <i class="bi bi-calendar3"></i> {{ today|date:"d.m.Y" }}
+            {% if user.role %}<span class="ms-2 badge bg-light text-dark border"><i class="bi bi-shield-check"></i> {{ user.role.name }}</span>{% endif %}
+        </p>
+    </div>
+    <div class="d-flex gap-2">
+        {% if user.can_write_patients %}
+        <a href="{% url 'patients:create' %}" class="btn btn-primary">
+            <i class="bi bi-person-plus"></i> Yangi bemor
+        </a>
+        {% endif %}
+        {% if user.can_write_visits %}
+        <a href="{% url 'registration:visit_create' %}" class="btn btn-outline-primary">
+            <i class="bi bi-clipboard-plus"></i> Yangi qabul
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+{% if user.can_view_visits %}
+<div class="row g-3 mb-4">
+    <div class="col-xl-3 col-md-6">
+        <div class="card stat-card">
+            <div class="card-body d-flex align-items-center gap-3">
+                <span class="stat-icon" style="background:#ccfbf1;color:#0f766e"><i class="bi bi-people-fill"></i></span>
+                <div>
+                    <div class="fs-3 fw-bolder">{{ total_patients }}</div>
+                    <div class="text-muted small fw-semibold">Jami bemorlar</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="card stat-card">
+            <div class="card-body d-flex align-items-center gap-3">
+                <span class="stat-icon" style="background:#e0f2fe;color:#0369a1"><i class="bi bi-clipboard2-pulse"></i></span>
+                <div>
+                    <div class="fs-3 fw-bolder">{{ today_visits }}</div>
+                    <div class="text-muted small fw-semibold">Bugungi qabullar</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="card stat-card">
+            <div class="card-body d-flex align-items-center gap-3">
+                <span class="stat-icon" style="background:#fef3c7;color:#b45309"><i class="bi bi-hourglass-split"></i></span>
+                <div>
+                    <div class="fs-3 fw-bolder">{{ waiting_count }}</div>
+                    <div class="text-muted small fw-semibold">Navbatda</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="card stat-card">
+            <div class="card-body d-flex align-items-center gap-3">
+                <span class="stat-icon" style="background:#dcfce7;color:#15803d"><i class="bi bi-check2-circle"></i></span>
+                <div>
+                    <div class="fs-3 fw-bolder">{{ completed_count }}</div>
+                    <div class="text-muted small fw-semibold">Bugun yakunlangan</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-list-ol"></i> Bugungi navbat</span>
+        <a href="{% url 'registration:queue' %}" class="btn btn-sm btn-outline-primary">Hammasini ko'rish</a>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-hover align-middle mb-0">
+            <thead>
+                <tr><th class="ps-4">№</th><th>Bemor</th><th>Shifokor</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+                {% for visit in recent_visits %}
+                <tr>
+                    <td class="ps-4"><span class="badge bg-dark">{{ visit.queue_number }}</span></td>
+                    <td><a href="{% url 'patients:detail' visit.patient.pk %}" class="text-decoration-none">{{ visit.patient.full_name }}</a></td>
+                    <td>{{ visit.doctor|default:"—" }}</td>
+                    <td>
+                        {% if visit.status == "waiting" %}<span class="badge" style="background:#fef3c7;color:#b45309">
+                        {% elif visit.status == "accepted" %}<span class="badge" style="background:#e0f2fe;color:#0369a1">
+                        {% elif visit.status == "in_progress" %}<span class="badge" style="background:#ccfbf1;color:#0f766e">
+                        {% elif visit.status == "completed" %}<span class="badge" style="background:#dcfce7;color:#15803d">
+                        {% elif visit.status == "cancelled" %}<span class="badge" style="background:#fee2e2;color:#b91c1c">
+                        {% else %}<span class="badge bg-secondary">{% endif %}{{ visit.get_status_display }}</span>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4" class="text-center text-muted py-4">Bugun hali qabullar yo'q</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+{# Navbatni ko'ra olmaydigan rollar uchun (farmatsevt, ombor, lab, radiology) #}
+<div class="row g-3">
+    {% if user.can_view_patients %}
+    <div class="col-xl-4 col-md-6">
+        <div class="card stat-card h-100">
+            <div class="card-body d-flex flex-column align-items-center justify-content-center text-center py-5">
+                <span class="stat-icon mb-3" style="background:#ccfbf1;color:#0f766e"><i class="bi bi-people-fill"></i></span>
+                <h5 class="fw-bold">Bemorlar kartotekasi</h5>
+                <p class="text-muted small">Bemorlar ro'yxati va ma'lumotlarini ko'ring</p>
+                <a href="{% url 'patients:list' %}" class="btn btn-primary btn-sm mt-2"><i class="bi bi-arrow-right"></i> Bemorlar</a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    <div class="col-xl-4 col-md-6">
+        <div class="card stat-card h-100">
+            <div class="card-body d-flex flex-column align-items-center justify-content-center text-center py-5">
+                <span class="stat-icon mb-3" style="background:#e0f2fe;color:#0369a1"><i class="bi bi-person-badge"></i></span>
+                <h5 class="fw-bold">Sizning rolingiz</h5>
+                <p class="text-muted small">{{ user.role.name|default:"Belgilanmagan" }}</p>
+                <span class="badge bg-light text-dark border fs-6 px-3 py-2">{{ user.role.name|default:"—" }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

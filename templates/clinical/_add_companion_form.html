@@ -1,0 +1,30 @@
+{% load humanize %}
+<form hx-post="{% url 'clinical:add_companion_to_stay' visit.id %}" hx-swap="outerHTML">
+    {% csrf_token %}
+    <div class="mb-3">
+        <label class="form-label fw-bold">Asosiy Bemor</label>
+        <input type="text" class="form-control bg-light" value="{{ visit.patient.full_name }}" readonly>
+        <div class="form-text">Asosiy bemor joylashgan: {{ active_patient_stay.bed.room.name }} - {{ active_patient_stay.bed.number }}</div>
+    </div>
+    
+    <div class="mb-3">
+        <label class="form-label fw-bold">Hamrohning ismi-sharifi <span class="text-danger">*</span></label>
+        <input type="text" name="companion_name" class="form-control" placeholder="F.I.Sh." required>
+    </div>
+    
+    <div class="mb-3">
+        <label class="form-label fw-bold">Hamroh uchun alohida kravat beriladimi? (Ixtiyoriy)</label>
+        <select name="companion_bed" class="form-select">
+            <option value="">-- Yo'q, bemorning yonida qoladi (Hamroh narxi olinadi) --</option>
+            {% for b in empty_beds %}
+            <option value="{{ b.id }}">{{ b.room.name }} - {{ b.number }} (Hamroh narxi: {{ b.companion_price_per_day|intcomma }} so'm)</option>
+            {% endfor %}
+        </select>
+        <div class="form-text small">Alohida kravat tanlansa, ushbu kravat band qilinadi va uning "Hamroh narxi" olinadi. Agar tanlanmasa, bemor yotgan asosiy kravatdagi "Hamroh narxi" olinadi.</div>
+    </div>
+
+    <div class="text-end">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-person-plus"></i> Qo'shish</button>
+    </div>
+</form>

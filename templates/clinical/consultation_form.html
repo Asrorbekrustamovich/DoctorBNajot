@@ -1,0 +1,378 @@
+{% extends "base.html" %}
+
+{% block title %}Bemor qabuli - Doctor B Najot{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3"><i class="bi bi-file-medical"></i> Qabul: {{ visit.patient.full_name }}</h1>
+    <a href="{% url 'core:home' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Orqaga
+    </a>
+</div>
+
+<div class="row">
+    <!-- Bemor ma'lumotlari qismi -->
+    <div class="col-md-4 mb-3">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-primary text-white">
+                <i class="bi bi-person"></i> Bemor ma'lumotlari
+            </div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush mb-3">
+                    <li class="list-group-item px-0"><strong>Karta:</strong> {{ visit.patient.card_number }}</li>
+                    <li class="list-group-item px-0"><strong>Yosh:</strong> {{ visit.patient.age }} yosh</li>
+                    <li class="list-group-item px-0"><strong>Jins:</strong> {{ visit.patient.get_gender_display }}</li>
+                    <li class="list-group-item px-0"><strong>Telefon:</strong> {{ visit.patient.phone|default:"-" }}</li>
+                </ul>
+                <div class="alert alert-warning mb-0">
+                    <strong>Birlamchi shikoyat (Registratura):</strong><br>
+                    {{ visit.complaint|default:"Kiritilmagan" }}
+                </div>
+                {% if visit.referral %}
+                <div class="alert alert-info mb-0 mt-2">
+                    <strong><i class="bi bi-send"></i> Yo'naltirish tarixi:</strong><br>
+                    {{ visit.referral|linebreaksbr }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Shifokor formasi qismi -->
+    <div class="col-md-8 mb-3">
+        <div class="card shadow-sm">
+            <div class="card-header bg-success text-white">
+                <i class="bi bi-pencil-square"></i> Shifokor xulosasi va yo'llanmalar
+            </div>
+            <div class="card-body">
+                <!-- SHAXSIY TASHXIS SHABLONLARI -->
+                <div class="card border-info mb-3">
+                    <div class="card-body py-2">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold mb-1"><i class="bi bi-file-earmark-text"></i> Mening shablonlarim</label>
+                                <select id="templateSelect" class="form-select form-select-sm">
+                                    <option value="">-- Shablonni tanlang --</option>
+                                    {% for t in my_templates %}
+                                    <option value="{{ t.id }}">{{ t.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <button type="button" class="btn btn-sm btn-info w-100" onclick="applyTemplate()">
+                                    <i class="bi bi-arrow-down-square"></i> Qo'llash
+                                </button>
+                            </div>
+                            <div class="col-md-3">
+                                {% if my_templates %}
+                                <form method="post" action="" id="delTemplateForm" style="display:inline" class="w-100">
+                                    {% csrf_token %}
+                                    <button type="button" class="btn btn-sm btn-outline-danger w-100" onclick="deleteTemplate()">
+                                        <i class="bi bi-trash"></i> O'chirish
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="form-text">Shablon tanlab "Qo'llash" bosilsa, quyidagi maydonlar avtomatik to'ladi. Yangi shablon: maydonlarni to'ldirib, pastdagi "Shablon sifatida saqlash" tugmasini bosing.</div>
+                    </div>
+                </div>
+
+                <form method="post">
+                    {% csrf_token %}
+
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+                    {% endif %}
+
+                    <div class="row g-3">
+                        <div class="col-md-12">
+                            <label class="form-label fw-bold">Shikoyat va Kasallik tarixi</label>
+                            
+                            <!-- Shu qabul ichida boshqa shifokorlar yozgan xulosalar (yo'naltirilgan bemor) -->
+                            {% if visit_consultations %}
+                            <div class="card border-primary mb-3 shadow-sm">
+                                <div class="card-header bg-primary text-white py-2">
+                                    <i class="bi bi-people"></i> Shu qabulda boshqa shifokorlar xulosalari
+                                </div>
+                                <ul class="list-group list-group-flush">
+                                    {% for vc in visit_consultations %}
+                                    <li class="list-group-item">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h6 class="mb-1 text-primary">{{ vc.doctor.get_full_name }} ({{ vc.doctor.specialty|default:vc.doctor.role.name }})</h6>
+                                            <small class="text-muted">{{ vc.created_at|date:"d.m.Y H:i:s" }}</small>
+                                        </div>
+                                        <p class="mb-1 small"><strong>Shikoyati:</strong> {{ vc.complaint|default:"-" }}</p>
+                                        <p class="mb-1 small"><strong>Tashxis:</strong> {{ vc.diagnosis|default:"-" }}</p>
+                                        {% if vc.prescription %}
+                                        <p class="mb-0 small text-muted"><strong>Retsept:</strong> {{ vc.prescription }}</p>
+                                        {% endif %}
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                            {% endif %}
+
+                            <!-- Avvalgi tashriflar tarixi -->
+                            {% if past_consultations %}
+                            <div class="accordion mb-3 shadow-sm" id="historyAccordion">
+                                <div class="accordion-item border-info">
+                                    <h2 class="accordion-header" id="headingHistory">
+                                        <button class="accordion-button collapsed bg-light text-info fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#collapseHistory" aria-expanded="false" aria-controls="collapseHistory">
+                                            <i class="bi bi-clock-history me-2"></i> Bemorning avvalgi kasallik tarixi ({{ past_consultations|length }} ta yozuv)
+                                        </button>
+                                    </h2>
+                                    <div id="collapseHistory" class="accordion-collapse collapse" aria-labelledby="headingHistory" data-bs-parent="#historyAccordion">
+                                        <div class="accordion-body bg-white p-0">
+                                            <ul class="list-group list-group-flush">
+                                                {% for pc in past_consultations %}
+                                                <li class="list-group-item">
+                                                    <div class="d-flex w-100 justify-content-between">
+                                                        <h6 class="mb-1 text-primary">{{ pc.doctor.get_full_name }} ({{ pc.doctor.specialty|default:pc.doctor.role.name }})</h6>
+                                                        <small class="text-muted">{{ pc.created_at|date:"d.m.Y H:i:s" }}</small>
+                                                    </div>
+                                                    <p class="mb-1 small"><strong>Shikoyati:</strong> {{ pc.complaint|default:"-" }}</p>
+                                                    <p class="mb-1 small"><strong>Tashxis:</strong> {{ pc.diagnosis|default:"-" }}</p>
+                                                    {% if pc.prescription %}
+                                                    <p class="mb-0 small text-muted"><strong>Retsept:</strong> {{ pc.prescription }}</p>
+                                                    {% endif %}
+                                                </li>
+                                                {% endfor %}
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            {{ form.complaint }}
+                            <div class="text-danger small">{{ form.complaint.errors }}</div>
+                        </div>
+
+                        <div class="col-md-12 mt-3">
+                            <label class="form-label fw-bold text-danger">Yakuniy tashxis *</label>
+                            {{ form.diagnosis }}
+                            <div class="text-danger small">{{ form.diagnosis.errors }}</div>
+                        </div>
+
+                        <div class="col-md-12 mt-3">
+                            <label class="form-label fw-bold text-primary">Dori-darmonlar (Retsept)</label>
+                            {{ form.prescription }}
+                            <div class="text-danger small">{{ form.prescription.errors }}</div>
+                        </div>
+
+                        <div class="col-md-12 mt-3">
+                            <label class="form-label fw-bold">Tavsiyalar</label>
+                            {{ form.recommendations }}
+                            <div class="text-danger small">{{ form.recommendations.errors }}</div>
+                        </div>
+                    </div>
+
+                    <hr class="my-4">
+                    <h5 class="mb-3"><i class="bi bi-box-arrow-up-right"></i> Yo'naltirishlar</h5>
+                    
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Boshqa mutaxassisga yo'naltirish</label>
+                            <div class="input-group mb-2">
+                                {{ form.referred_doctor }}
+                                <button type="button" class="btn btn-primary"
+                                        hx-post="{% url 'clinical:consultation_redirect' visit.pk %}"
+                                        hx-include="closest form"
+                                        hx-target="#redirect-message"
+                                        hx-swap="innerHTML">
+                                    <i class="bi bi-send"></i> Yo'naltirish
+                                </button>
+                            </div>
+                            <div id="redirect-message"></div>
+                            {{ form.referral_notes }}
+                            <div class="text-danger small">{{ form.referred_doctor.errors }}</div>
+                            <div class="text-danger small">{{ form.referral_notes.errors }}</div>
+                        </div>
+
+                        <div class="col-md-6 d-flex flex-column justify-content-start">
+                            <label class="form-label fw-bold">Tekshiruvlarga yuborish</label>
+                            <div class="form-text mb-3">UZI, EKG, Laboratoriya va boshqa tekshiruvlarga yo'naltirish</div>
+
+                            {# Tanlangan tekshiruvlar soni ko'rsatish #}
+                            <div id="selectedCount" class="badge bg-primary fs-6 mb-3 px-3 py-2 align-self-start" style="display:none!important;">
+                                <i class="bi bi-check2-all me-1"></i>
+                                <span id="countNum">0</span> ta tanlangan
+                            </div>
+
+                            {# Modal ochish tugmasi #}
+                            <button type="button" class="btn btn-outline-info btn-lg align-self-start"
+                                    data-bs-toggle="modal" data-bs-target="#tekshiruvModal">
+                                <i class="bi bi-clipboard2-pulse me-2"></i>Tekshiruvlarga yuborish
+                            </button>
+                            <div class="text-danger small mt-2">{{ form.recommended_services.errors }}</div>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 text-end">
+                        <button type="button" class="btn btn-outline-info btn-lg" onclick="saveAsTemplate()">
+                            <i class="bi bi-file-earmark-plus"></i> Shablon sifatida saqlash
+                        </button>
+                        <button type="submit" name="action" value="complete" class="btn btn-success btn-lg">
+                            <i class="bi bi-check-circle"></i> Saqlash va Qabulni yakunlash
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ═══════════════════ TEKSHIRUVLAR MODALI ═══════════════════ #}
+<div class="modal fade" id="tekshiruvModal" tabindex="-1" aria-labelledby="tekshiruvModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title" id="tekshiruvModalLabel">
+                    <i class="bi bi-clipboard2-pulse me-2"></i>Tekshiruvlarga yuborish
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-3">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Kerakli tekshiruvlarni belgilang. Tanlangan tekshiruvlar avtomatik chekka qo'shiladi.
+                </p>
+                <div class="row g-2" id="modalServiceList">
+                    {% for checkbox in form.recommended_services %}
+                    <div class="col-md-6">
+                        <div class="form-check border rounded p-3 service-check-item"
+                             style="cursor:pointer; transition: background .15s;">
+                            {{ checkbox.tag }}
+                            <label class="form-check-label w-100" for="{{ checkbox.id_for_label }}"
+                                   style="cursor:pointer;">
+                                <i class="bi bi-activity text-info me-1"></i>
+                                {{ checkbox.choice_label }}
+                            </label>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="col-12">
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            Xizmatlar katalogi bo'sh. <a href="{% url 'staff:services' %}">Xizmat qo'shing</a>.
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="modal-footer d-flex justify-content-between">
+                <span class="text-muted" id="modalCountText">Hech narsa tanlanmagan</span>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary" id="clearAllBtn">
+                        <i class="bi bi-x-circle me-1"></i>Barchasini tozalash
+                    </button>
+                    <button type="button" class="btn btn-info text-white" data-bs-dismiss="modal" id="confirmBtn">
+                        <i class="bi bi-check2 me-1"></i>Tasdiqlash
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    // Checkboxlarni kuzatish
+    const checkboxes = document.querySelectorAll('#modalServiceList input[type=checkbox]');
+
+    function updateCount() {
+        const selected = [...checkboxes].filter(c => c.checked).length;
+        const badge   = document.getElementById('selectedCount');
+        const numEl   = document.getElementById('countNum');
+        const text    = document.getElementById('modalCountText');
+
+        numEl.textContent = selected;
+        badge.style.display = selected > 0 ? 'inline-block' : 'none';
+        text.textContent = selected > 0
+            ? selected + ' ta tekshiruv tanlandi'
+            : 'Hech narsa tanlanmagan';
+
+        // Tanlangan qatorlarni ranglash
+        document.querySelectorAll('.service-check-item').forEach(item => {
+            const cb = item.querySelector('input[type=checkbox]');
+            item.style.background = cb.checked ? '#e0f7fa' : '';
+            item.style.borderColor = cb.checked ? '#0dcaf0' : '';
+        });
+    }
+
+    checkboxes.forEach(cb => cb.addEventListener('change', updateCount));
+
+    // Barchasini tozalash
+    document.getElementById('clearAllBtn')?.addEventListener('click', () => {
+        checkboxes.forEach(cb => { cb.checked = false; });
+        updateCount();
+    });
+
+    // Modal ochilganda holatni yangilash
+    document.getElementById('tekshiruvModal')?.addEventListener('show.bs.modal', updateCount);
+
+    // Sahifa yuklanganda mavjud tanlovlarni ko'rsatish
+    updateCount();
+})();
+
+// ===== TASHXIS SHABLONLARI =====
+const MY_TEMPLATES = {{ my_templates_json|default:"{}"|safe }};
+const FIELD_IDS = ["complaint", "anamnesis", "objective_status", "diagnosis", "prescription", "recommendations"];
+
+function _field(name) {
+    return document.getElementById("id_" + name);
+}
+
+function applyTemplate() {
+    const sel = document.getElementById("templateSelect");
+    const t = MY_TEMPLATES[sel.value];
+    if (!t) { alert("Avval shablonni tanlang."); return; }
+    FIELD_IDS.forEach(function (name) {
+        const el = _field(name);
+        if (el && t[name] !== undefined && t[name] !== "") el.value = t[name];
+    });
+}
+
+function saveAsTemplate() {
+    const name = prompt("Shablon nomini kiriting (masalan: 'ORVI standart'):");
+    if (!name) return;
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = "{% url 'clinical:save_consultation_template' visit.pk %}";
+    const csrf = document.querySelector("input[name=csrfmiddlewaretoken]").value;
+    const add = function (k, v) {
+        const i = document.createElement("input");
+        i.type = "hidden"; i.name = k; i.value = v;
+        form.appendChild(i);
+    };
+    add("csrfmiddlewaretoken", csrf);
+    add("template_name", name);
+    FIELD_IDS.forEach(function (fname) {
+        const el = _field(fname);
+        add(fname, el ? el.value : "");
+    });
+    document.body.appendChild(form);
+    form.submit();
+}
+
+function deleteTemplate() {
+    const sel = document.getElementById("templateSelect");
+    if (!sel.value) { alert("O'chirish uchun shablonni tanlang."); return; }
+    if (!confirm("Tanlangan shablon o'chirilsinmi?")) return;
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = "/clinical/template/" + sel.value + "/delete/";
+    const csrf = document.querySelector("input[name=csrfmiddlewaretoken]").value;
+    const i = document.createElement("input");
+    i.type = "hidden"; i.name = "csrfmiddlewaretoken"; i.value = csrf;
+    form.appendChild(i);
+    document.body.appendChild(form);
+    form.submit();
+}
+</script>
+{% endblock %}
+

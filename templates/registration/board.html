@@ -1,0 +1,279 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Navbat Tablosi — Doctor B Najot</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background: radial-gradient(circle at 50% -10%, #14675a 0%, #0f2e2a 60%, #08201d 100%);
+            color: #fff; height: 100vh; overflow: hidden;
+        }
+        .board { display: flex; flex-direction: column; height: 100vh; }
+        .board-head {
+            display: flex; align-items: center; gap: .8rem;
+            padding: 1.2rem 2rem; border-bottom: 1px solid rgba(255,255,255,.1);
+        }
+        .board-head .logo {
+            width: 48px; height: 48px; border-radius: 12px;
+            background: linear-gradient(135deg, #2aa88f, #3fc8ac);
+            display: flex; align-items: center; justify-content: center;
+            color: #062b25; font-size: 1.5rem;
+        }
+        .board-head h1 { font-size: 1.6rem; font-weight: 800; letter-spacing: -.5px; }
+        .board-head .clock { margin-left: auto; font-size: 1.8rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .board-body { flex: 1; display: grid; grid-template-columns: 1.4fr 1fr; gap: 1.5rem; padding: 1.5rem 2rem; min-height: 0; }
+        .current {
+            background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.12);
+            border-radius: 24px; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; text-align: center; padding: 2rem;
+        }
+        .current .label { font-size: 1.4rem; color: #9fd6c9; letter-spacing: 3px; text-transform: uppercase; }
+        .current .num {
+            font-size: 15rem; font-weight: 900; line-height: 1; margin: .5rem 0;
+            background: linear-gradient(180deg, #fff, #7fe6cf); -webkit-background-clip: text;
+            background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .current .num.flash { animation: flash 1s ease 3; }
+        @keyframes flash { 0%,100% { filter: none; } 50% { filter: drop-shadow(0 0 40px #3fc8ac); } }
+        .current .doctor { font-size: 2.4rem; font-weight: 700; }
+        .current .spec { font-size: 1.3rem; color: #9fd6c9; margin-top: .3rem; }
+        .recent { display: flex; flex-direction: column; min-height: 0; }
+        .recent h2 { font-size: 1.1rem; color: #9fd6c9; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 1rem; }
+        .recent-list { display: flex; flex-direction: column; gap: .7rem; overflow: hidden; }
+        .recent-item {
+            display: flex; align-items: center; gap: 1rem;
+            background: rgba(255,255,255,.06); border-radius: 14px; padding: .9rem 1.2rem;
+        }
+        .recent-item .rn {
+            min-width: 74px; height: 60px; border-radius: 12px;
+            background: linear-gradient(135deg, #1a7f6b, #2aa88f);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 2rem; font-weight: 800;
+        }
+        .recent-item .rd { font-size: 1.3rem; font-weight: 600; }
+        .recent-item .rs { font-size: .95rem; color: #9fd6c9; }
+        .empty { text-align: center; color: #6f9a90; font-size: 1.4rem; margin: auto; }
+        .sound-gate {
+            position: fixed; inset: 0; background: rgba(8,32,29,.96);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 1.2rem; z-index: 50; text-align: center; padding: 1rem;
+        }
+        .sound-gate h2 { font-size: 2rem; font-weight: 800; }
+        .sound-gate p { color: #9fd6c9; font-size: 1.1rem; max-width: 480px; }
+        .sound-gate button {
+            border: 0; border-radius: 14px; padding: 1rem 2.5rem; font-size: 1.3rem; font-weight: 700;
+            background: linear-gradient(135deg, #2aa88f, #3fc8ac); color: #062b25; cursor: pointer;
+        }
+        @media (max-width: 900px) { .board-body { grid-template-columns: 1fr; } .current .num { font-size: 9rem; } }
+    </style>
+</head>
+<body>
+<div class="sound-gate" id="soundGate">
+    <i class="bi bi-volume-up-fill" style="font-size:4rem;color:#3fc8ac"></i>
+    <h2>Navbat Tablosi</h2>
+    <p>Ovozli e'lonlarni yoqish uchun tugmani bosing. Bu brauzer talabi — ovoz bir marta yoqilsa, keyin avtomatik ishlaydi.</p>
+    <button onclick="startBoard()"><i class="bi bi-play-fill"></i> Tabloni ishga tushirish</button>
+</div>
+
+<div class="board">
+    <div class="board-head">
+        <span class="logo"><i class="bi bi-heart-pulse-fill"></i></span>
+        <h1>Doctor B Najot — Navbat</h1>
+        <div style="display: flex; align-items: center; gap: 20px;">
+            <span class="clock" id="clock">--:--</span>
+            <form action="{% url 'accounts:logout' %}" method="post" style="margin: 0;">
+                {% csrf_token %}
+                <button type="submit" style="background: none; border: none; padding: 0; color: #6f9a90; font-size: 1.5rem; transition: color 0.3s; cursor: pointer;" onmouseover="this.style.color='#ff6b6b'" onmouseout="this.style.color='#6f9a90'" title="Tizimdan chiqish">
+                    <i class="bi bi-box-arrow-right"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+    <div class="board-body">
+        <div class="current">
+            <div class="label">Navbat raqami</div>
+            <div class="num" id="curNum">—</div>
+            <div class="patient" id="curPatient" style="font-size: 2.5rem; font-weight: 800; color: #3fc8ac; margin-bottom: 0.5rem;"></div>
+            <div class="doctor" id="curDoctor">Bemor chaqirilishini kuting</div>
+            <div class="spec" id="curSpec"></div>
+            <div class="room" id="curRoom" style="font-size: 2rem; font-weight: 800; color: #ffeb3b; margin-top: 1rem;"></div>
+        </div>
+        <div class="recent">
+            <h2><i class="bi bi-clock-history"></i> Oxirgi chaqiruvlar</h2>
+            <div class="recent-list" id="recentList">
+                <div class="empty">Hozircha chaqiruvlar yo'q</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+var FEED_URL = "{% url 'registration:board_feed' %}";
+var seen = {};          // e'lon qilingan navbat raqamlari
+var firstLoad = true;   // birinchi yuklashda ovoz chiqmaydi
+var voiceReady = false;
+
+var audioQueue = [];
+var isPlaying = false;
+
+function playNextInQueue() {
+    if (audioQueue.length === 0) {
+        isPlaying = false;
+        return;
+    }
+    isPlaying = true;
+    var call = audioQueue.shift();
+    
+    // Ekranni yangilash
+    document.getElementById("curNum").textContent = call.n;
+    var num = document.getElementById("curNum");
+    num.classList.remove("flash"); void num.offsetWidth; num.classList.add("flash");
+    document.getElementById("curPatient").textContent = call.patient || "";
+    document.getElementById("curDoctor").textContent = call.doctor || "Shifokor";
+    document.getElementById("curSpec").textContent = call.specialty || "";
+    document.getElementById("curRoom").textContent = call.room || "";
+    
+    // Ovozli matnni tayyorlaymiz
+    var phrase = "Navbat raqami " + call.n + ". ";
+    if (call.patient) phrase += "Bemor " + call.patient + ". ";
+    
+    if (call.room) {
+        var roomText = call.room;
+        if (roomText.match(/^\d+-Xona$/i)) {
+            var rnum = roomText.split("-")[0];
+            phrase += "Iltimos, " + rnum + "-chi xonaga kiring.";
+        } else {
+            phrase += "Iltimos, " + roomText.replace(/xona/i, "xonasi") + "ga kiring.";
+        }
+    } else {
+        phrase += call.doctor ? ("Sizni " + call.doctor + " kutmoqda.") : "Iltimos, qabulxonaga o'ting.";
+    }
+    
+    // Server ovozi: edge-tts (toza o'zbekcha, uz-UZ-MadinaNeural)
+    var advanced = false;
+    function next() {
+        if (advanced) return;      // ikki marta o'tib ketmaslik uchun
+        advanced = true;
+        setTimeout(playNextInQueue, 1500);
+    }
+    try {
+        var audioUrl = "{% url 'registration:tts_speak' %}?text=" + encodeURIComponent(phrase);
+        var audio = new Audio(audioUrl);
+        audio.onended = next;
+        audio.onerror = next;
+        audio.play().catch(next);
+    } catch (e) {
+        next();
+    }
+}
+
+function announce(call) {
+    audioQueue.push(call);
+    if (!isPlaying) {
+        playNextInQueue();
+    }
+}
+
+function renderRecent(calls) {
+    var box = document.getElementById("recentList");
+    if (!calls.length) { box.innerHTML = '<div class="empty">Hozircha chaqiruvlar yo\'q</div>'; return; }
+    box.innerHTML = "";
+    calls.slice(0, 6).forEach(function (c) {
+        var el = document.createElement("div");
+        el.className = "recent-item";
+        el.innerHTML = '<div class="rn">' + c.n + '</div>' +
+            '<div style="flex-grow:1;"><div class="rd" style="color:#3fc8ac;">' + (c.patient || "Bemor") + '</div>' +
+            '<div class="rs">' + (c.doctor || "Shifokor") + (c.room ? ' &mdash; ' + c.room : '') + '</div></div>';
+        box.appendChild(el);
+    });
+}
+
+function setFeatured(c) {
+    document.getElementById("curNum").textContent = c.n;
+    document.getElementById("curPatient").textContent = c.patient || "";
+    document.getElementById("curDoctor").textContent = c.doctor || "Shifokor";
+    document.getElementById("curSpec").textContent = c.specialty || "";
+    document.getElementById("curRoom").textContent = c.room || "";
+}
+function clearFeatured() {
+    document.getElementById("curNum").textContent = "—";
+    document.getElementById("curPatient").textContent = "Kutilmoqda";
+    document.getElementById("curDoctor").textContent = "";
+    document.getElementById("curSpec").textContent = "";
+    document.getElementById("curRoom").textContent = "";
+}
+
+function poll() {
+    fetch(FEED_URL, { headers: { "X-Requested-With": "XMLHttpRequest" } })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            var calls = data.calls || [];
+            renderRecent(calls);
+
+            if (calls.length) {
+                // Yangi chaqiruvlarni aniqlaymiz va audio navbatga qo'shamiz (eskilaridan yangisiga qarab)
+                for (var i = calls.length - 1; i >= 0; i--) {
+                    var c = calls[i];
+                    var key = c.n + "@" + c.at;
+                    if (!seen[key]) {
+                        seen[key] = true;
+                        if (!firstLoad) {
+                            announce(c);
+                        }
+                    }
+                }
+
+                // Agar birinchi yuklanish bo'lsa — eng oxirgisini chiqaramiz
+                if (firstLoad) {
+                    setFeatured(calls[0]);
+                } else {
+                    // Ekranda ko'ringan bemor endi ro'yxatda yo'q bo'lsa (kechiktirildi/bekor qilindi/tugadi)
+                    // — eng oxirgi faol chaqiruvga o'tkazamiz
+                    var curN = document.getElementById("curNum").textContent;
+                    var stillActive = calls.some(function (c) { return String(c.n) === String(curN); });
+                    if (!stillActive) {
+                        setFeatured(calls[0]);
+                    }
+                }
+            } else {
+                // Faol chaqiruv qolmadi — katta ekranni tozalaymiz (eski bemor qolib ketmasin)
+                clearFeatured();
+            }
+            firstLoad = false;
+        })
+        .catch(function () {});
+}
+
+function tickClock() {
+    var d = new Date();
+    var p = function (n) { return String(n).padStart(2, "0"); };
+    document.getElementById("clock").textContent = p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
+}
+
+function playDirectAudio(text) {
+    try {
+        var audioUrl = "{% url 'registration:tts_speak' %}?text=" + encodeURIComponent(text);
+        var audio = new Audio(audioUrl);
+        audio.play().catch(function (e) { console.log(e); });
+    } catch (e) {}
+}
+
+function startBoard() {
+    voiceReady = true;
+    playDirectAudio("Tablo tayyor");
+    document.getElementById("soundGate").style.display = "none";
+    poll();
+    setInterval(poll, 3000);
+}
+
+tickClock();
+setInterval(tickClock, 1000);
+</script>
+</body>
+</html>

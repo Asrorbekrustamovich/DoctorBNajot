@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Jarrohlik bloki - Doctor B Najot{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3"><i class="bi bi-heart-pulse"></i> Jarrohlik bloki (Operatsiyalar)</h1>
+    {% if can_schedule %}
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#scheduleModal">
+        <i class="bi bi-plus-circle"></i> Yangi operatsiyaga yozish
+    </button>
+    {% endif %}
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white fw-bold">
+        Bugungi va navbatdagi operatsiyalar
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-3">Vaqti</th>
+                    <th>Bemor</th>
+                    <th>Operatsiya turi</th>
+                    <th>Jarroh</th>
+                    <th>Status</th>
+                    <th class="text-end pe-3">Harakatlar</th>
+                </tr>
+            </thead>
+            <tbody id="surgery-table-body" hx-get="{% url 'clinical:surgery_dashboard_table' %}" hx-trigger="every 5s [!htmxShouldPause()]">
+                {% include "clinical/surgery_dashboard_table.html" %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{# Operatsiya modallari — jadval tashqarisida (5s yangilanishга tushmaydi, shuning uchun doim ochiladi) #}
+{% include "clinical/surgery_dashboard_modals.html" %}
+
+<!-- Yangi operatsiya Modal -->
+<div class="modal fade" id="scheduleModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title"><i class="bi bi-plus-circle"></i> Yangi operatsiyaga yozish</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="post" action="{% url 'clinical:schedule_surgery' %}">
+          {% csrf_token %}
+          <div class="modal-body">
+              <div class="mb-3">
+                  <label class="form-label fw-bold text-primary"><i class="bi bi-search"></i> Bemor qidiruv (Ism / JSHSHIR / Pasport)</label>
+                  <input type="text" id="surgery_quick_search" class="form-control border-primary bg-light" placeholder="Qidirish uchun yozing..." autocomplete="off">
+                  <small class="form-text">Ma'lumot terilishi bilan pastdagi qutida bemor avtomatik tanlanadi.</small>
+              </div>
+              <div class="mb-3">
+                  <label class="form-label fw-bold">Bemorni tanlang <span class="text-danger">*</span></label>
+                  <select name="patient_id" id="surgery_patient_select" class="form-select" required>
+                      <option value="">-- Tanlang --</option>
+                      {% for p in patients %}
+                      <option value="{{ p.id }}">{{ p.full_name }} JSHSHIR: {{ p.pinfl|default:'-' }} SERIA: {{ p.passport_number|default:'-' }}{% if p.card_number %} — {{ p.card_number }}{% endif %}</option>
+                      {% endfor %}
+                  </select>
+                  <div class="form-text">Bemorlar ro'yxatidan tanlanadi. Operatsiya bemorning joriy tashrifiga (chekiga) qo'shiladi.</div>
+              </div>
+              <div class="mb-3">
+                  <label class="form-label fw-bold">Operatsiya turi</label>
+                  <select name="surgery_type_id" class="form-select" required>
+                      <option value="">-- Tanlang --</option>
+                      {% for st in surgery_types %}
+                      <option value="{{ st.id }}">{{ st.name }} [{{ st.get_kind_display }}] ({{ st.price|intcomma }} so'm)</option>
+                      {% endfor %}
+                  </select>
+              </div>
+              <div class="mb-3">
+                  <label class="form-label fw-bold">Jarroh (Shifokor)</label>
+                  <select name="surgeon_id" class="form-select" required>
+                      <option value="">-- Tanlang --</option>
+                      {% for doc in surgeons %}
+                      <option value="{{ doc.id }}">{{ doc.get_full_name }} ({{ doc.specialty }})</option>
+                      {% endfor %}
+                  </select>
+              </div>
+              <div class="row g-2">
+                  <div class="col-md-6 mb-3">
+                      <label class="form-label">Operatsion asistent</label>
+                      <select name="assistant_id" class="form-select">
+                          <option value="">-- Tanlang --</option>
+                          {% for u in assistants %}
+                          <option value="{{ u.id }}">{{ u.get_full_name }}</option>
+                          {% endfor %}
+                      </select>
+                  </div>
+                  <div class="col-md-6 mb-3">
+                      <label class="form-label">Anesteziolog</label>
+                      <select name="anesthesiologist_id" class="form-select">
+                          <option value="">-- Tanlang --</option>
+                          {% for u in anesthesiologists %}
+                          <option value="{{ u.id }}">{{ u.get_full_name }}</option>
+                          {% endfor %}
+                      </select>
+                  </div>
+                  <div class="col-md-6 mb-3">
+                      <label class="form-label">Operatsion hamshira</label>
+                      <select name="operating_nurse_id" class="form-select">
+                          <option value="">-- Tanlang --</option>
+                          {% for u in operating_nurses %}
+                          <option value="{{ u.id }}">{{ u.get_full_name }}</option>
+                          {% endfor %}
+                      </select>
+                  </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Bo'lim hamshirasi</label>
+                        <select name="ward_nurse_id" class="form-select">
+                            <option value="">-- Tanlang --</option>
+                            {% for u in ward_nurses %}
+                            <option value="{{ u.id }}">{{ u.get_full_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                  <div class="col-md-6 mb-3">
+                      <label class="form-label">Operatsion xona</label>
+                      <select name="operating_room_id" class="form-select">
+                          <option value="">-- Tanlang --</option>
+                          {% for r in operating_rooms %}
+                          <option value="{{ r.id }}">{{ r.name }}</option>
+                          {% endfor %}
+                      </select>
+                  </div>
+              </div>
+              <div class="mb-3">
+                  <label class="form-label fw-bold">Sanasi va vaqti</label>
+                  <input type="datetime-local" lang="ru" name="scheduled_time" class="form-control" required>
+              </div>
+              <div class="mb-3">
+                  <label class="form-label">Qo'shimcha izohlar</label>
+                  <textarea name="notes" class="form-control" rows="2"></textarea>
+              </div>
+          </div>
+          <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>
+              <button type="submit" class="btn btn-primary">Saqlash</button>
+          </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const quickSearch = document.getElementById('surgery_quick_search');
+    const select = document.getElementById('surgery_patient_select');
+    
+    if (quickSearch && select) {
+        quickSearch.addEventListener('input', function() {
+            const query = this.value.trim().toUpperCase();
+            if (query.length >= 4) { // 4 ta harf/raqam kiritilgach izlaydi
+                const options = select.options;
+                for (let i = 1; i < options.length; i++) {
+                    const text = options[i].text.toUpperCase();
+                    if (text.includes('JSHSHIR: ' + query) || text.includes('SERIA: ' + query) || text.includes(query)) {
+                        select.value = options[i].value;
+                        // Select2 ulangan bo'lsa yangilash
+                        if (typeof $ !== 'undefined' && .hasClass('select2-hidden-accessible')) {
+                            .trigger('change');
+                        }
+                        break;
+                    }
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Navbat — Doctor B Najot{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        {% if user.role.code in "doctor,surgeon,nurse,ward_nurse,lab,radiology,chief_doctor" %}
+        <h1 class="h3"><i class="bi bi-person-lines-fill"></i> Mening bemorlarim (bugun)</h1>
+        <p class="text-muted mb-0">Faqat sizga yo'naltirilgan bemorlar ko'rinadi</p>
+        {% else %}
+        <h1 class="h3"><i class="bi bi-list-ol"></i> Bugungi navbat</h1>
+        {% endif %}
+    </div>
+    {% if user.can_write_visits %}
+    <a href="{% url 'registration:visit_create' %}" class="btn btn-primary">
+        <i class="bi bi-clipboard-plus"></i> Yangi qabul
+    </a>
+    {% endif %}
+</div>
+<div class="card shadow-sm">
+    <div class="card-body">
+        <div class="btn-group mb-3" role="group">
+            <a href="{% url 'registration:queue' %}"
+               class="btn btn-sm {% if not current_status %}btn-primary{% else %}btn-outline-primary{% endif %}">Hammasi</a>
+            {% for value, label in statuses %}
+            <a href="?status={{ value }}"
+               class="btn btn-sm {% if current_status == value %}btn-primary{% else %}btn-outline-primary{% endif %}">{{ label }}</a>
+            {% endfor %}
+        </div>
+        <div id="queue-table"
+             hx-get="{% url 'registration:queue' %}{% if current_status %}?status={{ current_status }}{% endif %}"
+             hx-trigger="every 30s [!htmxShouldPause()]"
+             hx-target="this">
+            {% include "registration/_queue_table.html" %}
+        </div>
+    </div>
+<div id="modals-here"></div>
+{% endblock %}

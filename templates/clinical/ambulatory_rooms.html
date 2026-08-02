@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}Ambulator Xonalar (Kabinetlar) — Doctor B Najot{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 page-title mb-1">Ambulator Xonalar (Kabinetlar)</h1>
+        <p class="text-muted mb-0">Poliklinika qabuli xonalari va ularga biriktirilgan shifokorlar</p>
+    </div>
+    <div>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addRoomModal">
+            <i class="bi bi-plus-lg"></i> Xona qo'shish
+        </button>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-4">Xona nomi / raqami</th>
+                    <th>Mas'ul shifokor</th>
+                    <th>Holati</th>
+                    <th class="text-end pe-4">Amallar</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for room in rooms %}
+                <tr>
+                    <td class="ps-4 fw-bold">
+                        <i class="bi bi-door-closed text-primary me-2"></i> {{ room.name }}
+                    </td>
+                    <td>
+                        {% if room.doctors.count > 0 %}
+                            {% for doc in room.doctors.all %}
+                            <div class="d-flex align-items-center mb-1">
+                                <div class="avatar avatar-sm me-2 bg-light text-primary rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;font-size:12px;">
+                                    <i class="bi bi-person"></i>
+                                </div>
+                                <div>
+                                    <div class="fw-bold" style="font-size:14px;">{{ doc.get_full_name|default:doc.username }}</div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <span class="text-muted fst-italic">Biriktirilmagan</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if room.is_active %}
+                            <span class="badge bg-success">Faol</span>
+                        {% else %}
+                            <span class="badge bg-secondary">Nofaol</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end pe-4">
+                        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editRoomModal{{ room.id }}">
+                            <i class="bi bi-pencil"></i> Tahrirlash
+                        </button>
+                        <form method="post" action="{% url 'clinical:delete_ambulatory_room' room.id %}" class="d-inline" onsubmit="return confirm('Haqiqatan ham ushbu xonani o\'chirmoqchimisiz?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+
+                <!-- Edit Modal -->
+                <div class="modal fade" id="editRoomModal{{ room.id }}" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <form method="post" action="{% url 'clinical:edit_ambulatory_room' room.id %}">
+                                {% csrf_token %}
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Xonani tahrirlash</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Xona nomi / raqami</label>
+                                        <input type="text" name="name" class="form-control" value="{{ room.name }}" required>
+                                        <div class="form-text">Masalan: 1-Xona, LOR kabineti, UZI xonasi</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Shifokorni biriktirish</label>
+                                        <div class="border rounded p-2" style="max-height: 150px; overflow-y: auto;">
+                                            {% for doc in doctors %}
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="doctor_ids" value="{{ doc.id }}" id="docCheckEdit{{ room.id }}_{{ doc.id }}" {% if doc in room.doctors.all %}checked{% endif %}>
+                                                <label class="form-check-label" for="docCheckEdit{{ room.id }}_{{ doc.id }}">
+                                                    {{ doc.get_full_name|default:doc.username }} ({{ doc.specialty|default:"Shifokor" }})
+                                                </label>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                        <div class="form-text text-muted">Kerakli shifokorlarni belgilang. Agar shifokor boshqa xonada bo'lsa, avtomatik ravishda bu xonaga o'tadi.</div>
+                                    </div>
+                                    <div class="mb-3 form-check">
+                                        <input type="checkbox" name="is_active" class="form-check-input" id="isActiveCheck{{ room.id }}" {% if room.is_active %}checked{% endif %}>
+                                        <label class="form-check-label" for="isActiveCheck{{ room.id }}">Faol holatda</label>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>
+                                    <button type="submit" class="btn btn-primary">Saqlash</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <tr>
+                    <td colspan="4" class="text-center py-4 text-muted">
+                        Xonalar ro'yxati bo'sh.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Add Modal -->
+<div class="modal fade" id="addRoomModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'clinical:add_ambulatory_room' %}">
+                {% csrf_token %}
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Yangi ambulator xona qo'shish</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Xona nomi / raqami</label>
+                        <input type="text" name="name" class="form-control" required placeholder="Masalan: 12-Xona">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Shifokorni biriktirish</label>
+                        <div class="border rounded p-2" style="max-height: 150px; overflow-y: auto;">
+                            {% for doc in doctors %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="doctor_ids" value="{{ doc.id }}" id="docCheckAdd_{{ doc.id }}">
+                                <label class="form-check-label" for="docCheckAdd_{{ doc.id }}">
+                                    {{ doc.get_full_name|default:doc.username }} ({{ doc.specialty|default:"Shifokor" }})
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="form-text text-muted">Xonaga biriktiriladigan shifokorlarni belgilang (ptichka).</div>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" name="is_active" class="form-check-input" id="addActiveCheck" checked>
+                        <label class="form-check-label" for="addActiveCheck">Faol holatda</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Bekor qilish</button>
+                    <button type="submit" class="btn btn-primary">Qo'shish</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

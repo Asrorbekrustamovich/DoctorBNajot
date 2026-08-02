@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Xizmatlar katalogi | Xodimlar{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="page-title mb-0"><i class="bi bi-grid-3x3-gap-fill me-2 text-info"></i>Xizmatlar katalogi</h1>
+        <p class="text-muted mb-0">UZI, EKG, tahlillar va boshqa tibbiy xizmatlar narxlari</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'staff:list' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-people me-1"></i> Xodimlar
+        </a>
+        <a href="{% url 'staff:service_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-circle me-1"></i> Yangi xizmat
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-list-check me-2"></i>Barcha xizmatlar</span>
+        <span class="badge bg-primary">{{ services.count }} ta</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>#</th>
+                    <th>Xizmat nomi</th>
+                    <th class="text-end">Narxi (so'm)</th>
+                    <th>Bajaruvchi rol</th>
+                    <th>Bemor qayerga boradi</th>
+                    <th class="text-center">Holati</th>
+                    <th class="text-end">Amallar</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for svc in services %}
+                <tr class="{% if not svc.is_active %}opacity-50{% endif %}">
+                    <td class="text-muted">{{ forloop.counter }}</td>
+                    <td>
+                        <div class="fw-semibold">{{ svc.name }}</div>
+                    </td>
+                    <td class="text-end fw-bold text-success">{{ svc.price|floatformat:0 }} so'm</td>
+                    <td>
+                        {% if svc.allowed_role %}
+                        <span class="badge bg-secondary">{{ svc.allowed_role.name }}</span>
+                        {% else %}
+                        <span class="badge bg-danger-subtle text-danger-emphasis">Biriktirilmagan — hammaga ko'rinadi</span>
+                        {% endif %}
+                    </td>
+                    <td class="small">
+                        {% if svc.room %}
+                            <div><i class="bi bi-door-closed"></i> <b>{{ svc.room.name }}</b></div>
+                        {% endif %}
+                        {% if svc.responsible_staff %}
+                            <div class="text-muted"><i class="bi bi-person"></i> {{ svc.responsible_staff.get_full_name|default:svc.responsible_staff.username }}</div>
+                        {% endif %}
+                        {% if not svc.room and not svc.responsible_staff %}
+                            <span class="text-warning-emphasis"><i class="bi bi-exclamation-triangle"></i> ko'rsatilmagan</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        {% if svc.is_active %}
+                        <span class="badge bg-success">Faol</span>
+                        {% else %}
+                        <span class="badge bg-danger">Nofaol</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        <div class="d-flex justify-content-end gap-1">
+                            <a href="{% url 'staff:service_edit' svc.id %}" class="btn btn-sm btn-outline-secondary" title="Tahrirlash">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <a href="{% url 'staff:service_delete' svc.id %}" class="btn btn-sm btn-outline-danger" title="O'chirish">
+                                <i class="bi bi-trash"></i>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-4">
+                        <i class="bi bi-grid fs-2 d-block mb-2 opacity-50"></i>
+                        Xizmatlar ro'yxati bo'sh. <a href="{% url 'staff:service_create' %}">Birinchi xizmatni qo'shing</a>.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

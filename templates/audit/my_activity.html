@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}Mening ishlarim - Doctor B Najot{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h1 class="h3 mb-0"><i class="bi bi-clock-history"></i> Mening ishlarim</h1>
+    <div class="d-flex gap-2 align-items-center d-print-none">
+        <span class="text-muted small d-none d-md-inline">Siz tizimda qilgan barcha amallar avtomatik shu yerda saqlanadi</span>
+        <a href="?{% if current_action %}action={{ current_action }}&{% endif %}days={{ current_days }}&format=excel" class="btn btn-outline-success btn-sm"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+        <button class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer"></i> Chop etish</button>
+    </div>
+</div>
+
+<!-- Statistika -->
+<div class="row g-3 mb-3">
+    <div class="col-4">
+        <div class="card shadow-sm text-center"><div class="card-body py-3">
+            <div class="h3 mb-0 text-success">{{ today_count }}</div>
+            <div class="small text-muted">Bugungi ishlar</div>
+        </div></div>
+    </div>
+    <div class="col-4">
+        <div class="card shadow-sm text-center"><div class="card-body py-3">
+            <div class="h3 mb-0 text-primary">{{ week_count }}</div>
+            <div class="small text-muted">Oxirgi 7 kun</div>
+        </div></div>
+    </div>
+    <div class="col-4">
+        <div class="card shadow-sm text-center"><div class="card-body py-3">
+            <div class="h3 mb-0">{{ total_count }}</div>
+            <div class="small text-muted">Jami</div>
+        </div></div>
+    </div>
+</div>
+
+<!-- Filtrlar -->
+<div class="card shadow-sm mb-3">
+    <div class="card-body py-2">
+        <form method="get" class="row g-2 align-items-center">
+            <div class="col-auto">
+                <select name="days" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="1" {% if current_days == "1" %}selected{% endif %}>Bugun</option>
+                    <option value="7" {% if current_days == "7" %}selected{% endif %}>Oxirgi 7 kun</option>
+                    <option value="30" {% if current_days == "30" %}selected{% endif %}>Oxirgi 30 kun</option>
+                    <option value="90" {% if current_days == "90" %}selected{% endif %}>Oxirgi 90 kun</option>
+                    <option value="0" {% if current_days == "0" %}selected{% endif %}>Hammasi</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <select name="action" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">Barcha amallar</option>
+                    {% for val, label in actions %}
+                    <option value="{{ val }}" {% if current_action == val %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto flex-grow-1" style="max-width:280px">
+                <input type="text" name="q" class="form-control form-control-sm" placeholder="Qidirish (bemor, obyekt...)" value="{{ current_q }}">
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-sm btn-outline-primary"><i class="bi bi-search"></i></button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Jurnal -->
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <table class="table table-sm table-hover mb-0 align-middle">
+            <thead><tr>
+                <th class="ps-3">Vaqt</th><th>Amal</th><th>Bo'lim</th><th>Obyekt</th><th class="pe-3">O'zgarishlar</th>
+            </tr></thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td class="ps-3 text-nowrap small">{{ log.created_at|date:"d.m.Y H:i:s" }}</td>
+                    <td>
+                        {% if log.action == "create" %}<span class="badge bg-success">Yaratildi</span>
+                        {% elif log.action == "update" %}<span class="badge bg-primary">O'zgartirildi</span>
+                        {% elif log.action == "delete" %}<span class="badge bg-danger">O'chirildi</span>
+                        {% elif log.action == "restore" %}<span class="badge bg-info">Tiklandi</span>
+                        {% elif log.action == "login" %}<span class="badge bg-secondary">Kirish</span>
+                        {% elif log.action == "logout" %}<span class="badge bg-secondary">Chiqish</span>
+                        {% elif log.action == "export" %}<span class="badge bg-warning text-dark">Eksport</span>
+                        {% else %}<span class="badge bg-light text-dark">{{ log.get_action_display }}</span>{% endif %}
+                    </td>
+                    <td class="small">{{ log.friendly_model }}</td>
+                    <td class="small">{{ log.object_repr|truncatechars:60|default:"—" }}</td>
+                    <td class="pe-3 small text-muted">
+                        {% if log.changes %}
+                            {% for field, ch in log.changes.items %}{% if forloop.counter <= 3 %}{{ field }}{% if not forloop.last and forloop.counter < 3 %}, {% endif %}{% endif %}{% endfor %}{% if log.changes|length > 3 %} +{{ log.changes|length|add:"-3" }}{% endif %}
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" class="text-center text-muted py-4">Bu davrda yozuvlar yo'q</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if is_paginated %}
+    <div class="card-footer d-flex justify-content-between align-items-center py-2">
+        <span class="small text-muted">Sahifa {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+        <div>
+            {% if page_obj.has_previous %}
+            <a class="btn btn-sm btn-outline-secondary" href="?page={{ page_obj.previous_page_number }}&days={{ current_days }}&action={{ current_action }}&q={{ current_q }}">‹ Oldingi</a>
+            {% endif %}
+            {% if page_obj.has_next %}
+            <a class="btn btn-sm btn-outline-secondary" href="?page={{ page_obj.next_page_number }}&days={{ current_days }}&action={{ current_action }}&q={{ current_q }}">Keyingi ›</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}{{ action }} | Xizmatlar katalogi{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-7">
+        <div class="d-flex align-items-center mb-4">
+            <a href="{% url 'staff:services' %}" class="btn btn-sm btn-outline-secondary me-3">
+                <i class="bi bi-arrow-left"></i>
+            </a>
+            <div>
+                <h1 class="page-title mb-0">{{ action }}</h1>
+                {% if service %}<p class="text-muted mb-0">{{ service.name }}</p>{% endif %}
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-grid-3x3-gap me-2"></i>Xizmat ma'lumotlari
+            </div>
+            <div class="card-body p-4">
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Xizmat nomi <span class="text-danger">*</span></label>
+                            {{ form.name }}
+                            {% if form.name.errors %}<div class="text-danger small mt-1">{{ form.name.errors|join:", " }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Narxi (so'm) <span class="text-danger">*</span></label>
+                            {{ form.price }}
+                            {% if form.price.errors %}<div class="text-danger small mt-1">{{ form.price.errors|join:", " }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Bajaruvchi xodim roli</label>
+                            {{ form.allowed_role }}
+                            <small class="text-muted">Bo'sh qoldirilsa, bu xizmat <b>hamma mutaxassis</b> navbatida ko'rinadi</small>
+                            {% if form.allowed_role.errors %}<div class="text-danger small mt-1">{{ form.allowed_role.errors|join:", " }}</div>{% endif %}
+                        </div>
+
+                        <div class="col-12"><hr class="my-1"></div>
+                        <div class="col-12">
+                            <div class="alert alert-info py-2 mb-0 small">
+                                <i class="bi bi-geo-alt-fill"></i>
+                                Quyidagi ikkita maydon bemorga <b>«qayerga, kimning oldiga borish»</b> deb ko'rsatiladi —
+                                tayinlash oynasida, bemor kartasida va chop etiladigan yo'llanmada.
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Kabinet (qaysi xona)</label>
+                            {{ form.room }}
+                            <small class="text-muted">Ambulator xonalar ro'yxatidan</small>
+                            {% if form.room.errors %}<div class="text-danger small mt-1">{{ form.room.errors|join:", " }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Mas'ul xodim</label>
+                            {{ form.responsible_staff }}
+                            <small class="text-muted">Bo'sh qoldirilsa — rol nomi ko'rsatiladi</small>
+                            {% if form.responsible_staff.errors %}<div class="text-danger small mt-1">{{ form.responsible_staff.errors|join:", " }}</div>{% endif %}
+                        </div>
+                        <div class="col-12"><hr class="my-1"></div>
+
+                        <div class="col-12">
+                            <div class="form-check">
+                                {{ form.is_active }}
+                                <label class="form-check-label fw-semibold">Xizmat faolmi?</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if form.non_field_errors %}
+                    <div class="alert alert-danger mt-3">{{ form.non_field_errors }}</div>
+                    {% endif %}
+
+                    <div class="d-flex gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary px-4">
+                            <i class="bi bi-check2 me-1"></i> Saqlash
+                        </button>
+                        <a href="{% url 'staff:services' %}" class="btn btn-outline-secondary">Bekor qilish</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

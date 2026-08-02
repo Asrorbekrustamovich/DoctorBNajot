@@ -1,0 +1,45 @@
+; ============================================================
+;  Doctor B Najot — HIS. Fon vazifalari (Celery worker + beat).
+;
+;  Nima uchun kerak: rejalashtirilgan vazifalar, ovoz fayllarini
+;  tayyorlash, og'ir hisobotlar — foydalanuvchini kutdirmasdan bajariladi.
+;
+;  O'rnatish:
+;    sudo cp server/systemd/edumed-celery.service /etc/systemd/system/
+;    sudo systemctl daemon-reload
+;    sudo systemctl enable --now edumed-celery
+; ============================================================
+[Unit]
+Description=Doctor B Najot HIS — Celery (fon vazifalari)
+After=network-online.target redis-server.service
+Requires=redis-server.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/edumed-his
+EnvironmentFile=/opt/edumed-his/.env
+Environment="DJANGO_SETTINGS_MODULE=config.settings.production"
+Environment="PYTHONUNBUFFERED=1"
+
+ExecStart=/opt/edumed-his/.venv/bin/celery -A config worker \
+    --beat \
+    --scheduler django_celery_beat.schedulers:DatabaseScheduler \
+    --loglevel=warning \
+    --concurrency=2 \
+    --logfile=/opt/edumed-his/logs/celery.log
+
+Restart=always
+RestartSec=10
+KillMode=mixed
+TimeoutStopSec=60
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/edumed-his/media /opt/edumed-his/logs
+
+[Install]
+WantedBy=multi-user.target

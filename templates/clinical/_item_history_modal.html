@@ -1,0 +1,74 @@
+{# Anjom tarixi: QACHON + KIMGA + KIM boshchiligidagi operatsiyada ishlatilgani #}
+<div class="modal fade" id="historyModal{{ item.id }}" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <div>
+                    <h5 class="modal-title mb-0"><i class="bi bi-clock-history text-primary"></i> {{ item.name }}</h5>
+                    <small class="text-muted">
+                        {{ item.get_item_type_display }} · {{ item.get_steril_method_display }}
+                        {% if item.serial_number %} · SN: {{ item.serial_number }}{% endif %}
+                    </small>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">Sana / vaqt</th>
+                                <th>Harakat</th>
+                                <th>Bemor (kimga)</th>
+                                <th>Jarroh (boshchiligida)</th>
+                                <th>Operatsiya / xona</th>
+                                <th class="pe-3">Xodim</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for hist in item.use_log %}
+                            <tr>
+                                <td class="ps-3 text-nowrap small">{{ hist.used_at|date:"d.m.Y H:i:s" }}</td>
+                                <td class="small fw-semibold">{{ hist.action }}</td>
+                                <td class="small">
+                                    {% if hist.patient_snapshot %}
+                                        <span class="badge bg-danger-subtle text-danger-emphasis">
+                                            <i class="bi bi-person-fill"></i> {{ hist.patient_snapshot }}
+                                        </span>
+                                        {% if hist.patient %}<div class="text-muted">{{ hist.patient.card_number }}</div>{% endif %}
+                                    {% else %}<span class="text-muted">—</span>{% endif %}
+                                </td>
+                                <td class="small">
+                                    {% if hist.surgeon_snapshot %}
+                                        <span class="badge bg-primary-subtle text-primary-emphasis">
+                                            <i class="bi bi-clipboard2-pulse"></i> {{ hist.surgeon_snapshot }}
+                                        </span>
+                                    {% else %}<span class="text-muted">—</span>{% endif %}
+                                </td>
+                                <td class="small">
+                                    {{ hist.surgery_snapshot|default:"—" }}
+                                    {% if hist.room_snapshot %}<div class="text-muted"><i class="bi bi-door-open"></i> {{ hist.room_snapshot }}</div>{% endif %}
+                                </td>
+                                <td class="pe-3 small">
+                                    {% if hist.changed_by %}
+                                        {{ hist.changed_by.get_full_name|default:hist.changed_by.username }}
+                                        {% if hist.changed_by.role %}<div class="text-muted">{{ hist.changed_by.role.name }}</div>{% endif %}
+                                    {% else %}<span class="text-muted">Tizim</span>{% endif %}
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="6" class="text-center py-4 text-muted">Hali tarix mavjud emas.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <small class="text-muted">
+                    <i class="bi bi-shield-check"></i> Epidemiologik iz — yozuvlar o'chirilmaydi.
+                </small>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Yopish</button>
+            </div>
+        </div>
+    </div>
+</div>

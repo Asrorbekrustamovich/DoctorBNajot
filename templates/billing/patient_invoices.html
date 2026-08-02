@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Cheklar — {{ patient.full_name }}{% endblock %}
+{% block page_name %}Bemor cheklari{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+        <h1 class="h4 page-title mb-1"><i class="bi bi-receipt"></i> {{ patient.full_name }}</h1>
+        <div class="text-muted small">
+            Karta: {{ patient.card_number }} · Har bir kelishi uchun <strong>alohida chek</strong>
+        </div>
+    </div>
+    <a href="{% url 'patients:detail' patient.id %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> Bemor kartasi
+    </a>
+</div>
+
+<!-- Umumiy ko'rsatkichlar -->
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-3">
+        <div class="card"><div class="card-body py-2 text-center">
+            <div class="small text-muted">Cheklar soni</div>
+            <div class="h5 mb-0">{{ totals.count }}</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card"><div class="card-body py-2 text-center">
+            <div class="small text-muted">Jami hisoblangan</div>
+            <div class="h5 mb-0">{{ totals.total|floatformat:0|intcomma }}</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card"><div class="card-body py-2 text-center">
+            <div class="small text-muted">To'langan</div>
+            <div class="h5 mb-0 text-success">{{ totals.paid|floatformat:0|intcomma }}</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card"><div class="card-body py-2 text-center">
+            <div class="small text-muted">Umumiy qarz</div>
+            <div class="h5 mb-0 {% if totals.debt > 0 %}text-danger{% else %}text-success{% endif %}">
+                {{ totals.debt|floatformat:0|intcomma }}
+            </div>
+            {% if totals.open_count %}
+            <div class="small text-danger">{{ totals.open_count }} ta chek ochiq</div>
+            {% endif %}
+        </div></div>
+    </div>
+</div>
+
+<!-- Cheklar ro'yxati -->
+<div class="card">
+    <div class="card-header"><i class="bi bi-list-ul"></i> Cheklar tarixi (yangisidan eskisiga)</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th class="ps-3">№</th>
+                        <th>Ochilgan (kelgan sana)</th>
+                        <th>Yopilgan (to'langan)</th>
+                        <th class="text-end">Jami</th>
+                        <th class="text-end">To'langan</th>
+                        <th class="text-end">Qarz</th>
+                        <th>Holat</th>
+                        <th class="text-end pe-3">Amal</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for inv in invoices %}
+                    <tr {% if inv.debt > 0 %}class="table-warning"{% endif %}>
+                        <td class="ps-3 fw-bold">{{ forloop.revcounter }}</td>
+                        <td>
+                            {% if inv.visit %}
+                            <div class="fw-semibold">{{ inv.visit.visit_date|date:"d.m.Y" }}</div>
+                            <div class="small text-muted">Navbat №{{ inv.visit.queue_number }}
+                                {% if inv.visit.doctor %} · {{ inv.visit.doctor.get_full_name }}{% endif %}
+                            </div>
+                            {% else %}
+                            <span class="text-muted">{{ inv.created_at|date:"d.m.Y H:i:s" }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if inv.paid_at %}
+                            <div class="text-success fw-semibold">{{ inv.paid_at|date:"d.m.Y H:i:s" }}</div>
+                            {% if inv.cashier %}<div class="small text-muted">{{ inv.cashier.get_full_name }}</div>{% endif %}
+                            {% else %}
+                            <span class="badge bg-warning text-dark">Hali yopilmagan</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end fw-bold">{{ inv.total_amount|floatformat:0|intcomma }}</td>
+                        <td class="text-end text-success">{{ inv.paid_amount|floatformat:0|intcomma }}</td>
+                        <td class="text-end {% if inv.debt > 0 %}text-danger fw-bold{% else %}text-muted{% endif %}">
+                            {{ inv.debt|floatformat:0|intcomma }}
+                        </td>
+                        <td>
+                            {% if inv.status == 'paid' %}
+                            <span class="badge bg-success"><i class="bi bi-check-circle"></i> To'langan</span>
+                            {% elif inv.status == 'partial' %}
+                            <span class="badge bg-warning text-dark"><i class="bi bi-pie-chart"></i> Qisman</span>
+                            {% elif inv.status == 'refunded' %}
+                            <span class="badge bg-secondary">Qaytarilgan</span>
+                            {% elif inv.status == 'cancelled' %}
+                            <span class="badge bg-dark">Bekor</span>
+                            {% else %}
+                            <span class="badge bg-danger"><i class="bi bi-x-circle"></i> To'lanmagan</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-3">
+                            {% if inv.visit %}
+                            <a href="{% url 'billing:view_invoice' inv.visit.id %}" class="btn btn-sm btn-outline-success">
+                                <i class="bi bi-receipt"></i> Chekni ochish
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="8" class="text-center text-muted py-4">
+                        <i class="bi bi-inbox fs-3 d-block mb-2"></i>Bu bemorda hali chek yo'q
+                    </td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="alert alert-secondary mt-3 small">
+    <i class="bi bi-info-circle"></i>
+    <strong>Qanday ishlaydi:</strong> bemor har safar kelganda <strong>yangi tashrif</strong> ochiladi va unga
+    <strong>alohida chek</strong> yaratiladi. Eski chek ustiga qo'shilmaydi — oldingi qarz o'z chekida qoladi.
+    Chek to'liq to'langanda "yopilgan" sanasi yoziladi.
+</div>
+{% endblock %}

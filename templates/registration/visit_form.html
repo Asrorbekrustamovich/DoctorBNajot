@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}Yangi qabul — Doctor B Najot{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-header"><h5 class="mb-0"><i class="bi bi-clipboard-plus"></i> Yangi qabul</h5></div>
+            <div class="card-body">
+                {% if form.non_field_errors %}
+                <div class="alert alert-warning">
+                    {% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+                </div>
+                {% endif %}
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    <div class="row mb-3">
+                        <div class="col-md-12 mb-3">
+                            <label class="form-label fw-bold text-primary"><i class="bi bi-search"></i> Tezkor qidiruv (JSHSHIR / Pasport)</label>
+                            <input type="text" id="patient_quick_search" class="form-control border-primary bg-light" placeholder="14 ta raqam yoki AA1234567..." autocomplete="off">
+                            <small class="form-text">Ma'lumot terilishi bilan pastdagi qutida bemor avtomatik tanlanadi.</small>
+                        </div>
+                    </div>
+
+                    {% for field in form %}
+                    <div class="mb-3">
+                        <label class="form-label fw-bold" for="{{ field.id_for_label }}">
+                            {{ field.label }}{% if field.field.required %} <span class="text-danger">*</span>{% endif %}
+                        </label>
+                        {{ field }}
+                        {% if field.errors %}<div class="text-danger small">{{ field.errors.0 }}</div>{% endif %}
+                    </div>
+                    {% endfor %}
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Qabul ochish</button>
+                        <a href="{% url 'registration:queue' %}" class="btn btn-outline-secondary">Bekor qilish</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+$(document).ready(function() {
+    // Select2 ni ishga tushirish
+    $('#id_patient').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'Bemorni tanlang yoki ro\'yxatdan qidiring...',
+        language: {
+            noResults: function() {
+                return "Bemor topilmadi. Avval yangi bemor qo'shing.";
+            }
+        }
+    });
+
+    // Tezkor qidiruv (JSHSHIR yoki Pasport orqali)
+    $('#patient_quick_search').on('input', function() {
+        var query = $(this).val().trim().toUpperCase();
+        if (query.length >= 5) { // 5 ta belgidan oshsa qidirishni boshlaydi
+            var found = false;
+            $('#id_patient option').each(function() {
+                var text = $(this).text().toUpperCase();
+                // Select ichidagi text JSHSHIR yoki Seriyani o'z ichiga olgan bo'lsa
+                if (text.includes('JSHSHIR: ' + query) || text.includes('SERIA: ' + query) || text.includes(query)) {
+                    $('#id_patient').val($(this).val()).trigger('change');
+                    found = true;
+                    return false; // loopdan chiqish
+                }
+            });
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+
+{% block title %}Palatalar Boshqaruvi — Doctor B Najot{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 page-title mb-1">Palatalar Boshqaruvi</h1>
+        <p class="text-muted mb-0">Xonalar, kravatlar va ularning tarixi</p>
+    </div>
+    <div>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addRoomModal">
+            <i class="bi bi-plus-lg"></i> Palata qo'shish
+        </button>
+        <a href="{% url 'clinical:inpatient_dashboard' %}" class="btn btn-outline-secondary ms-2">
+            <i class="bi bi-arrow-left"></i> Stasionar paneli
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    {% for room in rooms %}
+    <div class="col-md-6 col-lg-6 mb-4">
+        <div class="card h-100 shadow-sm">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-door-open"></i> {{ room.name }} 
+                    <span class="badge bg-light text-dark fs-6 ms-2">{{ room.floor }}-qavat</span>
+                    {% if room.assigned_doctor %}
+                    <small class="d-block mt-1 fs-6 text-light opacity-75"><i class="bi bi-person-badge"></i> {{ room.assigned_doctor.get_full_name|default:room.assigned_doctor.username }}</small>
+                    {% endif %}
+                </h5>
+                <button type="button" class="btn btn-sm btn-light text-warning me-1" data-bs-toggle="modal" data-bs-target="#editRoomModal{{ room.id }}" title="Palatani tahrirlash"><i class="bi bi-pencil"></i></button>
+<form method="post" action="{% url 'clinical:delete_room' room.id %}" class="d-inline me-1"
+      onsubmit="return confirm('{{ room.name }} palatasi o\'chirilsinmi? (Bemor yotgan bolsa ochirilmaydi)');">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-sm btn-light text-danger" title="Palatani o'chirish"><i class="bi bi-trash"></i></button>
+</form>
+<button type="button" class="btn btn-sm btn-light text-primary fw-bold" data-bs-toggle="modal" data-bs-target="#addBedModal{{ room.id }}">
+                    <i class="bi bi-plus"></i> Kravat
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-3">Kravat</th>
+                            <th>Joriy Narx</th>
+                            <th class="text-end pe-3">Amallar</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for bed in room.beds.all %}
+                        <tr>
+                            <td class="ps-3">
+                                <span class="badge bg-dark fs-6">{{ bed.number }}</span>
+                                {% if bed.is_occupied %}
+                                <span class="badge bg-danger ms-1" title="Hozirda band">Band</span>
+                                {% else %}
+                                <span class="badge bg-success ms-1" title="Hozirda bo'sh">Bo'sh</span>
+                                {% endif %}
+                            </td>
+                            <td class="small">
+                                <div class="text-success fw-bold">Oddiy: {{ bed.price_per_day }} so'm</div>
+                                <div class="text-warning fw-bold">Paketli (dori ichida): {{ bed.package_price_per_day }} so'm</div>
+                            </td>
+                            <td class="text-end pe-3">
+                                <!-- Sozlash -->
+                                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editBedModal{{ bed.id }}" title="Narxni o'zgartirish">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <!-- Narx tarixi -->
+                                <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#priceHistoryModal{{ bed.id }}" title="Narx o'zgarish tarixi">
+                                    <i class="bi bi-clock-history"></i>
+                                </button>
+                                <!-- Bemorlar tarixi -->
+                                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#staysHistoryModal{{ bed.id }}" title="Bemorlar yotish tarixi">
+                                    <i class="bi bi-people"></i>
+                                </button>
+                                
+                                <!-- Edit Bed Price Modal -->
+                                <div class="modal fade text-start" id="editBedModal{{ bed.id }}" tabindex="-1" aria-hidden="true">
+                                    <div class="modal-dialog">
+                                        <div class="modal-content">
+                                            <div class="modal-header bg-primary text-white">
+                                                <h5 class="modal-title">Narxni o'zgartirish ({{ room.name }} - {{ bed.number }})</h5>
+                                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                            </div>
+                                            <form method="post" action="{% url 'clinical:update_bed_price' bed.id %}">
+                                                {% csrf_token %}
+                                                <div class="modal-body">
+                                                    <div class="alert alert-info py-2 small">Yangi narxlar faqat yangi yotqiziladigan bemorlarga ta'sir qiladi. Hozirda yotgan bemorlar narxi o'zgarmaydi.</div>
+                                                    <div class="mb-3">
+                                                        <label class="form-label fw-bold">Oddiy statsionar — kunlik narx (so'm)</label>
+                                                        <input type="number" step="0.01" name="price_per_day" class="form-control" value="{{ bed.price_per_day|stringformat:'f' }}" required>
+                                                        <div class="form-text">Yotish alohida, dorilar alohida to'lanadi.</div>
+                                                    </div>
+                                                    <div class="mb-3">
+                                                        <label class="form-label fw-bold">Paketli statsionar — kunlik narx (so'm)</label>
+                                                        <input type="number" step="0.01" name="package_price_per_day" class="form-control" value="{{ bed.package_price_per_day|stringformat:'f' }}" required>
+                                                        <div class="form-text">Dori-darmon narxi yotish ichida — bemor faqat shu narxni to'laydi.</div>
+                                                    </div>
+                                                    <input type="hidden" name="companion_price_per_day" value="{{ bed.companion_price_per_day|stringformat:'f' }}">
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Yopish</button>
+                                                    <button type="submit" class="btn btn-primary">Saqlash</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Price History Modal -->
+                                <div class="modal fade text-start" id="priceHistoryModal{{ bed.id }}" tabindex="-1" aria-hidden="true">
+                                    <div class="modal-dialog modal-lg">
+                                        <div class="modal-content">
+                                            <div class="modal-header bg-info text-white">
+                                                <h5 class="modal-title">Narx o'zgarishlari tarixi ({{ room.name }} - {{ bed.number }})</h5>
+                                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                            </div>
+                                            <div class="modal-body p-0">
+                                                <table class="table table-sm table-striped mb-0">
+                                                    <thead class="table-light">
+                                                        <tr>
+                                                            <th>Sana</th>
+                                                            <th>O'zgartirdi</th>
+                                                            <th>Bemor (Eski -> Yangi)</th>
+                                                            <th>Hamroh (Eski -> Yangi)</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody class="small">
+                                                        {% for history in bed.price_history.all %}
+                                                        <tr>
+                                                            <td>{{ history.created_at|date:"Y-m-d H:i:s" }}</td>
+                                                            <td>{{ history.changed_by.get_full_name|default:"Tizim" }}</td>
+                                                            <td>{{ history.old_price }} &rarr; <span class="fw-bold text-success">{{ history.new_price }}</span></td>
+                                                            <td>{{ history.old_companion_price }} &rarr; <span class="fw-bold text-primary">{{ history.new_companion_price }}</span></td>
+                                                        </tr>
+                                                        {% empty %}
+                                                        <tr><td colspan="4" class="text-center text-muted py-3">Tarix mavjud emas</td></tr>
+                                                        {% endfor %}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Patient Stays History Modal -->
+                                <div class="modal fade text-start" id="staysHistoryModal{{ bed.id }}" tabindex="-1" aria-hidden="true">
+                                    <div class="modal-dialog modal-xl">
+                                        <div class="modal-content">
+                                            <div class="modal-header bg-secondary text-white">
+                                                <h5 class="modal-title">Bemorlar yotish tarixi ({{ room.name }} - {{ bed.number }})</h5>
+                                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                            </div>
+                                            <div class="modal-body p-0" style="max-height: 70vh; overflow-y: auto;">
+                                                <table class="table table-sm table-hover mb-0">
+                                                    <thead class="table-light sticky-top">
+                                                        <tr>
+                                                            <th>Holati</th>
+                                                            <th>Bemor / Hamroh</th>
+                                                            <th>Yotqizildi</th>
+                                                            <th>Javob berildi</th>
+                                                            <th>Kun</th>
+                                                            <th>Hisoblangan Summa</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody class="small">
+                                                        {% for stay in bed.stays.all %}
+                                                        <tr>
+                                                            <td>
+                                                                {% if stay.status == 'active' %}
+                                                                <span class="badge bg-success">Hozir yotibdi</span>
+                                                                {% else %}
+                                                                <span class="badge bg-secondary">Javob berilgan</span>
+                                                                {% endif %}
+                                                            </td>
+                                                            <td>
+                                                                {% if stay.is_companion %}
+                                                                <i class="bi bi-person-hearts text-muted"></i> {{ stay.companion_name }} (Hamroh)
+                                                                {% else %}
+                                                                <i class="bi bi-person text-primary"></i> {{ stay.visit.patient.full_name }}
+                                                                {% endif %}
+                                                            </td>
+                                                            <td>{{ stay.admission_date|date:"Y-m-d H:i:s" }}</td>
+                                                            <td>{{ stay.discharge_date|date:"Y-m-d H:i:s"|default:"-" }}</td>
+                                                            <td>{{ stay.total_days }}</td>
+                                                            <td class="fw-bold">{{ stay.total_amount }} so'm</td>
+                                                        </tr>
+                                                        {% empty %}
+                                                        <tr><td colspan="6" class="text-center text-muted py-3">Bu kravatda hali hech kim yotmagan</td></tr>
+                                                        {% endfor %}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="3" class="text-center text-muted py-3">Bu palatada hali kravatlar yo'q</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Add Bed Modal for this Room -->
+    <!-- Palata tahrirlash modali -->
+<div class="modal fade" id="editRoomModal{{ room.id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header bg-warning"><h5 class="modal-title"><i class="bi bi-pencil"></i> Palatani tahrirlash</h5>
+      <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <form method="post" action="{% url 'clinical:edit_room' room.id %}">
+      {% csrf_token %}
+      <div class="modal-body">
+        <div class="mb-3"><label class="form-label fw-bold">Palata nomi</label>
+          <input name="name" class="form-control" value="{{ room.name }}" required></div>
+        <div class="mb-3"><label class="form-label">Qavat</label>
+          <input type="number" name="floor" class="form-control" value="{{ room.floor }}" min="1"></div>
+        <div class="mb-2"><label class="form-label">Mas'ul shifokor (ixtiyoriy — bemorga ta'sir qilmaydi)</label>
+          <select name="assigned_doctor_id" class="form-select">
+            <option value="">-- Yo'q --</option>
+            {% for d in doctors %}
+            <option value="{{ d.id }}" {% if room.assigned_doctor_id == d.id %}selected{% endif %}>{{ d.get_full_name|default:d.username }}</option>
+            {% endfor %}
+          </select></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Bekor</button>
+        <button type="submit" class="btn btn-warning"><i class="bi bi-check-lg"></i> Saqlash</button>
+      </div>
+    </form>
+  </div></div>
+</div>
+<div class="modal fade" id="addBedModal{{ room.id }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-light">
+                    <h5 class="modal-title">Yangi Kravat Qo'shish ({{ room.name }})</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="post" action="{% url 'clinical:add_bed' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="room_id" value="{{ room.id }}">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Kravat Raqami</label>
+                            <input type="text" name="number" class="form-control" placeholder="Masalan: 1 yoki A" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Oddiy statsionar narxi (kunlik)</label>
+                            <input type="number" step="0.01" name="price_per_day" class="form-control" value="0" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Paketli (dori ichida) narxi (kunlik)</label>
+                            <input type="number" step="0.01" name="package_price_per_day" class="form-control" value="0" required>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>
+                        <button type="submit" class="btn btn-primary">Qo'shish</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12 text-center text-muted py-5">
+        <i class="bi bi-hospital fs-1" style="font-size: 3rem;"></i>
+        <p class="mt-3 fs-5">Palatalar mavjud emas. Yangi palata qo'shing.</p>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Add Room Modal -->
+<div class="modal fade" id="addRoomModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Yangi Palata Qo'shish</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="{% url 'clinical:add_room' %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Palata nomi (raqami)</label>
+                        <input type="text" name="name" class="form-control" placeholder="Masalan: 1-Xona, VIP-2" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Qavat</label>
+                        <input type="number" name="floor" class="form-control" value="1" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Mas'ul shifokor</label>
+                        <select name="assigned_doctor_id" class="form-select">
+                            <option value="">-- Shifokor biriktirmaslik --</option>
+                            {% for doctor in doctors %}
+                            <option value="{{ doctor.id }}">{{ doctor.get_full_name|default:doctor.username }} ({{ doctor.role.name }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>
+                    <button type="submit" class="btn btn-primary">Qo'shish</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

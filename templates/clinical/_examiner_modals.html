@@ -1,0 +1,87 @@
+{# Mutaxassis paneli modallari: xulosa yozish + kechiktirish #}
+
+<!-- Xulosa yozish -->
+<div class="modal fade text-start" id="performModal-{{ order.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-pencil-square"></i> Xulosa yozish: {{ order.service.name }}</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'clinical:examiner_order_perform' order.id %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label text-muted small">Bemor:</label>
+                        <div class="fw-bold fs-5">{{ order.visit.patient.full_name }}</div>
+                        <div class="small text-muted">
+                            Yo'llagan shifokor: {{ order.visit.doctor.get_full_name|default:"—" }}
+                        </div>
+                    </div>
+                    {% if order.deferred_at %}
+                    <div class="alert alert-warning py-2 small">
+                        <i class="bi bi-clock-history"></i>
+                        Bu tekshiruv {{ order.defer_count }} marta kechiktirilgan.
+                        Oxirgi sabab: <b>{{ order.deferred_reason }}</b>
+                    </div>
+                    {% endif %}
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Tekshiruv xulosasi (Natija):</label>
+                        <textarea name="result_text" class="form-control" rows="8" required
+                                  placeholder="Bu yerga tekshiruv natijalarini yozing..."></textarea>
+                        <div class="form-text">Ushbu xulosa hamshira va mas'ul shifokorga ko'rinadi.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>
+                    <button type="submit" class="btn btn-success"><i class="bi bi-check2-circle"></i> Yakunlash va Saqlash</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Kechiktirish -->
+<div class="modal fade text-start" id="deferModal-{{ order.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning bg-opacity-25">
+                <h5 class="modal-title"><i class="bi bi-clock-history"></i> Kechiktirish: {{ order.service.name }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'clinical:examiner_order_defer' order.id %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label text-muted small">Bemor:</label>
+                        <div class="fw-bold">{{ order.visit.patient.full_name }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Sabab <span class="text-danger">*</span></label>
+                        <select class="form-select mb-2" onchange="document.getElementById('reason-{{ order.id }}').value = this.value">
+                            <option value="">— tayyor sabablardan tanlang —</option>
+                            <option value="Bemor kelmadi">Bemor kelmadi</option>
+                            <option value="Bemor tayyor emas (ovqatlangan / tayyorgarlik yo'q)">Bemor tayyor emas</option>
+                            <option value="Uskuna band">Uskuna band</option>
+                            <option value="Uskuna nosoz">Uskuna nosoz</option>
+                            <option value="To'lov qilinmagan">To'lov qilinmagan</option>
+                            <option value="Shoshilinch bemor kirdi">Shoshilinch bemor kirdi</option>
+                        </select>
+                        <input type="text" name="reason" id="reason-{{ order.id }}" class="form-control"
+                               maxlength="255" required placeholder="Yoki o'zingiz yozing...">
+                    </div>
+                    <div class="alert alert-info py-2 small mb-0">
+                        <i class="bi bi-info-circle"></i>
+                        Tekshiruv o'chmaydi — navbatga qaytadi. Sabab va kim kechiktirgani saqlanadi.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="bi bi-arrow-counterclockwise"></i> Kechiktirish va navbatga qaytarish
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

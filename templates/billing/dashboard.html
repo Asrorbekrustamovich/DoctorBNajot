@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Kassa va Hisob-kitob{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <h2 class="mb-0"><i class="bi bi-cash-coin text-success"></i> Kassa (Buxgalteriya)</h2>
+        <div class="text-end">
+            <span class="badge bg-danger fs-6">Umumiy qarz: {{ total_debt|floatformat:0|intcomma }} so'm</span>
+            <span class="badge bg-secondary fs-6">{{ debtor_count }} ta qarzdor</span>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+            <form method="get" class="row g-2">
+                <div class="col-md-5">
+                    <input type="text" name="q" class="form-control" placeholder="Bemor ismi orqali qidirish..." value="{{ request.GET.q }}">
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100"><i class="bi bi-search"></i> Qidirish</button>
+                </div>
+            </form>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Bemor</th>
+                            <th>Karta</th>
+                            <th>Oxirgi tashrif</th>
+                            <th>Cheklar</th>
+                            <th class="text-end">Jami</th>
+                            <th class="text-end">Qarz</th>
+                            <th class="text-end">Amallar</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr {% if r.debt > 0 %}class="table-warning"{% endif %}>
+                            <td class="fw-bold">{{ r.patient.full_name }}</td>
+                            <td><span class="badge bg-secondary">{{ r.patient.card_number }}</span></td>
+                            <td>{% if r.last_visit %}{{ r.last_visit.visit_date|date:"d.m.Y" }}{% else %}—{% endif %}</td>
+                            <td>
+                                {{ r.invoice_count }} ta
+                                {% if r.open_count %}<span class="badge bg-danger ms-1">{{ r.open_count }} ochiq</span>{% endif %}
+                            </td>
+                            <td class="text-end">{{ r.total|floatformat:0|intcomma }}</td>
+                            <td class="text-end {% if r.debt > 0 %}text-danger fw-bold{% else %}text-success{% endif %}">
+                                {{ r.debt|floatformat:0|intcomma }}
+                            </td>
+                            <td class="text-end">
+                                <a href="{% url 'billing:patient_invoices' r.patient.id %}" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-list-ul"></i> Cheklar
+                                </a>
+                                {% if r.quick_visit_id %}
+                                <a href="{% url 'billing:view_invoice' r.quick_visit_id %}" class="btn btn-sm btn-outline-success">
+                                    <i class="bi bi-receipt"></i> {% if r.open_count %}To'lash{% else %}Chek{% endif %}
+                                </a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">
+                                <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                                Bemor topilmadi
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
