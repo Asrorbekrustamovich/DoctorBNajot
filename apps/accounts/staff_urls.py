@@ -14,6 +14,7 @@ urlpatterns = [
 
     # Xizmatlar katalogi
     path("services/", views.services_list, name="services"),
+    path("services/assign/", views.services_bulk_assign, name="services_bulk_assign"),
     path("services/create/", views.service_create, name="service_create"),
     path("services/<uuid:service_id>/edit/", views.service_edit, name="service_edit"),
     path("services/<uuid:service_id>/delete/", views.service_delete, name="service_delete"),

@@ -127,6 +127,7 @@ urlpatterns = [
     path("examiner/dashboard/", views.ExaminerDashboardView.as_view(), name="examiner_dashboard"),
     path("examiner/order/<uuid:order_id>/perform/", views.ExaminerOrderPerformView.as_view(), name="examiner_order_perform"),
     path("visit/<uuid:visit_id>/referral/", views.service_referral, name="service_referral"),
+    path("examiner/order/<uuid:order_id>/call/", views.ExaminerOrderCallView.as_view(), name="examiner_order_call"),
     path("examiner/order/<uuid:order_id>/accept/", views.ExaminerOrderAcceptView.as_view(), name="examiner_order_accept"),
     path("examiner/order/<uuid:order_id>/defer/", views.ExaminerOrderDeferView.as_view(), name="examiner_order_defer"),
 ]

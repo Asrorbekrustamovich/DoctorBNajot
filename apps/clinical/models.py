@@ -42,6 +42,32 @@ class ServiceCatalog(Auditable, BaseModel):
     def __str__(self) -> str:
         return f"{self.name} ({self.price} so'm)"
 
+    def can_be_performed_by(self, user) -> bool:
+        """Shu xodim ushbu tekshiruvni bajara oladimi?
+
+        Marshrutlash tartibi (yuqoridan pastga):
+          1. Mas'ul xodim tanlangan  -> FAQAT o'sha xodim
+          2. Rol tanlangan           -> o'sha roldagi hamma
+          3. Hech narsa tanlanmagan  -> mutaxassis roliga ega hamma
+        """
+        if getattr(user, "is_superuser", False):
+            return True
+        if self.responsible_staff_id:
+            return self.responsible_staff_id == user.pk
+        if self.allowed_role_id:
+            return self.allowed_role_id == getattr(user, "role_id", None)
+        return True
+
+    @property
+    def owner_label(self) -> str:
+        """Kim bajaradi — qisqa yozuv (ro'yxatlarda ko'rsatish uchun)."""
+        if self.responsible_staff_id:
+            u = self.responsible_staff
+            return u.get_full_name() or u.username
+        if self.allowed_role_id:
+            return f"{self.allowed_role.name} (bo'lim)"
+        return "Biriktirilmagan"
+
     @property
     def destination(self) -> str:
         """Bemorga ko'rsatiladigan "qayerga borish" matni.
@@ -167,6 +193,17 @@ class ServiceOrder(Auditable, BaseModel):
         settings.AUTH_USER_MODEL, verbose_name="Bajardi", null=True, blank=True,
         on_delete=models.SET_NULL, related_name="performed_services"
     )
+
+    # --- CHAQIRISH (tabloda e'lon qilinadi) ---
+    # Tekshiruv tayinlanishi bilan tabloda chiqmaydi — navbatda kutadi.
+    # Xodim tayyor bo'lganda «Chaqirish» tugmasini bosadi, shundagina
+    # bemor tabloda ko'rinadi va ovoz bilan chaqiriladi.
+    called_at = models.DateTimeField("Chaqirilgan vaqt", null=True, blank=True)
+    called_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="Chaqirdi", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="called_service_orders",
+    )
+    call_count = models.PositiveIntegerField("Necha marta chaqirilgan", default=0)
 
     # --- QABUL QILISH (bemor ichkarida) ---
     accepted_by = models.ForeignKey(

@@ -2087,14 +2087,29 @@ EXAMINER_ROLES = (
 def _examiner_can_touch(user, order) -> bool:
     """Foydalanuvchi shu buyurtma ustida ish qila oladimi?
 
-    Panelda ko'rinish filtri bilan bir xil qoida: xizmatning roli
-    foydalanuvchi roliga mos bo'lishi yoki umuman biriktirilmagan bo'lishi kerak.
-    Aks holda laborant radiologiya tekshiruvini yakunlab qo'yishi mumkin edi.
+    Qoida modelda — `ServiceCatalog.can_be_performed_by`. Panelda ko'rinish
+    filtri bilan bir xil, aks holda laborant boshqa bo'lim tekshiruvini
+    yakunlab qo'yishi mumkin edi.
     """
+    return order.service.can_be_performed_by(user)
+
+
+def _my_orders_filter(user):
+    """«Menga tegishli tekshiruvlar» uchun so'rov sharti.
+
+    `can_be_performed_by` bilan aynan bir xil mantiq, faqat SQL tilida.
+    """
+    from django.db.models import Q
     if user.is_superuser:
-        return True
-    allowed = order.service.allowed_role_id
-    return allowed is None or allowed == getattr(user, "role_id", None)
+        return Q()
+    return (
+        # 1) Shaxsan menga biriktirilgan
+        Q(service__responsible_staff=user)
+        # 2) Mas'ul xodim yo'q, lekin mening rolimga tegishli
+        | Q(service__responsible_staff__isnull=True, service__allowed_role=user.role_id)
+        # 3) Umuman biriktirilmagan — hammaga ochiq
+        | Q(service__responsible_staff__isnull=True, service__allowed_role__isnull=True)
+    )
 
 
 class ExaminerDashboardView(RoleRequiredMixin, TemplateView):
@@ -2104,22 +2119,18 @@ class ExaminerDashboardView(RoleRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        # Faqat o'ziga tegishli (yoki roli biriktirilmagan) tekshiruvlar ro'yxati
-        user_role = self.request.user.role
 
         # Asosiy filter: faqat "Kutmoqda" (WAITING), "To'langan" (PAID) va
         # "Bajarilmoqda" (IN_PROGRESS) bo'lganlar
         base_query = ServiceOrder.objects.select_related(
             "visit__patient", "service", "visit__doctor",
-            "service__room", "service__responsible_staff",
-            "accepted_by", "deferred_by",
+            "service__room", "service__responsible_staff", "service__allowed_role",
+            "accepted_by", "deferred_by", "called_by",
         ).exclude(
             status__in=[ServiceOrder.Status.COMPLETED, ServiceOrder.Status.CANCELLED]
         )
-
-        if not self.request.user.is_superuser and user_role:
-            from django.db.models import Q
-            base_query = base_query.filter(Q(service__allowed_role=user_role) | Q(service__allowed_role__isnull=True))
+        # Menga tegishlilari: mas'ul xodim MEN, yoki mas'ul yo'q-u rolim mos
+        base_query = base_query.filter(_my_orders_filter(self.request.user))
 
         # Bajarilganlar (faqat bugungi yoki o'zi bajarganlar)
         completed_query = ServiceOrder.objects.select_related("visit__patient", "service", "performed_by").filter(
@@ -2164,6 +2175,38 @@ def service_referral(request, visit_id):
         "total": total,
         "now": timezone.now(),
     })
+
+
+class ExaminerOrderCallView(RoleRequiredMixin, View):
+    """«Chaqirish» — bemor tabloda e'lon qilinadi (ovoz bilan).
+
+    Tekshiruv tayinlanishi bilan tabloda chiqmaydi — navbatda kutadi.
+    Xodim tayyor bo'lgandagina chaqiradi.
+    """
+    allowed_roles = EXAMINER_ROLES
+
+    def post(self, request, order_id):
+        order = get_object_or_404(
+            ServiceOrder.objects.select_related(
+                "service__room", "service__responsible_staff", "visit__patient"
+            ),
+            id=order_id,
+        )
+        if not _examiner_can_touch(request.user, order):
+            messages.error(request, "Bu tekshiruv sizga biriktirilmagan.")
+        elif order.status in (ServiceOrder.Status.COMPLETED, ServiceOrder.Status.CANCELLED):
+            messages.error(request, "Bu tekshiruv allaqachon yopilgan.")
+        else:
+            order.called_at = timezone.now()
+            order.called_by = request.user
+            order.call_count = (order.call_count or 0) + 1
+            order.save(update_fields=["called_at", "called_by", "call_count", "updated_at"])
+            joy = order.service.destination or "kabinet ko'rsatilmagan"
+            messages.success(
+                request,
+                f"{order.visit.patient.full_name} tabloda chaqirildi → {joy}",
+            )
+        return redirect("clinical:examiner_dashboard")
 
 
 class ExaminerOrderAcceptView(RoleRequiredMixin, View):

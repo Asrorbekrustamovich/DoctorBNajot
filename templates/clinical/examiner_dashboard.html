@@ -83,6 +83,13 @@
                             <td>
                                 <div class="fw-bold">{{ order.visit.patient.full_name }}</div>
                                 <div class="small text-muted">{{ order.visit.doctor.get_full_name|default:"-" }}</div>
+                                {% if order.called_at %}
+                                <div class="small text-success-emphasis">
+                                    <i class="bi bi-megaphone-fill"></i>
+                                    Tabloda chaqirilgan — {{ order.called_at|date:"H:i" }}
+                                    {% if order.call_count > 1 %}({{ order.call_count }}×){% endif %}
+                                </div>
+                                {% endif %}
                                 {% if order.deferred_at %}
                                 <div class="small text-warning-emphasis">
                                     <i class="bi bi-clock-history"></i>
@@ -100,6 +107,13 @@
                                 {% endif %}
                             </td>
                             <td class="text-end pe-3 text-nowrap">
+                                <form method="post" action="{% url 'clinical:examiner_order_call' order.id %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-warning" title="Tabloda e'lon qilinadi va ovoz bilan chaqiriladi">
+                                        <i class="bi bi-megaphone"></i>
+                                        {% if order.called_at %}Qayta chaqirish{% else %}Chaqirish{% endif %}
+                                    </button>
+                                </form>
                                 <form method="post" action="{% url 'clinical:examiner_order_accept' order.id %}" class="d-inline">
                                     {% csrf_token %}
                                     <button type="submit" class="btn btn-sm btn-primary">

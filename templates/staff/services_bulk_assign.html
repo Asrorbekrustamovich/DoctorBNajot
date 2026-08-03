@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Xizmatlarni biriktirish | Xodimlar{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="page-title mb-0"><i class="bi bi-person-check me-2 text-info"></i>Xizmatlarni xodimga biriktirish</h1>
+        <p class="text-muted mb-0">Bir nechtasini belgilab, birdan biriktiring</p>
+    </div>
+    <a href="{% url 'staff:services' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Katalogga qaytish
+    </a>
+</div>
+
+<div class="alert alert-info">
+    <i class="bi bi-info-circle"></i>
+    <b>Qoida:</b> mas'ul xodim tanlansa — tekshiruv <b>faqat o'sha xodim</b> navbatida chiqadi.
+    Tanlanmasa — o'sha roldagi <b>hamma</b> ko'radi.
+</div>
+
+<form method="post">
+    {% csrf_token %}
+
+    <div class="card mb-3 shadow-sm">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Mas'ul xodim</label>
+                    <select name="responsible_staff" class="form-select">
+                        <option value="">— tanlang —</option>
+                        {% for s in staff %}
+                        <option value="{{ s.id }}">
+                            {{ s.get_full_name|default:s.username }}
+                            ({% if s.specialty %}{{ s.specialty }}{% else %}{{ s.role.name }}{% endif %})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">Kabinet</label>
+                    <select name="room" class="form-select">
+                        <option value="">— o'zgartirilmasin —</option>
+                        {% for r in rooms %}
+                        <option value="{{ r.id }}">{{ r.name }}</option>
+                        {% empty %}
+                        <option value="" disabled>— kabinet kiritilmagan —</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-check mt-4">
+                        <input class="form-check-input" type="checkbox" name="clear_staff" value="1" id="clearStaff">
+                        <label class="form-check-label" for="clearStaff">
+                            Mas'ul xodimni <b>bekor qilish</b>
+                        </label>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-check2"></i> Biriktirish
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-list-check me-2"></i>Xizmatlar</span>
+            <div>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="belgila(true)">Hammasini belgilash</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="belgila(false)">Tozalash</button>
+                <span class="badge bg-primary ms-2" id="sanoq">0 ta</span>
+            </div>
+        </div>
+        <div class="table-responsive" style="max-height: 60vh; overflow:auto;">
+            <table class="table table-hover table-sm mb-0 align-middle">
+                <thead class="table-light" style="position:sticky; top:0; z-index:1;">
+                    <tr>
+                        <th style="width:40px;"></th>
+                        <th>Xizmat</th>
+                        <th>Rol</th>
+                        <th>Hozirgi mas'ul</th>
+                        <th>Kabinet</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in services %}
+                    <tr>
+                        <td>
+                            <input class="form-check-input tanlov" type="checkbox"
+                                   name="services" value="{{ s.id }}"
+                                   data-rol="{{ s.allowed_role.code|default:'yoq' }}">
+                        </td>
+                        <td class="fw-semibold">{{ s.name }}</td>
+                        <td>
+                            {% if s.allowed_role %}
+                            <span class="badge bg-secondary">{{ s.allowed_role.name }}</span>
+                            {% else %}
+                            <span class="badge bg-danger-subtle text-danger-emphasis">Biriktirilmagan</span>
+                            {% endif %}
+                        </td>
+                        <td class="small">
+                            {% if s.responsible_staff %}
+                            <i class="bi bi-person-fill text-success"></i>
+                            {{ s.responsible_staff.get_full_name|default:s.responsible_staff.username }}
+                            {% else %}
+                            <span class="text-muted">— bo'lim bo'yicha —</span>
+                            {% endif %}
+                        </td>
+                        <td class="small">
+                            {% if s.room %}{{ s.room.name }}{% else %}<span class="text-muted">—</span>{% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="5" class="text-center py-4 text-muted">Xizmatlar yo'q</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</form>
+
+<script>
+function belgila(holat) {
+    document.querySelectorAll('.tanlov').forEach(function (c) { c.checked = holat; });
+    yangila();
+}
+function yangila() {
+    var n = document.querySelectorAll('.tanlov:checked').length;
+    document.getElementById('sanoq').textContent = n + ' ta';
+}
+document.querySelectorAll('.tanlov').forEach(function (c) {
+    c.addEventListener('change', yangila);
+});
+yangila();
+</script>
+{% endblock %}

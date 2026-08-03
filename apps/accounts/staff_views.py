@@ -140,6 +140,65 @@ def services_list(request):
 @role_required(
     Role.Code.DIRECTOR, Role.Code.CHIEF_DOCTOR, Role.Code.ADMINISTRATOR, Role.Code.SUPER_ADMIN,
 )
+def services_bulk_assign(request):
+    """Bir nechta xizmatni bitta xodimga / kabinetga birdan biriktirish.
+
+    22 ta UZI va Rentgenni bittalab tahrirlash o'rniga — belgilab, bitta
+    tugma bilan biriktiriladi.
+    """
+    from apps.clinical.models import AmbulatoryRoom, ServiceCatalog
+
+    if request.method == "POST":
+        ids = request.POST.getlist("services")
+        staff_id = request.POST.get("responsible_staff") or None
+        room_id = request.POST.get("room") or None
+        tozalash = request.POST.get("clear_staff") == "1"
+
+        if not ids:
+            messages.error(request, "Hech qanday xizmat belgilanmadi.")
+            return redirect("staff:services_bulk_assign")
+
+        yangi = {}
+        if tozalash:
+            yangi["responsible_staff"] = None
+        elif staff_id:
+            xodim = User.objects.filter(id=staff_id, is_active=True).first()
+            if not xodim:
+                messages.error(request, "Xodim topilmadi.")
+                return redirect("staff:services_bulk_assign")
+            yangi["responsible_staff"] = xodim
+            # Xizmat roli xodim roliga moslashtiriladi — aks holda xizmat
+            # xodim navbatida ko'rinmay qolishi mumkin.
+            if xodim.role_id:
+                yangi["allowed_role_id"] = xodim.role_id
+
+        if room_id:
+            xona = AmbulatoryRoom.objects.filter(id=room_id).first()
+            if xona:
+                yangi["room"] = xona
+
+        if not yangi:
+            messages.error(request, "Xodim yoki kabinet tanlanmadi.")
+            return redirect("staff:services_bulk_assign")
+
+        n = ServiceCatalog.objects.filter(id__in=ids).update(**yangi)
+        messages.success(request, f"{n} ta xizmat yangilandi.")
+        return redirect("staff:services")
+
+    services = ServiceCatalog.objects.select_related(
+        "allowed_role", "room", "responsible_staff"
+    ).order_by("allowed_role__name", "name")
+    return render(request, "staff/services_bulk_assign.html", {
+        "services": services,
+        "staff": User.objects.filter(is_active=True, role__isnull=False)
+                     .select_related("role").order_by("first_name", "last_name"),
+        "rooms": AmbulatoryRoom.objects.filter(is_active=True).order_by("name"),
+    })
+
+
+@role_required(
+    Role.Code.DIRECTOR, Role.Code.CHIEF_DOCTOR, Role.Code.ADMINISTRATOR, Role.Code.SUPER_ADMIN,
+)
 def service_create(request):
     """Yangi xizmat qo'shish."""
     from apps.accounts.forms import ServiceForm

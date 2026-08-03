@@ -102,6 +102,7 @@
             <div class="patient" id="curPatient" style="font-size: 2.5rem; font-weight: 800; color: #3fc8ac; margin-bottom: 0.5rem;"></div>
             <div class="doctor" id="curDoctor">Bemor chaqirilishini kuting</div>
             <div class="spec" id="curSpec"></div>
+            <div class="service" id="curService" style="font-size: 1.6rem; font-weight: 700; color: #7fe6cf; margin-top: .5rem;"></div>
             <div class="room" id="curRoom" style="font-size: 2rem; font-weight: 800; color: #ffeb3b; margin-top: 1rem;"></div>
         </div>
         <div class="recent">
@@ -122,6 +123,37 @@ var voiceReady = false;
 var audioQueue = [];
 var isPlaying = false;
 
+// Xona nomini o'zbekcha to'g'ri o'qiladigan holga keltiradi.
+// "3-Xona"      -> "uchinchi xonaga kiring"  (raqamni TTS o'zi o'qiydi)
+// "UZI xonasi"  -> "UZI xonasiga kiring"     (avval "xonasisi" bo'lib ketardi)
+// "LOR kabineti"-> "LOR kabinetiga kiring"
+function roomPhrase(roomText) {
+    var t = String(roomText).trim();
+    var m = t.match(/^(\d+)\s*[-–]?\s*(xona|kabinet)?$/i);
+    if (m) return m[1] + "-xonaga kiring";
+    if (/xonasi$/i.test(t))  return t + "ga kiring";
+    if (/xona$/i.test(t))    return t + "siga kiring";
+    if (/kabineti$/i.test(t))return t + "ga kiring";
+    if (/kabinet$/i.test(t)) return t + "iga kiring";
+    return t + "ga kiring";
+}
+
+function buildPhrase(call) {
+    var phrase = "Navbat raqami " + call.n + ". ";
+    if (call.patient) phrase += "Bemor " + call.patient + ". ";
+    // Tekshiruvga chaqiruv bo'lsa — nima uchun chaqirilayotgani aytiladi
+    if (call.service) phrase += call.service + " tekshiruvi uchun. ";
+
+    if (call.room) {
+        phrase += "Iltimos, " + roomPhrase(call.room) + ".";
+    } else if (call.doctor) {
+        phrase += "Sizni " + call.doctor + " kutmoqda.";
+    } else {
+        phrase += "Iltimos, qabulxonaga o'ting.";
+    }
+    return phrase;
+}
+
 function playNextInQueue() {
     if (audioQueue.length === 0) {
         isPlaying = false;
@@ -137,24 +169,11 @@ function playNextInQueue() {
     document.getElementById("curPatient").textContent = call.patient || "";
     document.getElementById("curDoctor").textContent = call.doctor || "Shifokor";
     document.getElementById("curSpec").textContent = call.specialty || "";
+    document.getElementById("curService").textContent = call.service || "";
     document.getElementById("curRoom").textContent = call.room || "";
-    
-    // Ovozli matnni tayyorlaymiz
-    var phrase = "Navbat raqami " + call.n + ". ";
-    if (call.patient) phrase += "Bemor " + call.patient + ". ";
-    
-    if (call.room) {
-        var roomText = call.room;
-        if (roomText.match(/^\d+-Xona$/i)) {
-            var rnum = roomText.split("-")[0];
-            phrase += "Iltimos, " + rnum + "-chi xonaga kiring.";
-        } else {
-            phrase += "Iltimos, " + roomText.replace(/xona/i, "xonasi") + "ga kiring.";
-        }
-    } else {
-        phrase += call.doctor ? ("Sizni " + call.doctor + " kutmoqda.") : "Iltimos, qabulxonaga o'ting.";
-    }
-    
+
+    var phrase = buildPhrase(call);
+
     // Server ovozi: edge-tts (toza o'zbekcha, uz-UZ-MadinaNeural)
     var advanced = false;
     function next() {
@@ -187,18 +206,22 @@ function renderRecent(calls) {
     calls.slice(0, 6).forEach(function (c) {
         var el = document.createElement("div");
         el.className = "recent-item";
+        var pastki = (c.service ? c.service + ' &middot; ' : '') +
+                     (c.doctor || "Shifokor") + (c.room ? ' &mdash; ' + c.room : '');
         el.innerHTML = '<div class="rn">' + c.n + '</div>' +
             '<div style="flex-grow:1;"><div class="rd" style="color:#3fc8ac;">' + (c.patient || "Bemor") + '</div>' +
-            '<div class="rs">' + (c.doctor || "Shifokor") + (c.room ? ' &mdash; ' + c.room : '') + '</div></div>';
+            '<div class="rs">' + pastki + '</div></div>';
         box.appendChild(el);
     });
 }
 
 function setFeatured(c) {
+    window._curCallId = c.id || String(c.n);
     document.getElementById("curNum").textContent = c.n;
     document.getElementById("curPatient").textContent = c.patient || "";
     document.getElementById("curDoctor").textContent = c.doctor || "Shifokor";
     document.getElementById("curSpec").textContent = c.specialty || "";
+    document.getElementById("curService").textContent = c.service || "";
     document.getElementById("curRoom").textContent = c.room || "";
 }
 function clearFeatured() {
@@ -206,6 +229,7 @@ function clearFeatured() {
     document.getElementById("curPatient").textContent = "Kutilmoqda";
     document.getElementById("curDoctor").textContent = "";
     document.getElementById("curSpec").textContent = "";
+    document.getElementById("curService").textContent = "";
     document.getElementById("curRoom").textContent = "";
 }
 
@@ -220,7 +244,11 @@ function poll() {
                 // Yangi chaqiruvlarni aniqlaymiz va audio navbatga qo'shamiz (eskilaridan yangisiga qarab)
                 for (var i = calls.length - 1; i >= 0; i--) {
                     var c = calls[i];
-                    var key = c.n + "@" + c.at;
+                    // Kalit: chaqiruv turi + id + vaqt.
+                    // Faqat navbat raqami bilan bo'lsa, bir bemorning qabuli va
+                    // tekshiruvi bir xil raqamda bo'lgani uchun ikkinchisi e'lon
+                    // qilinmay qolardi.
+                    var key = (c.id || c.n) + "@" + c.at;
                     if (!seen[key]) {
                         seen[key] = true;
                         if (!firstLoad) {
@@ -235,8 +263,9 @@ function poll() {
                 } else {
                     // Ekranda ko'ringan bemor endi ro'yxatda yo'q bo'lsa (kechiktirildi/bekor qilindi/tugadi)
                     // — eng oxirgi faol chaqiruvga o'tkazamiz
-                    var curN = document.getElementById("curNum").textContent;
-                    var stillActive = calls.some(function (c) { return String(c.n) === String(curN); });
+                    var stillActive = calls.some(function (c) {
+                        return (c.id || String(c.n)) === window._curCallId;
+                    });
                     if (!stillActive) {
                         setFeatured(calls[0]);
                     }

@@ -660,3 +660,257 @@ class ScheduleSurgeryModalTests(TestCase):
         self.assertFalse(timezone.is_naive(s.scheduled_time),
                          "Vaqt naive saqlandi — soat siljib ketadi")
         self.assertEqual(timezone.localtime(s.scheduled_time).strftime("%H:%M"), "09:30")
+
+
+# ==========================================================================
+#  MARSHRUTLASH: tekshiruv o'z shifokorining navbatida chiqishi
+# ==========================================================================
+
+class ServiceRoutingTests(TestCase):
+    """Mas'ul xodim tanlangan bo'lsa — faqat o'sha xodim ko'radi."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from apps.clinical.models import AmbulatoryRoom, ServiceCatalog
+        cls.doctor_role = _role(Role.Code.DOCTOR, "Shifokor")
+        cls.lab_role = _role(Role.Code.LAB, "Laboratoriya")
+
+        cls.kardiolog = User.objects.create_user(
+            username="kardio", password="x", first_name="Aziz", last_name="Karimov",
+            role=cls.doctor_role, specialty="Kardiolog",
+        )
+        cls.nevrolog = User.objects.create_user(
+            username="nevro", password="x", first_name="Sardor", last_name="Aliyev",
+            role=cls.doctor_role, specialty="Nevropatolog",
+        )
+        cls.laborant = User.objects.create_user(
+            username="lab2", password="x", first_name="Dilnoza", last_name="Yusupova",
+            role=cls.lab_role,
+        )
+        cls.xona = AmbulatoryRoom.objects.create(name="5-Xona")
+
+        # EKG -> kardiologga biriktirilgan
+        cls.ekg = ServiceCatalog.objects.create(
+            name="EKG — Elektrokardiogramma", price=40000,
+            allowed_role=cls.doctor_role, responsible_staff=cls.kardiolog, room=cls.xona,
+        )
+        # Qon tahlili -> faqat rol bo'yicha (laboratoriya)
+        cls.qon = ServiceCatalog.objects.create(
+            name="Umumiy qon tahlili", price=30000, allowed_role=cls.lab_role,
+        )
+        # Spirometriya -> umuman biriktirilmagan
+        cls.spiro = ServiceCatalog.objects.create(name="Spirometriya", price=60000)
+
+        cls.patient = Patient.objects.create(
+            last_name="Olimov", first_name="Bobur",
+            birth_date=date(1980, 2, 2), gender=Patient.Gender.MALE,
+        )
+        cls.visit = Visit.objects.create(
+            patient=cls.patient, visit_date=date(2026, 7, 5), queue_number=3,
+        )
+
+    def order(self, service):
+        from apps.clinical.models import ServiceOrder
+        return ServiceOrder.objects.create(
+            visit=self.visit, service=service, status=ServiceOrder.Status.WAITING
+        )
+
+    def pending_for(self, user):
+        self.client.force_login(user)
+        resp = self.client.get(reverse("clinical:examiner_dashboard"))
+        self.assertEqual(resp.status_code, 200)
+        return [o.service.name for o in resp.context["pending_orders"]]
+
+    # --- Model qoidasi ---
+
+    def test_assigned_service_only_for_that_staff(self):
+        self.assertTrue(self.ekg.can_be_performed_by(self.kardiolog))
+        self.assertFalse(self.ekg.can_be_performed_by(self.nevrolog))
+        self.assertFalse(self.ekg.can_be_performed_by(self.laborant))
+
+    def test_role_only_service_for_whole_role(self):
+        self.assertTrue(self.qon.can_be_performed_by(self.laborant))
+        self.assertFalse(self.qon.can_be_performed_by(self.kardiolog))
+
+    def test_unassigned_service_for_everyone(self):
+        self.assertTrue(self.spiro.can_be_performed_by(self.kardiolog))
+        self.assertTrue(self.spiro.can_be_performed_by(self.laborant))
+
+    # --- Panel ro'yxati ---
+
+    def test_ekg_appears_only_in_cardiologists_queue(self):
+        self.order(self.ekg)
+        self.assertIn("EKG — Elektrokardiogramma", self.pending_for(self.kardiolog))
+        self.assertNotIn("EKG — Elektrokardiogramma", self.pending_for(self.nevrolog))
+        self.assertNotIn("EKG — Elektrokardiogramma", self.pending_for(self.laborant))
+
+    def test_lab_test_goes_to_lab_only(self):
+        self.order(self.qon)
+        self.assertIn("Umumiy qon tahlili", self.pending_for(self.laborant))
+        self.assertNotIn("Umumiy qon tahlili", self.pending_for(self.kardiolog))
+
+    def test_unassigned_service_visible_to_all(self):
+        self.order(self.spiro)
+        self.assertIn("Spirometriya", self.pending_for(self.kardiolog))
+        self.assertIn("Spirometriya", self.pending_for(self.laborant))
+
+    def test_other_doctor_cannot_perform_assigned_service(self):
+        o = self.order(self.ekg)
+        self.client.force_login(self.nevrolog)
+        self.client.post(reverse("clinical:examiner_order_perform", args=[o.id]),
+                         {"result_text": "Soxta"})
+        o.refresh_from_db()
+        self.assertEqual(o.result_text, "")
+
+
+# ==========================================================================
+#  CHAQIRISH va TABLO
+# ==========================================================================
+
+class BoardCallTests(ServiceRoutingTests):
+    """Tekshiruv faqat CHAQIRILGANDA tabloda chiqishi kerak."""
+
+    def _board(self, user):
+        self.client.force_login(user)
+        resp = self.client.get(reverse("registration:board_feed"))
+        self.assertEqual(resp.status_code, 200)
+        return resp.json()["calls"]
+
+    def setUp(self):
+        self.tablo = User.objects.create_user(
+            username="tablo1", password="x",
+            role=_role(Role.Code.TABLO, "Tablo"),
+        )
+
+    def test_assigned_order_not_on_board_until_called(self):
+        self.order(self.ekg)
+        nomlar = [c.get("service") for c in self._board(self.tablo)]
+        self.assertNotIn("EKG — Elektrokardiogramma", nomlar)
+
+    def test_call_puts_patient_on_board(self):
+        o = self.order(self.ekg)
+        self.client.force_login(self.kardiolog)
+        self.client.post(reverse("clinical:examiner_order_call", args=[o.id]))
+        o.refresh_from_db()
+        self.assertIsNotNone(o.called_at)
+        self.assertEqual(o.called_by, self.kardiolog)
+
+        calls = self._board(self.tablo)
+        mine = [c for c in calls if c["service"] == "EKG — Elektrokardiogramma"]
+        self.assertEqual(len(mine), 1, "Tabloda chiqmadi")
+        c = mine[0]
+        self.assertEqual(c["n"], self.visit.queue_number)
+        self.assertEqual(c["patient"], "Olimov Bobur")
+        self.assertEqual(c["room"], "5-Xona")
+        self.assertEqual(c["doctor"], "Karimov Aziz")
+        self.assertEqual(c["kind"], "service")
+
+    def test_other_doctor_cannot_call(self):
+        o = self.order(self.ekg)
+        self.client.force_login(self.nevrolog)
+        self.client.post(reverse("clinical:examiner_order_call", args=[o.id]))
+        o.refresh_from_db()
+        self.assertIsNone(o.called_at)
+
+    def test_repeat_call_increments_counter(self):
+        o = self.order(self.ekg)
+        self.client.force_login(self.kardiolog)
+        for _ in range(3):
+            self.client.post(reverse("clinical:examiner_order_call", args=[o.id]))
+        o.refresh_from_db()
+        self.assertEqual(o.call_count, 3)
+
+    def test_completed_order_leaves_board(self):
+        o = self.order(self.ekg)
+        self.client.force_login(self.kardiolog)
+        self.client.post(reverse("clinical:examiner_order_call", args=[o.id]))
+        self.client.post(reverse("clinical:examiner_order_perform", args=[o.id]),
+                         {"result_text": "Norma"})
+        nomlar = [c.get("service") for c in self._board(self.tablo)]
+        self.assertNotIn("EKG — Elektrokardiogramma", nomlar)
+
+    def test_board_ids_are_unique_between_visit_and_service(self):
+        """Bir bemorning qabuli va tekshiruvi bir xil navbat raqamida bo'ladi —
+        tablo ikkalasini alohida e'lon qila olishi kerak."""
+        from django.utils import timezone as tz
+        self.visit.accepted_at = tz.now()
+        self.visit.status = Visit.Status.ACCEPTED
+        self.visit.doctor = self.kardiolog
+        self.visit.visit_date = tz.localdate()
+        self.visit.save()
+
+        o = self.order(self.ekg)
+        self.client.force_login(self.kardiolog)
+        self.client.post(reverse("clinical:examiner_order_call", args=[o.id]))
+
+        calls = self._board(self.tablo)
+        ids = [c["id"] for c in calls]
+        self.assertEqual(len(ids), len(set(ids)), "Tablo id'lari takrorlanmoqda")
+        self.assertEqual(len({c["kind"] for c in calls}), 2, "Ikkala tur ham chiqishi kerak")
+
+    def test_inactive_room_not_announced(self):
+        """Nofaol kabinet tabloda e'lon qilinmasligi kerak."""
+        self.xona.is_active = False
+        self.xona.save(update_fields=["is_active"])
+        o = self.order(self.ekg)
+        self.client.force_login(self.kardiolog)
+        self.client.post(reverse("clinical:examiner_order_call", args=[o.id]))
+        c = [x for x in self._board(self.tablo) if x["kind"] == "service"][0]
+        self.assertEqual(c["room"], "", "Nofaol xona e'lon qilindi")
+
+
+class MoveRadiologyCommandTests(TestCase):
+    """Radiologiya xizmatlarini shifokorlarga o'tkazish buyrug'i."""
+
+    def test_command_moves_services(self):
+        from io import StringIO
+        from django.core.management import call_command
+        from apps.clinical.models import ServiceCatalog
+
+        rad = _role(Role.Code.RADIOLOGY, "Radiologiya")
+        doc = _role(Role.Code.DOCTOR, "Shifokor")
+        for nom in ["UZI — Jigar", "Rentgen — Ko'krak", "EKG"]:
+            ServiceCatalog.objects.create(name=nom, price=1000, allowed_role=rad)
+
+        out = StringIO()
+        call_command("move_radiology_services", "--dry-run", stdout=out)
+        self.assertEqual(ServiceCatalog.objects.filter(allowed_role=rad).count(), 3,
+                         "--dry-run o'zgartirmasligi kerak")
+
+        call_command("move_radiology_services", stdout=StringIO())
+        self.assertEqual(ServiceCatalog.objects.filter(allowed_role=rad).count(), 0)
+        self.assertEqual(ServiceCatalog.objects.filter(allowed_role=doc).count(), 3)
+
+
+class BulkAssignTests(ServiceRoutingTests):
+    """Ommaviy biriktirish oynasi."""
+
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username="admin9", password="x", is_superuser=True,
+            role=_role(Role.Code.SUPER_ADMIN, "Super admin"),
+        )
+
+    def test_bulk_assign_sets_staff_and_role(self):
+        from apps.clinical.models import ServiceCatalog
+        self.client.force_login(self.admin)
+        self.client.post(reverse("staff:services_bulk_assign"), {
+            "services": [str(self.spiro.id), str(self.qon.id)],
+            "responsible_staff": str(self.kardiolog.id),
+            "room": str(self.xona.id),
+        })
+        for s in ServiceCatalog.objects.filter(id__in=[self.spiro.id, self.qon.id]):
+            self.assertEqual(s.responsible_staff, self.kardiolog)
+            self.assertEqual(s.allowed_role_id, self.kardiolog.role_id,
+                             "Rol xodim roliga moslanmadi")
+            self.assertEqual(s.room, self.xona)
+
+    def test_bulk_clear_staff(self):
+        from apps.clinical.models import ServiceCatalog
+        self.client.force_login(self.admin)
+        self.client.post(reverse("staff:services_bulk_assign"), {
+            "services": [str(self.ekg.id)],
+            "clear_staff": "1",
+        })
+        self.ekg.refresh_from_db()
+        self.assertIsNone(self.ekg.responsible_staff)

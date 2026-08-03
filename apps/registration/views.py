@@ -143,7 +143,18 @@ def board_feed(request: Any) -> JsonResponse:
     ):
         return JsonResponse({"calls": []}, status=403)
     today = timezone.localdate()
-    qs = (
+
+    def _doctor_room(doc):
+        """Shifokorning FAOL kabineti (nofaol xonalar e'lon qilinmasin)."""
+        if not doc:
+            return ""
+        room = doc.ambulatory_rooms.filter(is_active=True).first()
+        return room.name if room else ""
+
+    calls = []
+
+    # --- 1) Shifokor qabuliga chaqirilganlar ---
+    visits = (
         Visit.objects.filter(
             visit_date=today,
             accepted_at__isnull=False,
@@ -153,24 +164,53 @@ def board_feed(request: Any) -> JsonResponse:
         .prefetch_related("doctor__ambulatory_rooms")
         .order_by("-accepted_at")[:15]
     )
-    calls = []
-    for v in qs:
+    for v in visits:
         doc = v.doctor
-        room_name = ""
-        if doc and hasattr(doc, 'ambulatory_rooms'):
-            first_room = doc.ambulatory_rooms.first()
-            if first_room:
-                room_name = first_room.name
-        
         calls.append({
+            "id": f"v{v.pk}",
+            "kind": "visit",
             "n": v.queue_number,
             "patient": v.patient.full_name if v.patient else "",
             "doctor": doc.get_full_name() if doc else "",
             "specialty": getattr(doc, "specialty", "") if doc else "",
-            "room": room_name,
+            "room": _doctor_room(doc),
+            "service": "",
             "at": v.accepted_at.isoformat() if v.accepted_at else "",
         })
-    return JsonResponse({"calls": calls})
+
+    # --- 2) Tekshiruvga chaqirilganlar (UZI, EKG, tahlil...) ---
+    # Faqat xodim «Chaqirish» tugmasini bosganlari chiqadi.
+    from apps.clinical.models import ServiceOrder
+    orders = (
+        ServiceOrder.objects.filter(
+            called_at__date=today,
+        )
+        .exclude(status__in=[ServiceOrder.Status.COMPLETED, ServiceOrder.Status.CANCELLED])
+        .select_related(
+            "visit__patient", "service__room",
+            "service__responsible_staff", "called_by",
+        )
+        .order_by("-called_at")[:15]
+    )
+    for o in orders:
+        xodim = o.service.responsible_staff or o.called_by
+        room = o.service.room
+        room_name = room.name if (room and room.is_active) else _doctor_room(xodim)
+        calls.append({
+            "id": f"s{o.pk}",
+            "kind": "service",
+            "n": o.visit.queue_number,
+            "patient": o.visit.patient.full_name if o.visit.patient else "",
+            "doctor": xodim.get_full_name() if xodim else "",
+            "specialty": getattr(xodim, "specialty", "") if xodim else "",
+            "room": room_name,
+            "service": o.service.name,
+            "at": o.called_at.isoformat() if o.called_at else "",
+        })
+
+    # Ikkala ro'yxat aralashtirilib, eng oxirgi chaqiruv birinchi bo'ladi
+    calls.sort(key=lambda c: c["at"], reverse=True)
+    return JsonResponse({"calls": calls[:15]})
 
 from django.http import HttpResponse
 from django.conf import settings
