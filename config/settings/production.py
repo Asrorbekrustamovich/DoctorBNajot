@@ -67,7 +67,7 @@ SESSION_COOKIE_SAMESITE = "Lax"
 
 # --- Statik fayllar (whitenoise siqib, keshlab beradi) ---
 STORAGES["staticfiles"] = {  # noqa: F405
-    "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
 }
 
 # --- Fayl yuklash chegarasi ---
