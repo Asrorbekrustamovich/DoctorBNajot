@@ -27,9 +27,14 @@ def _visit_invoice_locked(request, visit):
     return _invoice_locked(request, inv)
 
 class BillingDashboardView(RoleRequiredMixin, TemplateView):
-    """Kassa va Buxgalteriya asosiy ekrani (Faqat Kassir, Direktor, Bosh shifokorlar uchun)."""
-    allowed_roles = (Role.Code.CASHIER, Role.Code.ACCOUNTANT, Role.Code.DIRECTOR, Role.Code.SUPER_ADMIN)
+    """Kassa va Buxgalteriya asosiy ekrani."""
+    allowed_roles = (Role.Code.CASHIER, Role.Code.ACCOUNTANT, Role.Code.DIRECTOR, Role.Code.SUPER_ADMIN, Role.Code.ADMINISTRATOR, Role.Code.RECEPTION)
     template_name = "billing/dashboard.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated and request.user.has_role(Role.Code.ADMINISTRATOR, Role.Code.RECEPTION) and not request.user.has_role(Role.Code.CASHIER, Role.Code.ACCOUNTANT, Role.Code.DIRECTOR, Role.Code.SUPER_ADMIN):
+            return redirect("billing:registrator_payments")
+        return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         from django.db.models import Q
@@ -92,6 +97,7 @@ _INVOICE_VIEW_ROLES = (
 )
 _INVOICE_EDIT_ROLES = (
     Role.Code.CASHIER, Role.Code.ACCOUNTANT, Role.Code.DIRECTOR, Role.Code.SUPER_ADMIN,
+    Role.Code.ADMINISTRATOR, Role.Code.RECEPTION,
 )
 
 
@@ -229,16 +235,7 @@ def pay_invoice(request, invoice_id):
                 # To'lovni qo'shish
                 invoice.paid_amount += amount
 
-                # Shifokorga ulush hisoblash (Faqat ambulator / visit orqali to'lov bo'lsa)
-                if hasattr(invoice, 'visit') and invoice.visit and invoice.visit.doctor:
-                    share_amount = (amount / Decimal('3'))
-                    from apps.billing.models import DoctorShare
-                    DoctorShare.objects.create(
-                        doctor=invoice.visit.doctor,
-                        invoice=invoice,
-                        amount=share_amount,
-                        description=f"Ambulator qabul uchun ulush ({amount} so'm to'lovdan 1/3)"
-                    )
+
 
                 # Holatni yangilash (qaytarilgan pullar ham hisobga olinadi)
                 invoice.recompute_status()
@@ -247,6 +244,13 @@ def pay_invoice(request, invoice_id):
 
                 invoice.cashier = request.user
                 invoice.save()
+
+                # To'langan pulni bandlarga taqsimlaymiz. Oldindan
+                # to'lanadigan bandlar (qabul, tekshiruvlar) birinchi
+                # qoplanadi — shundan keyingina laboratoriya bemorni
+                # chaqira oladi.
+                from apps.billing.services import settle_prepaid_items
+                settle_prepaid_items(invoice, cashier=request.user)
                 messages.success(
                     request,
                     f"{amount} so'm to'lov qabul qilindi. "
@@ -543,6 +547,75 @@ def patient_invoices(request, patient_id):
         "can_edit": user.is_superuser or user.has_role(*_INVOICE_EDIT_ROLES),
     })
 
+@role_required(
+    Role.Code.ADMINISTRATOR, Role.Code.RECEPTION, Role.Code.SUPER_ADMIN,
+    Role.Code.CASHIER, Role.Code.ACCOUNTANT, Role.Code.DIRECTOR,
+)
+def registrator_payments(request):
+    """Registrator uchun to'lov qabul qilish sahifasi.
+    
+    Faqat bugungi va oldindan to'lanishi kerak bo'lgan (ambulator ko'rik,
+    tekshiruvlar) xizmatlar ko'rsatiladi.
+    """
+    from django.db.models import Q, Sum, F
+    from apps.billing.models import Invoice, InvoiceItem
+    from apps.registration.models import Visit
+    from apps.clinical.models import ServiceOrder
+    
+    today = timezone.localdate()
+    
+    # Bugungi navbatdagi bemorlarning cheklari
+    today_visits = Visit.objects.filter(
+        visit_date=today
+    ).select_related('patient', 'doctor').order_by('queue_number')
+    
+    rows = []
+    for visit in today_visits:
+        invoice = Invoice.objects.filter(visit=visit).first()
+        if not invoice:
+            # Chek hali yaratilmagan bo'lishi mumkin
+            from .services import generate_invoice_for_visit
+            invoice = generate_invoice_for_visit(visit)
+        
+        # Oldindan to'lanishi kerak bo'lgan bandlar (xizmat = ambulator ko'rik + tekshiruvlar)
+        prepaid_items = list(invoice.items.filter(
+            payment_mode=InvoiceItem.PaymentMode.PREPAID
+        ).order_by('created_at'))
+        
+        prepaid_total = sum(i.total_price or 0 for i in prepaid_items)
+        prepaid_paid = sum(i.total_price or 0 for i in prepaid_items if i.paid_at)
+        prepaid_unpaid = prepaid_total - prepaid_paid
+        
+        # Tekshiruvlar (ServiceOrder) holati
+        service_orders = list(visit.service_orders.exclude(
+            status=ServiceOrder.Status.CANCELLED
+        ).select_related('service'))
+        
+        rows.append({
+            'visit': visit,
+            'invoice': invoice,
+            'prepaid_items': prepaid_items,
+            'prepaid_total': prepaid_total,
+            'prepaid_paid': prepaid_paid,
+            'prepaid_unpaid': prepaid_unpaid,
+            'service_orders': service_orders,
+            'has_unpaid': prepaid_unpaid > 0,
+        })
+    
+    # To'lanmagan bemorlar birinchi
+    rows.sort(key=lambda r: (not r['has_unpaid'], r['visit'].queue_number))
+    
+    total_unpaid = sum(r['prepaid_unpaid'] for r in rows)
+    unpaid_count = sum(1 for r in rows if r['has_unpaid'])
+    
+    return render(request, 'billing/registrator_payments.html', {
+        'rows': rows,
+        'total_unpaid': total_unpaid,
+        'unpaid_count': unpaid_count,
+        'today': today,
+    })
+
+
 class SuperadminStatisticsView(RoleRequiredMixin, TemplateView):
     """Umumiy statistika va Moliya paneli (faqat Superadmin va Direktor uchun)."""
     allowed_roles = (Role.Code.SUPER_ADMIN, Role.Code.DIRECTOR)
@@ -620,3 +693,63 @@ class SuperadminStatisticsView(RoleRequiredMixin, TemplateView):
             "total_net_profit": surgery_profit + inpatient_revenue + ambulatory_revenue - total_doctor_shares,
         })
         return context
+
+
+@role_required(Role.Code.CASHIER, Role.Code.ACCOUNTANT, Role.Code.DIRECTOR, Role.Code.SUPER_ADMIN, Role.Code.ADMINISTRATOR, Role.Code.RECEPTION)
+def edit_surgery_price(request, surgery_id):
+    """Operatsiya narxini tahrirlash."""
+    from apps.clinical.models import SurgerySchedule
+    from .services import generate_invoice_for_visit
+    
+    if request.method == "POST":
+        from django.db import transaction
+        from decimal import Decimal
+        
+        try:
+            new_price = Decimal(request.POST.get("price", "0").replace(",", "."))
+            reason = request.POST.get("audit_reason", "").strip()
+            
+            if not reason:
+                messages.error(request, "Tahrirlash sababini kiritish majburiy!")
+                return redirect(request.META.get('HTTP_REFERER') or "billing:registrator_payments")
+                
+            if new_price < 0:
+                messages.error(request, "Narx manfiy bo'lishi mumkin emas.")
+                return redirect(request.META.get('HTTP_REFERER') or "billing:registrator_payments")
+        except Exception:
+            messages.error(request, "Narxni to'g'ri kiriting.")
+            return redirect(request.META.get('HTTP_REFERER') or "billing:registrator_payments")
+            
+        with transaction.atomic():
+            surgery = get_object_or_404(SurgerySchedule.objects.select_for_update(), id=surgery_id)
+            if surgery.actual_price != new_price:
+                surgery.actual_price = new_price
+                surgery._audit_reason = reason
+                surgery.save(update_fields=["actual_price"])
+                generate_invoice_for_visit(surgery.visit)
+                messages.success(request, "Operatsiya narxi muvaffaqiyatli o'zgartirildi.")
+            else:
+                messages.info(request, "Narx o'zgarmadi.")
+                
+    return redirect(request.META.get('HTTP_REFERER') or "billing:registrator_payments")
+
+
+@role_required(Role.Code.CASHIER, Role.Code.ACCOUNTANT, Role.Code.DIRECTOR, Role.Code.SUPER_ADMIN, Role.Code.ADMINISTRATOR, Role.Code.RECEPTION)
+def cancel_surgery(request, surgery_id):
+    """Operatsiyani bekor qilish (chekdan o'chirish)."""
+    from apps.clinical.models import SurgerySchedule
+    from .services import generate_invoice_for_visit
+    
+    if request.method == "POST":
+        from django.db import transaction
+        with transaction.atomic():
+            surgery = get_object_or_404(SurgerySchedule.objects.select_for_update(), id=surgery_id)
+            if surgery.status == SurgerySchedule.Status.CANCELLED:
+                messages.warning(request, "Bu operatsiya allaqachon bekor qilingan.")
+            else:
+                surgery.status = SurgerySchedule.Status.CANCELLED
+                surgery.save(update_fields=["status"])
+                generate_invoice_for_visit(surgery.visit)
+                messages.success(request, "Operatsiya bekor qilindi va chekdan o'chirildi.")
+                
+    return redirect(request.META.get('HTTP_REFERER') or "billing:registrator_payments")

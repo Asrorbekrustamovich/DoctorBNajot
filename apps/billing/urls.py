@@ -17,6 +17,9 @@ urlpatterns = [
     path("consultation/<uuid:cons_id>/edit-fee/", views.edit_consultation_fee, name="edit_consultation_fee"),
 
     # Direktor: hisobot va shifokor qabul narxlari
+    path("registrator/", views.registrator_payments, name="registrator_payments"),
+    path("surgery/<uuid:surgery_id>/edit-price/", views.edit_surgery_price, name="edit_surgery_price"),
+    path("surgery/<uuid:surgery_id>/cancel/", views.cancel_surgery, name="cancel_surgery"),
     path("report/", reports.RevenueReportView.as_view(), name="revenue_report"),
     path("report/excel/", reports.revenue_excel, name="revenue_excel"),
     path("prices/", reports.doctor_prices, name="doctor_prices"),

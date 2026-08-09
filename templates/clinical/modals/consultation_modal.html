@@ -72,34 +72,14 @@
 
                     <div class="card shadow-sm mb-3 border-primary">
                         <div class="card-header bg-primary text-white fw-bold py-2">
-                            <i class="bi bi-ui-checks-grid"></i> Qo'shimcha tekshiruvlar tayinlash (UZI, EKG, Analizlar)
+                            <i class="bi bi-ui-checks-grid"></i> Tekshiruvlar tayinlash
                         </div>
                         <div class="card-body py-2">
-                            <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-2" id="servicesCheckboxes">
-                                {% for svc in services %}
-                                <div class="col">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" name="recommended_services" value="{{ svc.id }}" id="svc_{{ svc.id }}" {% if svc.id in existing_orders %}checked disabled{% endif %}>
-                                        <label class="form-check-label {% if svc.id in existing_orders %}text-muted{% endif %}" for="svc_{{ svc.id }}">
-                                            {{ svc.name }}
-                                            {% if svc.id in existing_orders %}
-                                                <span class="badge bg-secondary ms-1" style="font-size: 0.65em;">Tayinlangan</span>
-                                            {% endif %}
-                                        </label>
-                                    </div>
-                                </div>
-                                {% empty %}
-                                <div class="col-12 text-muted small">Faol xizmatlar topilmadi. Tizim sozlamalaridan xizmat qo'shing.</div>
-                                {% endfor %}
-                            </div>
-                            <div class="d-flex justify-content-between align-items-center mt-3">
-                                <div class="form-text mb-0"><i class="bi bi-info-circle"></i> Belgilangan xizmatlar kassaga va tekshiruv xonasiga tushadi.</div>
-                                <button type="button" class="btn btn-sm btn-primary" onclick="assignServicesAjax('{% url 'clinical:consultation_assign_services' visit.pk %}')">
-                                    <i class="bi bi-send"></i> Belgilanganlarni jo'natish
-                                </button>
-                            </div>
+                            {% include "clinical/_exam_picker.html" %}
                         </div>
                     </div>
+
+                    {% include "clinical/_exam_results.html" %}
 
                     <div class="card shadow-sm mb-3 border-info">
                         <div class="card-header bg-info text-white fw-bold py-2">
@@ -497,46 +477,15 @@ function printReport() {
     w.focus();
     setTimeout(function () { w.print(); }, 400);
 }
-// ---- Xizmatlarni (UZI, EKG) oynani yopmasdan turib tayinlash ----
-function assignServicesAjax(url) {
-    var recServices = [];
-    document.querySelectorAll("input[name='recommended_services']:checked").forEach(function(el) {
-        if (!el.disabled) recServices.push(el.value);
-    });
-
-    if (recServices.length === 0) {
-        alert("Jo'natish uchun xizmat(lar)ni tanlang!");
-        return;
-    }
-
-    var body = new URLSearchParams();
-    body.append('csrfmiddlewaretoken', _csrf());
-    recServices.forEach(function(val) { body.append('services', val); });
-
-    fetch(url, {
-        method: 'POST',
-        headers: { 'X-CSRFToken': _csrf() },
-        body: body
-    }).then(function (r) {
-        return r.json().catch(function () { return {}; }).then(function (j) {
-            if (!r.ok) throw new Error(j.error || "Xatolik yuz berdi (" + r.status + ")");
-            return j;
-        });
-    }).then(function (res) {
-        alert(res.message);
-        // Disable the sent checkboxes and mark them as assigned
-        document.querySelectorAll("input[name='recommended_services']:checked").forEach(function(el) {
-            if (!el.disabled) {
-                el.disabled = true;
-                var label = el.nextElementSibling;
-                if (label) {
-                    label.classList.add('text-muted');
-                    label.innerHTML += ' <span class="badge bg-secondary ms-1" style="font-size: 0.65em;">Tayinlangan</span>';
-                }
-            }
-        });
-    }).catch(function (e) { alert(e.message); });
-}
+// ---- Tekshiruvlarni tayinlash ----
+// Bu ish endi static/js/exam_picker.js ichida. Bu yerda faqat tayinlash
+// tugagach xabar berish qoldi — eski tekis ro'yxatga bog'langan kod olib
+// tashlandi (u `input[name=recommended_services]` ni qidirardi, endi
+// bunday elementlar yo'q).
+document.addEventListener('exams:assigned', function (e) {
+    var n = (e.detail && e.detail.count) || 0;
+    console.log('[exam] ' + n + ' ta tekshiruv tayinlandi');
+});
 
 // ---- Boshqa shifokorga yo'naltirish ----
 function referDoctorAjax(url) {

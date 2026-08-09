@@ -218,6 +218,9 @@ import os
 import hashlib
 import subprocess
 
+# Tabloda ishlatiladigan o'zbekcha ovoz (tts_speak bilan bir xil bo'lishi shart)
+DEFAULT_VOICE = "uz-UZ-MadinaNeural"
+
 from django.contrib.auth.decorators import login_required
 
 @login_required
@@ -276,6 +279,67 @@ def tts_speak(request):
         resp = HttpResponse(f.read(), content_type="audio/mpeg")
     resp["Cache-Control"] = "public, max-age=86400"
     return resp
+
+
+@login_required
+def tts_health(request):
+    """Serverda o'zbekcha ovoz ishlayaptimi — bir qarashda javob.
+
+    NEGA KERAK: tabloda ovoz chiqmaganda sabab uchta bo'lishi mumkin va
+    ular tashqaridan bir xil ko'rinadi:
+      1) brauzer avtoijroni to'sgan (ekranda qizil tugma chiqadi)
+      2) serverda `edge-tts` o'rnatilmagan
+      3) server internetga chiqa olmaydi (edge-tts Microsoft xizmatiga
+         ulanadi; ko'p VPS'larda chiquvchi trafik yopiq bo'ladi)
+
+    Bu endpoint 2 va 3 ni ajratib beradi.
+    """
+    import shutil
+    import sys
+
+    info = {
+        "python": sys.executable,
+        "edge_tts_module": False,
+        "edge_tts_command": bool(shutil.which("edge-tts")),
+        "cache_dir_writable": False,
+        "generated": False,
+        "error": "",
+    }
+
+    try:
+        import edge_tts  # noqa: F401
+        info["edge_tts_module"] = True
+    except Exception as exc:  # noqa: BLE001
+        info["error"] = f"modul yo'q: {exc}"
+
+    tts_dir = os.path.join(settings.MEDIA_ROOT, "tts")
+    try:
+        os.makedirs(tts_dir, exist_ok=True)
+        probe = os.path.join(tts_dir, ".probe")
+        with open(probe, "w") as f:
+            f.write("x")
+        os.remove(probe)
+        info["cache_dir_writable"] = True
+    except OSError as exc:
+        info["error"] = info["error"] or f"papkaga yozib bo'lmadi: {exc}"
+
+    # Haqiqiy generatsiya — internet borligini ham tekshiradi
+    if info["edge_tts_module"] or info["edge_tts_command"]:
+        out = os.path.join(tts_dir, "_health.mp3")
+        try:
+            subprocess.run(
+                [sys.executable, "-m", "edge_tts", "--voice", DEFAULT_VOICE,
+                 "--text", "sinov", "--write-media", out],
+                check=True, timeout=25, capture_output=True,
+            )
+            info["generated"] = os.path.exists(out) and os.path.getsize(out) > 0
+            if not info["generated"]:
+                info["error"] = "fayl yaratilmadi (internet yopiq bo'lishi mumkin)"
+        except Exception as exc:  # noqa: BLE001
+            info["error"] = f"generatsiya xatosi: {str(exc)[:300]}"
+
+    info["ok"] = info["generated"] and info["cache_dir_writable"]
+    return JsonResponse(info)
 
 
 # --------------------------------------------------------------------------

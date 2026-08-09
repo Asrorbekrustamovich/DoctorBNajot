@@ -74,6 +74,15 @@
     </style>
 </head>
 <body>
+
+<!-- Ovoz qulfi: brauzer avtoijroni to'ssa shu chiqadi -->
+<div id="audioGate" onclick="unlockAudio()" style="display:none; position:fixed;
+     left:0; right:0; bottom:0; z-index:9999; cursor:pointer;
+     background:#b3261e; color:#fff; padding:18px 24px; font-size:26px;
+     font-weight:700; align-items:center; justify-content:center; gap:14px;
+     text-align:center; line-height:1.35">
+  <span id="audioGateMsg">🔇 Ovozni yoqish uchun bosing</span>
+</div>
 <div class="sound-gate" id="soundGate">
     <i class="bi bi-volume-up-fill" style="font-size:4rem;color:#3fc8ac"></i>
     <h2>Navbat Tablosi</h2>
@@ -174,7 +183,9 @@ function playNextInQueue() {
 
     var phrase = buildPhrase(call);
 
-    // Server ovozi: edge-tts (toza o'zbekcha, uz-UZ-MadinaNeural)
+    // Server ovozi: edge-tts (toza o'zbekcha, uz-UZ-MadinaNeural).
+    // Brauzerning ichki ovozi (speechSynthesis) ATAYLAB ishlatilmaydi —
+    // u o'zbekchani g'alati o'qiydi.
     var advanced = false;
     function next() {
         if (advanced) return;      // ikki marta o'tib ketmaslik uchun
@@ -185,11 +196,66 @@ function playNextInQueue() {
         var audioUrl = "{% url 'registration:tts_speak' %}?text=" + encodeURIComponent(phrase);
         var audio = new Audio(audioUrl);
         audio.onended = next;
-        audio.onerror = next;
-        audio.play().catch(next);
+        audio.onerror = function () { setAudioState('error'); next(); };
+        audio.play().then(function () {
+            setAudioState('ok');
+        }).catch(function (err) {
+            /* AVTOIJRO SIYOSATI — tabloda ovoz ishlamasligining asosiy sababi.
+             *
+             * Brauzer sahifa bilan hech qanday aloqa bo'lmaguncha ovozni
+             * chiqarishga ruxsat bermaydi va `play()` ni RAD ETADI.
+             * Localhostda bu sezilmaydi: dasturchi sahifani doim ochgani
+             * uchun brauzer uni «ishonchli» deb belgilaydi. Yangi domenda
+             * (doctorbnajot.uz) esa tablo kun bo'yi ochiq turadi, hech kim
+             * unga tegmaydi — natijada har bir chaqiruv jimgina yo'qoladi.
+             *
+             * Ilgari bu xato `catch(next)` bilan yutib yuborilardi va
+             * ekranda hech qanday belgi qolmasdi. Endi ekranda «Ovozni
+             * yoqing» tugmasi chiqadi: bir marta bosilsa, brauzer shu
+             * sahifaga ruxsat beradi va keyingi chaqiruvlar o'zi eshitiladi. */
+            if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')) {
+                setAudioState('locked');
+                pendingCall = call;          // ruxsat berilgach shu chaqiruv aytiladi
+            } else {
+                setAudioState('error');
+            }
+            next();
+        });
     } catch (e) {
+        setAudioState('error');
         next();
     }
+}
+
+/* ---- Ovoz holati va qulfni ochish ---- */
+var pendingCall = null;
+
+function setAudioState(state) {
+    var box = document.getElementById('audioGate');
+    var msg = document.getElementById('audioGateMsg');
+    if (!box) return;
+    if (state === 'ok') { box.style.display = 'none'; return; }
+    box.style.display = 'flex';
+    if (state === 'locked') {
+        msg.innerHTML = '🔇 Ovoz brauzer tomonidan to\'sib qo\'yilgan. ' +
+                        'Yoqish uchun bir marta bosing.';
+    } else {
+        msg.innerHTML = '⚠ Ovoz serverdan kelmadi. Internet va edge-tts ' +
+                        'ishlayotganini tekshiring.';
+    }
+}
+
+function unlockAudio() {
+    // Foydalanuvchi harakati ichida jim ovoz ijro etamiz — shundan keyin
+    // brauzer shu sahifaga ovoz chiqarishga ruxsat beradi.
+    var probe = new Audio(
+        "{% url 'registration:tts_speak' %}?text=" + encodeURIComponent('Ovoz yoqildi'));
+    probe.play().then(function () {
+        setAudioState('ok');
+        if (pendingCall) { var c = pendingCall; pendingCall = null; announce(c); }
+    }).catch(function () {
+        setAudioState('error');
+    });
 }
 
 function announce(call) {

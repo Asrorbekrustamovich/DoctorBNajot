@@ -10,6 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="{% static 'css/textarea_expand.css' %}" rel="stylesheet">
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.14.1/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
@@ -174,6 +175,12 @@
                     {% if user.is_superuser or user.role.code in "super_admin,administrator,reception,director,chief_doctor,doctor,surgeon,anesthesiologist,nurse,ward_nurse" %}
                     <a href="{% url 'clinical:inpatient_dashboard' %}" class="{% if request.resolver_match.url_name == 'inpatient_dashboard' %}active{% endif %}"><i class="bi bi-hospital"></i> Stasionar</a>
                     {% endif %}
+                    {% if user.is_superuser or user.role.code in "super_admin,administrator,chief_doctor,doctor" %}
+                    <a href="{% url 'clinical:episode_search' %}" class="{% if request.resolver_match.url_name == 'episode_search' or request.resolver_match.url_name == 'episode_detail' %}active{% endif %}"><i class="bi bi-file-medical"></i> Statsionarga rasmiylashtirish</a>
+                    {% endif %}
+                    {% if user.is_superuser or user.role.code in "super_admin,administrator,chief_doctor,nurse,ward_nurse,reception" %}
+                    <a href="{% url 'clinical:nurse_incoming' %}" class="{% if request.resolver_match.url_name == 'nurse_incoming' %}active{% endif %}"><i class="bi bi-box-arrow-in-down"></i> Yo'naltirilganlar</a>
+                    {% endif %}
                     {% if user.is_superuser or user.role.code == "administrator" or user.role.code == "super_admin" or user.role.code == "surgery_admin" %}
                     <a href="{% url 'clinical:surgery_admin_list' %}" class="{% if request.resolver_match.url_name == 'surgery_admin_list' %}active{% endif %}"><i class="bi bi-list-check"></i> Jarrohlik ro'yxati</a>
                     {% endif %}
@@ -197,7 +204,7 @@
             </div>
             {% endif %}
 
-            {% if user.is_superuser or user.role.code == "cashier" or user.role.code == "accountant" or user.role.code == "director" or user.role.code == "administrator" or user.role.code == "super_admin" %}
+            {% if user.is_superuser or user.role.code == "cashier" or user.role.code == "accountant" or user.role.code == "director" or user.role.code == "administrator" or user.role.code == "super_admin" or user.role.code == "reception" %}
             <div class="nav-label">Moliya</div>
             <div class="dbn-group{% if request.resolver_match.namespace == 'billing' %} open{% endif %}" x-data="{ open: {% if request.resolver_match.namespace == 'billing' %}true{% else %}false{% endif %} }" :class="open && 'open'">
                 <div class="grp-toggle" @click="open = !open">
@@ -205,6 +212,9 @@
                     <i class="bi bi-chevron-right chev"></i>
                 </div>
                 <div class="dbn-sub" x-show="open" x-collapse>
+                    {% if user.is_superuser or user.role.code == "administrator" or user.role.code == "reception" or user.role.code == "super_admin" %}
+                    <a href="{% url 'billing:registrator_payments' %}" class="{% if request.resolver_match.url_name == 'registrator_payments' %}active{% endif %}"><i class="bi bi-credit-card-2-front"></i> To'lov qabul qilish</a>
+                    {% endif %}
                     {% if user.is_superuser or user.role.code == "cashier" or user.role.code == "accountant" or user.role.code == "director" or user.role.code == "super_admin" %}
                     <a href="{% url 'billing:dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"><i class="bi bi-cash-coin"></i> Kassa (Hisob)</a>
                     {% endif %}
@@ -351,6 +361,68 @@ window.htmxShouldPause = function () {
     return false;
 };
 </script>
+
+{% comment %} Tekshiruv tayinlash pikeri. Qabul modali HTMX orqali keladi, shuning
+   uchun skript sahifada oldindan turishi kerak — o'zi `htmx:afterSwap`
+   ni kutadi va yangi modalni topib ulanadi. {% endcomment %}
+<script src="{% static 'js/exam_picker.js' %}"></script>
+
+{% comment %} Matn maydonlari: o'zi o'sadi + ⤢ tugmasi bilan katta oynada
+   ochiladi. Dastlabki ko'rikda 9 ta maydon bor, ular kichkina bo'lsa
+   shifokor yozganini to'liq ko'ra olmaydi. {% endcomment %}
+<script src="{% static 'js/textarea_expand.js' %}"></script>
+
+{% comment %} Bemor tezkor qidiruvi: kravat berish, operatsiya
+   rejalashtirish va boshqa joylardagi ro'yxatlarni filtrlaydi. {% endcomment %}
+<script src="{% static 'js/patient_search.js' %}"></script>
+
+<script>
+/* HTMX XATOLARI KO'RINSIN.
+ *
+ * Sukut bo'yicha HTMX 4xx/5xx javobni HECH QAYERGA yozmaydi: modal
+ * «Yuklanmoqda…» yozuvi bilan abadiy qotib qoladi va foydalanuvchi
+ * nima bo'lganini bilmaydi. «Bemorni joylashtirish» oynasi aynan shu
+ * sababdan «ishlamayapti» bo'lib ko'ringan edi.
+ *
+ * Endi xato o'sha yuklanayotgan joyning o'ziga yoziladi. */
+(function () {
+  function msg(status) {
+    if (status === 403) return 'Ruxsat yo’q. Bu amal sizning rolingizga ochiq emas.';
+    if (status === 404) return 'Ma’lumot topilmadi.';
+    if (status === 405) return 'Bu amal noto’g’ri usulda so’raldi.';
+    if (status >= 500) return 'Serverda xatolik yuz berdi.';
+    return 'So’rov bajarilmadi (' + status + ').';
+  }
+
+  function show(target, html) {
+    if (!target || !target.innerHTML) return;
+    target.innerHTML = html;
+  }
+
+  document.body.addEventListener('htmx:responseError', function (e) {
+    var d = e.detail, s = d.xhr ? d.xhr.status : 0;
+    show(d.target,
+      '<div class="alert alert-danger m-3">' +
+      '<b>' + msg(s) + '</b>' +
+      '<div class="small mt-1">Sahifani yangilab qayta urinib ko’ring. ' +
+      'Takrorlansa — administratorga ayting.</div></div>');
+    console.error('[htmx]', s, d.pathInfo && d.pathInfo.requestPath);
+  });
+
+  document.body.addEventListener('htmx:sendError', function (e) {
+    show(e.detail.target,
+      '<div class="alert alert-warning m-3">' +
+      '<b>Serverga ulanib bo’lmadi.</b>' +
+      '<div class="small mt-1">Internet yoki server ishlayotganini tekshiring.</div></div>');
+  });
+
+  document.body.addEventListener('htmx:timeout', function (e) {
+    show(e.detail.target,
+      '<div class="alert alert-warning m-3">Server javob bermadi (vaqt tugadi).</div>');
+  });
+})();
+</script>
+
 {% block extra_js %}{% endblock %}
 </body>
 </html>

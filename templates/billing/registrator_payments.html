@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}To'lov qabul qilish — Registrator{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-1"><i class="bi bi-credit-card-2-front"></i> To'lov qabul qilish</h1>
+        <p class="text-muted mb-0">Ambulator ko'rik va tekshiruvlar uchun oldindan to'lov</p>
+    </div>
+    <div class="d-flex gap-3">
+        <div class="card border-0 shadow-sm px-3 py-2 text-center">
+            <div class="fs-4 fw-bold text-danger">{{ unpaid_count }}</div>
+            <div class="text-muted small">To'lanmagan</div>
+        </div>
+        <div class="card border-0 shadow-sm px-3 py-2 text-center">
+            <div class="fs-4 fw-bold text-danger">{{ total_unpaid|intcomma }} <small class="text-muted">so'm</small></div>
+            <div class="text-muted small">Jami qarzdorlik</div>
+        </div>
+    </div>
+</div>
+
+{% if rows %}
+<div class="card shadow-sm border-0">
+    <div class="card-body p-0">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-3" width="50">№</th>
+                    <th>Bemor</th>
+                    <th>Shifokor</th>
+                    <th>Xizmatlar</th>
+                    <th class="text-end">Jami (oldindan)</th>
+                    <th class="text-end">To'langan</th>
+                    <th class="text-end">Qarz</th>
+                    <th class="text-center" width="200">Amallar</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr class="{% if row.has_unpaid %}table-warning{% endif %}">
+                    <td class="ps-3">
+                        <span class="badge bg-dark">{{ row.visit.queue_number }}</span>
+                    </td>
+                    <td>
+                        <a href="{% url 'patients:detail' row.visit.patient.pk %}" class="text-decoration-none fw-semibold">
+                            {{ row.visit.patient.full_name }}
+                        </a>
+                    </td>
+                    <td class="text-muted">{{ row.visit.doctor.get_full_name|default:"—" }}</td>
+                    <td>
+                        {% for item in row.prepaid_items %}
+                        <span class="badge {% if item.paid_at %}bg-success{% else %}bg-danger{% endif %} me-1 mb-1" style="font-size: 0.7rem;">
+                            {% if item.paid_at %}<i class="bi bi-check"></i>{% else %}<i class="bi bi-x"></i>{% endif %}
+                            {{ item.name|truncatechars:30 }}
+                        </span>
+                        {% endfor %}
+                    </td>
+                    <td class="text-end fw-bold">{{ row.prepaid_total|intcomma }}</td>
+                    <td class="text-end text-success">{{ row.prepaid_paid|intcomma }}</td>
+                    <td class="text-end">
+                        {% if row.has_unpaid %}
+                        <span class="fw-bold text-danger">{{ row.prepaid_unpaid|intcomma }}</span>
+                        {% else %}
+                        <span class="text-success"><i class="bi bi-check-circle-fill"></i></span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        {% if row.has_unpaid %}
+                        <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#payModal{{ row.invoice.id }}">
+                            <i class="bi bi-wallet2"></i> To'lash
+                        </button>
+                        {% endif %}
+                        <a href="{% url 'billing:view_invoice' row.visit.id %}" class="btn btn-outline-primary btn-sm" title="Chekni ko'rish">
+                            <i class="bi bi-receipt"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- To'lov modallari -->
+{% for row in rows %}
+{% if row.has_unpaid %}
+<div class="modal fade" id="payModal{{ row.invoice.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-wallet2"></i> To'lov qabul qilish</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'billing:pay_invoice' row.invoice.id %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <div class="fw-bold fs-5">{{ row.visit.patient.full_name }}</div>
+                        <div class="text-muted small">Navbat: №{{ row.visit.queue_number }}</div>
+                    </div>
+                    <div class="border rounded p-3 mb-3 bg-light">
+                        <h6 class="fw-bold mb-2">To'lanishi kerak bo'lgan xizmatlar:</h6>
+                        {% for item in row.prepaid_items %}
+                        {% if not item.paid_at %}
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>{{ item.name }}</span>
+                            <strong>{{ item.total_price|intcomma }} so'm</strong>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                        <hr class="my-2">
+                        <div class="d-flex justify-content-between">
+                            <strong class="text-danger">Jami qarzdorlik:</strong>
+                            <strong class="text-danger fs-5">{{ row.prepaid_unpaid|intcomma }} so'm</strong>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">To'lanayotgan summa</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control form-control-lg" name="amount" 
+                                   value="{{ row.prepaid_unpaid|stringformat:'.0f' }}" 
+                                   min="1" max="{{ row.invoice.debt|stringformat:'.0f' }}" step="1" required>
+                            <span class="input-group-text">so'm</span>
+                        </div>
+                        <div class="form-text">Qisman to'lov qilish mumkin.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Bekor</button>
+                    <button type="submit" class="btn btn-success btn-lg" onclick="return confirm('To\'lovni tasdiqlaysizmi?');">
+                        <i class="bi bi-check2-circle"></i> To'lovni tasdiqlash
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endfor %}
+
+{% else %}
+<div class="text-center py-5">
+    <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
+    <h4 class="mt-3 text-muted">Bugun hali bemorlar yo'q</h4>
+</div>
+{% endif %}
+{% endblock %}

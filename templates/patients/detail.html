@@ -56,7 +56,60 @@
         </div>
     </div>
     <div class="col-12">
-        <div class="card shadow-sm">
+            {% if patient.episodes.all %}
+    <div class="col-12">
+        <div class="card shadow-sm border-success">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-hospital"></i> Statsionar va Vipiskalar tarixi</span>
+                <span class="badge bg-light text-dark">{{ patient.episodes.count }} ta</span>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-3">Sana</th>
+                            <th>Murojaat sababi</th>
+                            <th>Tashxis</th>
+                            <th>Holati</th>
+                            <th class="text-end pe-3">Vipiska / Hujjat</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ep in patient.episodes.all|dictsortreversed:"created_at" %}
+                        <tr>
+                            <td class="ps-3">{{ ep.created_at|date:"d.m.Y" }}</td>
+                            <td>{{ ep.reason|default:"—" }}</td>
+                            <td class="small">
+                                {% for d in ep.diagnoses.all %}
+                                <div>{{ d.label }}{% if d.kind == 'main' %} <b>(asosiy)</b>{% endif %}</div>
+                                {% empty %}<span class="text-muted">—</span>{% endfor %}
+                            </td>
+                            <td>
+                                {% if ep.status == 'admitted' %}<span class="badge bg-primary">Yotibdi</span>
+                                {% elif ep.status == 'discharged' %}<span class="badge bg-success">Vipiska berilgan</span>
+                                {% elif ep.status == 'sent' %}<span class="badge bg-info text-dark">Qabulxonada</span>
+                                {% else %}<span class="badge bg-secondary">{{ ep.get_status_display }}</span>{% endif %}
+                            </td>
+                            <td class="text-end pe-3 text-nowrap">
+                                {% if ep.discharge %}
+                                <a href="{% url 'clinical:discharge_print' ep.pk %}" target="_blank" class="btn btn-sm btn-outline-success me-1">
+                                    <i class="bi bi-printer"></i> Vipiskani chop etish
+                                </a>
+                                {% endif %}
+                                <a href="{% url 'clinical:episode_detail' ep.pk %}" class="btn btn-sm btn-outline-secondary">
+                                    <i class="bi bi-eye"></i> Epizod
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+<div class="card shadow-sm">
             <div class="card-header">Tashriflar tarixi</div>
             <div class="card-body p-0">
                 <table class="table table-sm table-hover mb-0">

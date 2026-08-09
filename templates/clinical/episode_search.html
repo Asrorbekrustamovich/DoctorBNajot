@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% block title %}Statsionarga rasmiylashtirish - Doctor B Najot{% endblock %}
+
+{% block content %}
+<h1 class="h3 mb-4"><i class="bi bi-hospital"></i> Statsionarga rasmiylashtirish</h1>
+
+{% if messages %}
+  {% for m in messages %}
+    <div class="alert alert-{{ m.tags }} alert-dismissible fade show">{{ m }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+  {% endfor %}
+{% endif %}
+
+{% comment %}
+  1-QADAM: hujjat turi. Kattalarda JSHSHIR, bolalarda metrika —
+  ikkalasini bitta maydonga qo'shib yuborsak, qidiruv chalkashadi
+  (JSHSHIR faqat raqam, metrikada harf ham bor).
+{% endcomment %}
+<div class="card shadow-sm mb-4">
+  <div class="card-header bg-primary text-white py-2">
+    <i class="bi bi-search"></i> 1-qadam. Bemorni hujjat bo'yicha topish
+  </div>
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label small fw-semibold">Hujjat turi</label>
+        <select name="document_type" class="form-select" id="docType">
+          {% for val, label in doc_types %}
+            <option value="{{ val }}" {% if doc_type == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label small fw-semibold">Raqami</label>
+        <input name="number" class="form-control" value="{{ number }}"
+               id="docNumber" autocomplete="off"
+               placeholder="{% if doc_type == 'jshshir' %}14 ta raqam{% else %}I-AB 123456{% endif %}"
+               required>
+      </div>
+      <div class="col-md-3">
+        <button class="btn btn-primary w-100"><i class="bi bi-search"></i> Topish</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if error %}
+  <div class="alert alert-warning"><i class="bi bi-exclamation-triangle"></i> {{ error }}</div>
+{% endif %}
+
+{% if patient %}
+  <div class="card shadow-sm mb-4 border-success">
+    <div class="card-header bg-success text-white py-2">
+      <i class="bi bi-person-check"></i> 2-qadam. Bemor topildi
+    </div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-7">
+          <div class="fs-5 fw-bold">{{ patient.full_name }}</div>
+          <div class="text-muted small">
+            {{ patient.age }} yosh · {{ patient.get_gender_display }} ·
+            karta {{ patient.card_number }}
+            {% if patient.jshshir %}<br>JSHSHIR: {{ patient.jshshir }}{% endif %}
+            {% if patient.birth_certificate %}<br>Metrika: {{ patient.birth_certificate }}{% endif %}
+            {% if patient.phone %}<br>Tel: {{ patient.phone }}{% endif %}
+            {% if patient.address %}<br>{{ patient.address }}{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% comment %}
+    Eski yotqizilishlar YANGI EPIZODDAN OLDIN ko'rsatiladi: shifokor
+    bemor avval nima bilan yotganini bilmasa, takroriy epizod ochadi
+    yoki tashxis tarixini e'tiborsiz qoldiradi.
+  {% endcomment %}
+  <div class="card shadow-sm mb-4">
+    <div class="card-header py-2 d-flex justify-content-between align-items-center">
+      <span class="fw-bold"><i class="bi bi-clock-history"></i> Oldingi yotqizilishlari</span>
+      <span class="badge bg-secondary">{{ episodes|length }}</span>
+    </div>
+    <div class="card-body p-0">
+      {% if episodes %}
+        <table class="table table-sm mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-3">Sana</th><th>Sabab</th><th>Maqsad</th>
+              <th>Tashxis</th><th>Holati</th><th class="text-end pe-3"></th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for e in episodes %}
+            <tr>
+              <td class="ps-3">{{ e.created_at|date:"d.m.Y" }}</td>
+              <td>{{ e.reason|default:"—" }}</td>
+              <td><span class="badge bg-light text-dark">{{ e.get_purpose_display }}</span></td>
+              <td class="small">
+                {% for d in e.diagnoses.all %}
+                  <div>{{ d.label }}{% if d.kind == 'main' %} <b>(asosiy)</b>{% endif %}</div>
+                {% empty %}<span class="text-muted">—</span>{% endfor %}
+              </td>
+              <td>
+                {% if e.status == 'admitted' %}<span class="badge bg-primary">Yotibdi</span>
+                {% elif e.status == 'discharged' %}<span class="badge bg-success">Vipiska</span>
+                {% elif e.status == 'sent' %}<span class="badge bg-info text-dark">Qabulxonada</span>
+                {% elif e.status == 'cancelled' %}<span class="badge bg-secondary">Bekor</span>
+                {% else %}<span class="badge bg-warning text-dark">Rasmiylashtirilmoqda</span>{% endif %}
+              </td>
+              <td class="text-end pe-3 text-nowrap">
+                {% if e.discharge %}
+                <a href="{% url 'clinical:discharge_print' e.pk %}" target="_blank" class="btn btn-sm btn-outline-success me-1" title="Vipiskani chop etish">
+                  <i class="bi bi-printer"></i> Vipiska
+                </a>
+                {% endif %}
+                <a href="{% url 'clinical:episode_detail' e.pk %}" class="btn btn-sm btn-outline-secondary">Ochish</a>
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <div class="p-3 text-muted small">Bu bemor ilgari yotqizilmagan.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card shadow-sm border-primary">
+    <div class="card-header bg-primary text-white py-2">
+      <i class="bi bi-plus-circle"></i> 3-qadam. Yangi epizod
+    </div>
+    <div class="card-body">
+      <form method="post" action="{% url 'clinical:episode_create' patient.pk %}" class="row g-3">
+        {% csrf_token %}
+        <input type="hidden" name="document_type" value="{{ doc_type }}">
+        <input type="hidden" name="number" value="{{ number }}">
+
+        <div class="col-md-6">
+          <label class="form-label small fw-semibold">
+            Murojaat epizodi (kasallik sababi) <span class="text-danger">*</span>
+          </label>
+          <input name="reason" class="form-control" required
+                 placeholder="Masalan: o'ng yonbosh sohasidagi og'riq">
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Yotqizish maqsadi</label>
+          <select name="purpose" class="form-select" id="purposeSelect">
+            {% for val, label in purposes %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
+          </select>
+          <div class="form-text">
+            Operatsiya tanlansa, istoriyaga anesteziolog qo'shiladi.
+          </div>
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Maqsad izohi</label>
+          <input name="purpose_note" class="form-control" placeholder="ixtiyoriy">
+        </div>
+
+        <div class="col-12">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="with_primary_exam"
+                   value="1" id="withExam" checked>
+            <label class="form-check-label" for="withExam">
+              Birlamchi ko'rik bilan yotqizish
+            </label>
+            <div class="form-text">
+              Belgilanmasa — bemor ko'riksiz yotqiziladi (shoshilinch holat),
+              dastlabki ko'rik keyinroq yoziladi.
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 text-end">
+          <button class="btn btn-primary">
+            <i class="bi bi-arrow-right-circle"></i> Epizod ochish
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endif %}
+
+<script>
+document.getElementById('docType')?.addEventListener('change', function () {
+  var n = document.getElementById('docNumber');
+  n.placeholder = this.value === 'jshshir' ? '14 ta raqam' : 'I-AB 123456';
+  n.value = '';
+  n.focus();
+});
+</script>
+{% endblock %}

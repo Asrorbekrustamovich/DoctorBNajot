@@ -374,17 +374,40 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title"><i class="bi bi-pen"></i> Bemor imzosi — planshet qalami bilan</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Yopish"></button>
+        <div class="ms-auto d-flex gap-2 align-items-center">
+          <button type="button" class="btn btn-sm btn-outline-primary" id="sigFullBtn"
+                  title="Monitorni bemorga qaratib, to'liq ekranda imzolatish">
+            <i class="bi bi-arrows-fullscreen"></i> To'liq ekran
+          </button>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Yopish"></button>
+        </div>
       </div>
       <div class="modal-body">
         <div id="sigPenStatus" class="alert alert-warning py-2 mb-2">
           <i class="bi bi-usb-plug"></i> Planshetni ulang va <b>qalamni maydon ustiga yaqinlashtiring</b>.
         </div>
-        <div class="border rounded bg-white position-relative" style="touch-action:none;">
+        {% comment %}
+          HUION H640P — EKRANSIZ planshet. Bemor qalam bilan chizayotganini
+          o'z qo'lida ko'ra olmaydi, faqat monitorda ko'radi. Shuning uchun
+          ikki narsa qo'shilgan:
+
+            · QALAM NISHONI — qalam sirtga tegmasdan yaqinlashganda ham
+              monitorda uning joyi ko'rinadi. Busiz bemor «qayerdan
+              boshlashni» bilmaydi va imzo maydondan chiqib ketadi.
+            · TO'LIQ EKRAN — monitor bemorga qaratilganda imzo maydoni
+              butun ekranni egallaydi.
+        {% endcomment %}
+        <div class="border rounded bg-white position-relative" id="sigStage"
+             style="touch-action:none;">
           <canvas id="sigCanvas" width="1400" height="560"
                   style="width:100%; height:min(560px, 58vh); cursor:crosshair; display:block;"></canvas>
           <div id="sigHint" class="position-absolute top-50 start-50 translate-middle text-muted"
                style="pointer-events:none; user-select:none;">Shu yerga qalam bilan imzo cheking</div>
+          <div id="sigCursor" class="position-absolute" style="display:none; pointer-events:none;
+               width:18px; height:18px; margin:-9px 0 0 -9px; border:2px solid #0d6efd;
+               border-radius:50%; background:rgba(13,110,253,.12);"></div>
+          <div id="sigBaseline" class="position-absolute" style="pointer-events:none;
+               left:6%; right:6%; bottom:22%; border-bottom:2px dashed #cbd5e1;"></div>
         </div>
         <div class="form-text text-muted mt-1">
           HUION drayverida <b>«Pen mode / Qalam rejimi»</b> yoqilgan bo'lsin (Mouse mode emas).
@@ -432,6 +455,53 @@
         const r = canvas.getBoundingClientRect();
         return { x: (e.clientX - r.left) * (canvas.width / r.width),
                  y: (e.clientY - r.top) * (canvas.height / r.height) };
+    }
+
+    // --- Qalam qayerdaligini monitorda ko'rsatish ---
+    // Ekransiz planshetda bemor qo'lidagi qalam qayerga tushayotganini
+    // ko'rmaydi. Nishon shuni monitorda ko'rsatadi — qalam sirtga
+    // tegmasdan turib ham.
+    const cursorEl = document.getElementById("sigCursor");
+    const stageEl  = document.getElementById("sigStage");
+
+    function moveCursor(e) {
+        if (!cursorEl || !stageEl) return;
+        if (e.pointerType !== "pen") { cursorEl.style.display = "none"; return; }
+        const r = stageEl.getBoundingClientRect();
+        cursorEl.style.left = (e.clientX - r.left) + "px";
+        cursorEl.style.top  = (e.clientY - r.top) + "px";
+        cursorEl.style.display = "block";
+    }
+    canvas.addEventListener("pointermove", moveCursor);
+    canvas.addEventListener("pointerenter", moveCursor);
+    canvas.addEventListener("pointerleave", function () {
+        if (cursorEl) cursorEl.style.display = "none";
+    });
+
+    // --- To'liq ekran: monitorni bemorga qaratib imzolatish uchun ---
+    const fullBtn = document.getElementById("sigFullBtn");
+    if (fullBtn) {
+        fullBtn.addEventListener("click", function () {
+            const box = modalEl ? modalEl.querySelector(".modal-content") : null;
+            if (!box) return;
+            if (document.fullscreenElement) {
+                document.exitFullscreen();
+            } else if (box.requestFullscreen) {
+                box.requestFullscreen().catch(function () {
+                    // Brauzer ruxsat bermasa — hech bo'lmasa balandlashtiramiz
+                    canvas.style.height = "80vh";
+                });
+            } else {
+                canvas.style.height = "80vh";
+            }
+        });
+        document.addEventListener("fullscreenchange", function () {
+            const on = !!document.fullscreenElement;
+            canvas.style.height = on ? "78vh" : "min(560px, 58vh)";
+            fullBtn.innerHTML = on
+                ? '<i class="bi bi-fullscreen-exit"></i> Chiqish'
+                : '<i class="bi bi-arrows-fullscreen"></i> To\'liq ekran';
+        });
     }
 
     // --- Qalam yaqinlashganda (hover / kirish) aniqlash ---

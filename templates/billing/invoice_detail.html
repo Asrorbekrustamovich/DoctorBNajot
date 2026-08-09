@@ -8,8 +8,10 @@
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h3 class="mb-0">
-            {# Orqaga: kassir/buxgalter kassaga, qolganlar bemor kartasiga (aks holda 403) #}
-            {% if can_edit %}
+            {# Orqaga qaytish #}
+            {% if user.role.code == 'administrator' or user.role.code == 'reception' %}
+            <a href="{% url 'billing:registrator_payments' %}" class="text-decoration-none text-dark" title="To'lovlarga qaytish"><i class="bi bi-arrow-left"></i></a>
+            {% elif can_edit %}
             <a href="{% url 'billing:dashboard' %}" class="text-decoration-none text-dark" title="Kassaga qaytish"><i class="bi bi-arrow-left"></i></a>
             {% else %}
             <a href="{% url 'patients:detail' visit.patient.id %}" class="text-decoration-none text-dark" title="Bemor kartasiga qaytish"><i class="bi bi-arrow-left"></i></a>
@@ -183,6 +185,46 @@
                                                                         <input type="number" min="0" step="0.01" name="quantity" class="form-control" value="{{ item.quantity|stringformat:'.2f' }}" required>
                                                                     </div>
                                                                     <div class="alert alert-warning small mb-3">Diqqat! Miqdorni o'zgartirsangiz summa qayta hisoblanadi va ombor qoldig'i moslashadi.</div>
+                                                                    <div class="mb-3">
+                                                                        <label class="form-label text-danger fw-bold">O'zgartirish sababi (majburiy)</label>
+                                                                        <input type="text" name="audit_reason" class="form-control border-danger" required placeholder="Nima sababdan?">
+                                                                    </div>
+                                                                </div>
+                                                                <div class="modal-footer">
+                                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Yopish</button>
+                                                                    <button type="submit" class="btn btn-primary">Saqlash</button>
+                                                                </div>
+                                                            </form>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            {% elif item.item_type == 'surgery' %}
+                                                <button type="button" class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#editSurgeryModal{{ item.reference_id }}" title="Narxni tahrirlash">
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
+                                                <form method="post" action="{% url 'billing:cancel_surgery' item.reference_id %}" style="display:inline;" onsubmit="return confirm('Rostdan ham ushbu operatsiyani bekor qilasizmi? Pul miqdori chekdan ayiriladi.');">
+                                                    {% csrf_token %}
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Bekor qilish">
+                                                        <i class="bi bi-x-circle"></i>
+                                                    </button>
+                                                </form>
+                                                
+                                                <!-- Edit Surgery Price Modal -->
+                                                <div class="modal fade text-start" id="editSurgeryModal{{ item.reference_id }}" tabindex="-1" aria-hidden="true">
+                                                    <div class="modal-dialog">
+                                                        <div class="modal-content">
+                                                            <div class="modal-header bg-primary text-white">
+                                                                <h5 class="modal-title">Operatsiya narxini tahrirlash</h5>
+                                                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                                            </div>
+                                                            <form method="post" action="{% url 'billing:edit_surgery_price' item.reference_id %}">
+                                                                {% csrf_token %}
+                                                                <div class="modal-body">
+                                                                    <div class="mb-3">
+                                                                        <label class="form-label">Yangi narxni kiriting (so'm):</label>
+                                                                        <input type="number" min="0" step="1" name="price" class="form-control" value="{{ item.price|stringformat:'.0f' }}" required>
+                                                                    </div>
+                                                                    <div class="alert alert-warning small mb-3">Diqqat! Ushbu o'zgarish faqat shu mijozning joriy cheki uchun amal qiladi.</div>
                                                                     <div class="mb-3">
                                                                         <label class="form-label text-danger fw-bold">O'zgartirish sababi (majburiy)</label>
                                                                         <input type="text" name="audit_reason" class="form-control border-danger" required placeholder="Nima sababdan?">

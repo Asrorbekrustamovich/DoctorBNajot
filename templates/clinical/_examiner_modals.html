@@ -25,10 +25,69 @@
                         Oxirgi sabab: <b>{{ order.deferred_reason }}</b>
                     </div>
                     {% endif %}
+                    {% comment %} --------------------------------------------------
+                       KO'RSATKICHLAR JADVALI.
+
+                       Laboratoriya natijasi «matn» emas, jadval:
+                       ko'rsatkich / natija / birlik / norma. Erkin matnga
+                       yozilsa rasmiy blankni chiroyli chop etib bo'lmaydi
+                       va normadan chetlanishni ajratib ko'rsatib bo'lmaydi.
+
+                       UZI, EKG kabi tavsifiy tekshiruvlarda jadval bo'sh
+                       qoladi va faqat xulosa matni to'ldiriladi — server
+                       ikkalasidan bittasi bo'lsa qabul qiladi.
+                       -------------------------------------------------- {% endcomment %}
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Tekshiruv xulosasi (Natija):</label>
-                        <textarea name="result_text" class="form-control" rows="8" required
-                                  placeholder="Bu yerga tekshiruv natijalarini yozing..."></textarea>
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label class="form-label fw-bold mb-0">Ko'rsatkichlar</label>
+                            <button type="button" class="btn btn-sm btn-outline-primary"
+                                    data-add-row="{{ order.id }}">
+                                <i class="bi bi-plus-lg"></i> Qator qo'shish
+                            </button>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-1">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width:38%">Ko'rsatkich</th>
+                                        <th style="width:18%">Natija</th>
+                                        <th style="width:14%">Birlik</th>
+                                        <th style="width:22%">Norma</th>
+                                        <th style="width:8%" class="text-center" title="Normadan chetda">⚠</th>
+                                    </tr>
+                                </thead>
+                                <tbody data-rows="{{ order.id }}">
+                                {% for t in order.service.result_template.all %}
+                                    <tr>
+                                        <td><input type="text" name="row_name" class="form-control form-control-sm" value="{{ t.name }}"></td>
+                                        <td><input type="text" name="row_value" class="form-control form-control-sm"></td>
+                                        <td><input type="text" name="row_unit" class="form-control form-control-sm" value="{{ t.unit }}"></td>
+                                        <td><input type="text" name="row_ref" class="form-control form-control-sm" value="{{ t.reference }}"></td>
+                                        <td class="text-center"><input type="checkbox" name="row_abnormal" value="{{ forloop.counter0 }}" class="form-check-input"></td>
+                                    </tr>
+                                {% empty %}
+                                    <tr>
+                                        <td><input type="text" name="row_name" class="form-control form-control-sm" placeholder="masalan: Gemoglobin"></td>
+                                        <td><input type="text" name="row_value" class="form-control form-control-sm"></td>
+                                        <td><input type="text" name="row_unit" class="form-control form-control-sm" placeholder="g/l"></td>
+                                        <td><input type="text" name="row_ref" class="form-control form-control-sm" placeholder="120-160"></td>
+                                        <td class="text-center"><input type="checkbox" name="row_abnormal" value="0" class="form-check-input"></td>
+                                    </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="form-text">
+                            To'ldirilmagan qatorlar saqlanmaydi. Tavsifiy tekshiruvda
+                            (UZI, EKG, Rentgen) jadvalni bo'sh qoldirib, faqat
+                            xulosani yozing.
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Xulosa (tavsif):</label>
+                        <textarea name="result_text" class="form-control" rows="6"
+                                  placeholder="Tavsif va xulosa..."></textarea>
                         <div class="form-text">Ushbu xulosa hamshira va mas'ul shifokorga ko'rinadi.</div>
                     </div>
                 </div>
@@ -85,3 +144,30 @@
         </div>
     </div>
 </div>
+
+{% comment %} «Qator qo'shish» — laborantda ro'yxatdan tashqari ko'rsatkich chiqib
+   qolsa. Delegatsiya orqali: modal <body> ga ko'chirilgan bo'lishi mumkin.
+   Skript sahifada bir marta ulanadi (bir nechta modal bo'lsa ham). {% endcomment %}
+<script>
+if (!window._examRowsBound) {
+  window._examRowsBound = true;
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest && e.target.closest('[data-add-row]');
+    if (!btn) return;
+    var body = document.querySelector('[data-rows="' + btn.dataset.addRow + '"]');
+    if (!body) return;
+    var idx = body.rows.length;
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td><input type="text" name="row_name" class="form-control form-control-sm"></td>' +
+      '<td><input type="text" name="row_value" class="form-control form-control-sm"></td>' +
+      '<td><input type="text" name="row_unit" class="form-control form-control-sm"></td>' +
+      '<td><input type="text" name="row_ref" class="form-control form-control-sm"></td>' +
+      '<td class="text-center"><input type="checkbox" name="row_abnormal" value="' + idx +
+      '" class="form-check-input"></td>';
+    body.appendChild(tr);
+    var first = tr.querySelector('input');
+    if (first) first.focus();
+  });
+}
+</script>

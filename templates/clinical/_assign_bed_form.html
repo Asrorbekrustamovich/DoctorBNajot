@@ -8,17 +8,36 @@
     </div>
 
     <div class="mb-3">
-        <label class="form-label fw-bold text-primary"><i class="bi bi-search"></i> Tezkor qidiruv (JSHSHIR / Pasport)</label>
-        <input type="text" id="assign_quick_search" class="form-control border-primary bg-light" placeholder="14 ta raqam yoki AA1234567..." autocomplete="off">
-        <small class="form-text">Ma'lumot terilishi bilan pastdagi qutida qabul avtomatik tanlanadi.</small>
+        <label class="form-label fw-bold text-primary">
+            <i class="bi bi-search"></i> Tezkor qidiruv
+        </label>
+        <input type="text" id="assign_quick_search"
+               data-patient-search="assign_visit_select"
+               data-hint="assign_search_hint"
+               class="form-control border-primary"
+               placeholder="Ism, familiya, JSHSHIR, metrika, pasport yoki karta raqami"
+               autocomplete="off">
+        <small class="form-text" id="assign_search_hint">
+            Yozgan sari pastdagi ro'yxat qisqaradi. Bitta bemor qolsa — o'zi tanlanadi.
+        </small>
     </div>
 
     <div class="mb-3">
         <label class="form-label fw-bold">Bemorning asosiy qabulini tanlang</label>
         <select name="visit_id" id="assign_visit_select" class="form-select" required>
             <option value="">-- Tanlang --</option>
+            {% comment %}
+              DIQQAT: bu yerda `pinfl` va `passport_number` yozilgan edi —
+              `Patient` modelida bunday maydonlar YO'Q (ular `jshshir` va
+              `passport`). Shuning uchun ro'yxatda doim «JSHSHIR: -» chiqib,
+              tezkor qidiruv hech qachon mos kelmasdi.
+
+              Qidiriladigan hamma narsa `data-search` ga yig'iladi:
+              F.I.Sh., JSHSHIR, metrika, pasport, karta raqami.
+            {% endcomment %}
             {% for v in recent_visits %}
-            <option value="{{ v.id }}">{{ v.patient.full_name }} ({{ v.visit_date|date:"d.m.Y" }} | №{{ v.queue_number }}) JSHSHIR: {{ v.patient.pinfl|default:'-' }} SERIA: {{ v.patient.passport_number|default:'-' }}</option>
+            <option value="{{ v.id }}"
+                    data-search="{{ v.patient.full_name|lower }} {{ v.patient.jshshir|default:'' }} {{ v.patient.birth_certificate|default:''|lower }} {{ v.patient.passport|default:''|lower }} {{ v.patient.card_number|lower }}">{{ v.patient.full_name }} ({{ v.visit_date|date:"d.m.Y" }} | №{{ v.queue_number }}){% if v.patient.jshshir %} · JSHSHIR {{ v.patient.jshshir }}{% endif %}{% if v.patient.birth_certificate %} · Metrika {{ v.patient.birth_certificate }}{% endif %}{% if v.patient.passport %} · {{ v.patient.passport }}{% endif %} · {{ v.patient.card_number }}</option>
             {% endfor %}
         </select>
         <div class="form-text">Asosiy bemor qabuli ustiga biriktiriladi.</div>
@@ -88,27 +107,14 @@
 </form>
 
 <script>
-    // HTMX orqali form yuklangandan so'ng ishlaydi
-    setTimeout(function() {
-        if($.fn.select2) {
-            $('#assign_visit_select').select2({
-                theme: 'bootstrap-5',
-                width: '100%',
-                dropdownParent: $('#assignModal')
-            });
-        }
-        
-        $('#assign_quick_search').on('input', function() {
-            var query = $(this).val().trim().toUpperCase();
-            if (query.length >= 5) {
-                $('#assign_visit_select option').each(function() {
-                    var text = $(this).text().toUpperCase();
-                    if (text.includes('JSHSHIR: ' + query) || text.includes('SERIA: ' + query) || text.includes(query)) {
-                        $('#assign_visit_select').val($(this).val()).trigger('change');
-                        return false; 
-                    }
-                });
-            }
-        });
-    }, 100);
+/* Qidiruv mantig'i static/js/patient_search.js da (uch joyda bir xil).
+   Bu yerda faqat select2 bezagi qoladi. */
+(function () {
+  if (window.jQuery && jQuery.fn.select2) {
+    jQuery('#assign_visit_select').select2({
+      theme: 'bootstrap-5', width: '100%',
+      dropdownParent: jQuery('#assignModal'),
+    });
+  }
+})();
 </script>

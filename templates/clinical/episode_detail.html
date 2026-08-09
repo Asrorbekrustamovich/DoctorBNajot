@@ -1,0 +1,390 @@
+{% extends "base.html" %}
+{% block title %}Epizod: {{ patient.full_name }} - Doctor B Najot{% endblock %}
+
+{% block content %}
+
+{% if messages %}
+  {% for m in messages %}
+    <div class="alert alert-{{ m.tags }} alert-dismissible fade show">{{ m }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+  {% endfor %}
+{% endif %}
+
+{% comment %} Sarlavha: kim yubordi, nima maqsadda, qaysi holatda {% endcomment %}
+<div class="card shadow-sm mb-3">
+  <div class="card-body py-3">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+      <div>
+        <h1 class="h4 mb-1">{{ patient.full_name }}</h1>
+        <div class="text-muted small">
+          {{ patient.age }} yosh · {{ patient.get_gender_display }} ·
+          karta {{ patient.card_number }}
+          {% if episode.document_number %}
+            · {{ episode.get_document_type_display }}: {{ episode.document_number }}
+          {% endif %}
+        </div>
+        <div class="small mt-1">
+          <i class="bi bi-person-badge"></i>
+          Yo'llagan shifokor:
+          <b>{{ episode.referred_by.get_full_name|default:episode.referred_by.username|default:"—" }}</b>
+          · {{ episode.created_at|date:"d.m.Y H:i" }}
+        </div>
+      </div>
+      <div class="text-end">
+        {% if episode.status == 'draft' %}<span class="badge bg-warning text-dark fs-6">Rasmiylashtirilmoqda</span>
+        {% elif episode.status == 'sent' %}<span class="badge bg-info text-dark fs-6">Qabulxonaga yuborildi</span>
+        {% elif episode.status == 'admitted' %}<span class="badge bg-primary fs-6">Yotibdi</span>
+        {% elif episode.status == 'discharged' %}<span class="badge bg-success fs-6">Vipiska berildi</span>
+        {% else %}<span class="badge bg-secondary fs-6">Bekor qilindi</span>{% endif %}
+        <div class="mt-2">
+          <span class="badge bg-light text-dark">{{ episode.get_purpose_display }}</span>
+          {% if episode.with_primary_exam %}
+            <span class="badge bg-light text-dark">Birlamchi ko'rik bilan</span>
+          {% else %}
+            <span class="badge bg-danger-subtle text-danger-emphasis">Ko'riksiz</span>
+          {% endif %}
+          {% if episode.needs_anesthesiologist %}
+            <span class="badge bg-purple" style="background:#6f42c1">Anesteziolog kerak</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% if episode.reason %}
+      <div class="mt-2"><b>Murojaat sababi:</b> {{ episode.reason }}</div>
+    {% endif %}
+    {% if episode.cancel_reason %}
+      <div class="alert alert-secondary py-2 mt-2 mb-0 small">
+        Bekor qilish sababi: {{ episode.cancel_reason }}
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+{% if not can_edit %}
+  <div class="alert alert-info py-2 d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-eye"></i> Siz bu epizodni faqat <b>ko'rish</b> huquqiga egasiz.</span>
+    {% if episode.discharge %}
+      <a href="{% url 'clinical:discharge_print' episode.pk %}" target="_blank"
+         rel="noopener" class="btn btn-sm btn-outline-dark">
+        <i class="bi bi-printer"></i> Vipiskani chop etish
+      </a>
+    {% endif %}
+  </div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-7">
+
+    {% comment %} DASTLABKI KO'RIK — talab qilingan barcha bo'limlar {% endcomment %}
+    <div class="card shadow-sm mb-3">
+      <div class="card-header bg-white fw-bold py-2">
+        <i class="bi bi-clipboard2-pulse"></i> Dastlabki ko'rik
+      </div>
+      <div class="card-body">
+        <form method="post" action="{% url 'clinical:episode_save_exam' episode.pk %}">
+          {% csrf_token %}
+          <fieldset {% if not can_edit %}disabled{% endif %}>
+
+            <div class="row g-2 mb-3">
+              <div class="col-md-6">
+                <label class="form-label small fw-semibold">Murojaat sababi</label>
+                <input name="reason" class="form-control form-control-sm" value="{{ episode.reason }}">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small fw-semibold">Maqsad</label>
+                <select name="purpose" class="form-select form-select-sm">
+                  {% for val, label in purposes %}
+                    <option value="{{ val }}" {% if episode.purpose == val %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small fw-semibold">Maqsad izohi</label>
+                <input name="purpose_note" class="form-control form-control-sm" value="{{ episode.purpose_note }}">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small fw-semibold">Bo'lim</label>
+                <input name="department" class="form-control form-control-sm"
+                       value="{{ episode.department }}" placeholder="masalan: Nevrologiya">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small fw-semibold">Palata</label>
+                <select name="room" class="form-select form-select-sm">
+                  <option value="">— tanlanmagan —</option>
+                  {% for r in rooms %}
+                    <option value="{{ r.id }}" {% if episode.room_id == r.id %}selected{% endif %}>{{ r.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-12">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="with_primary_exam"
+                         value="1" id="wpe" {% if episode.with_primary_exam %}checked{% endif %}>
+                  <label class="form-check-label small" for="wpe">Birlamchi ko'rik bilan</label>
+                </div>
+              </div>
+            </div>
+
+            <div class="mb-2">
+              <label class="form-label small fw-semibold">Shikoyatlar</label>
+              <textarea name="complaints" rows="3" class="form-control form-control-sm">{{ episode.complaints }}</textarea>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small fw-semibold">Kasallik tarixi (Anamnesis morbi)</label>
+              <textarea name="anamnesis_morbi" rows="3" class="form-control form-control-sm">{{ episode.anamnesis_morbi }}</textarea>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small fw-semibold">Hayot anamnezi (Anamnesis vitae)</label>
+              <textarea name="anamnesis_vitae" rows="3" class="form-control form-control-sm">{{ episode.anamnesis_vitae }}</textarea>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small fw-semibold">Mahalliy holat (Status localis)</label>
+              <textarea name="status_localis" rows="2" class="form-control form-control-sm">{{ episode.status_localis }}</textarea>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small fw-semibold">Epidemiologik anamnez</label>
+              <textarea name="epid_anamnesis" rows="2" class="form-control form-control-sm">{{ episode.epid_anamnesis }}</textarea>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small fw-semibold">Obyektiv holat (Status praesens)</label>
+              <textarea name="status_praesens" rows="3" class="form-control form-control-sm">{{ episode.status_praesens }}</textarea>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small fw-semibold">Allergoanamnez</label>
+              <textarea name="allergo_anamnesis" rows="2" class="form-control form-control-sm">{{ episode.allergo_anamnesis }}</textarea>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small fw-semibold">Nevrologik holati</label>
+              <textarea name="neuro_status" rows="2" class="form-control form-control-sm">{{ episode.neuro_status }}</textarea>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-semibold">Klinik tashxis</label>
+              <textarea name="clinical_diagnosis" rows="3" class="form-control form-control-sm">{{ episode.clinical_diagnosis }}</textarea>
+            </div>
+
+            {% if can_edit %}
+              <button class="btn btn-primary btn-sm"><i class="bi bi-save"></i> Saqlash</button>
+            {% endif %}
+          </fieldset>
+        </form>
+      </div>
+    </div>
+
+    {% comment %} TEKSHIRUVLAR — ambulator qabuldagi bilan bir xil piker {% endcomment %}
+    {% if visit %}
+      <div class="card shadow-sm mb-3 border-primary">
+        <div class="card-header bg-primary text-white fw-bold py-2">
+          <i class="bi bi-ui-checks-grid"></i> Tekshiruvlar tayinlash
+        </div>
+        <div class="card-body py-2">
+          {% csrf_token %}
+          {% include "clinical/_exam_picker.html" %}
+        </div>
+      </div>
+      {% include "clinical/_exam_results.html" %}
+    {% else %}
+      <div class="alert alert-warning py-2 small">
+        Bu bemorda ambulator qabul yozuvi yo'q — tekshiruv tayinlash uchun
+        avval registraturada qabulga yozdiring.
+      </div>
+    {% endif %}
+
+  </div>
+
+  <div class="col-lg-5">
+
+    {% comment %} MKB-10 TASHXISLAR {% endcomment %}
+    <div class="card shadow-sm mb-3">
+      <div class="card-header bg-white fw-bold py-2 d-flex justify-content-between">
+        <span><i class="bi bi-journal-medical"></i> Epizoddagi tashxislar</span>
+        <span class="badge bg-secondary">{{ episode.diagnoses.count }}</span>
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0 align-middle">
+          <tbody>
+          {% for d in episode.diagnoses.all %}
+            <tr>
+              <td class="ps-3">
+                <div class="fw-semibold">{{ d.label }}</div>
+                <div class="small text-muted">
+                  {{ d.get_stage_display }} · {{ d.get_kind_display }} ·
+                  {{ d.get_course_display }}
+                  {% if d.note %}<br>{{ d.note }}{% endif %}
+                </div>
+              </td>
+              <td class="text-end pe-3">
+                {% if can_edit %}
+                  <form method="post" class="d-inline"
+                        action="{% url 'clinical:episode_delete_diagnosis' episode.pk d.pk %}">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-outline-danger" title="O'chirish">
+                      <i class="bi bi-trash"></i></button>
+                  </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td class="p-3 text-muted small">Tashxis qo'shilmagan.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% if can_edit %}
+      <div class="card-footer">
+        <form method="post" action="{% url 'clinical:episode_add_diagnosis' episode.pk %}"
+              class="row g-2">
+          {% csrf_token %}
+          <div class="col-12">
+            <label class="form-label small fw-semibold">MKB-10 bo'yicha qidirish</label>
+            <input class="form-control form-control-sm" id="icdSearch" autocomplete="off"
+                   placeholder="kod yoki nom, masalan: K35 yoki appendisit">
+            <input type="hidden" name="icd" id="icdId">
+            <div id="icdResults" class="list-group mt-1"
+                 style="max-height:170px; overflow:auto"></div>
+            <div id="icdChosen" class="small mt-1"></div>
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">
+              Ro'yxatda yo'q bo'lsa — matn bilan
+            </label>
+            <input name="free_text" class="form-control form-control-sm"
+                   placeholder="ixtiyoriy">
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold">Tashxis turi</label>
+            <select name="stage" class="form-select form-select-sm">
+              {% for v, l in stages %}<option value="{{ v }}">{{ l }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold">Xili</label>
+            <select name="kind" class="form-select form-select-sm">
+              {% for v, l in kinds %}<option value="{{ v }}">{{ l }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Kasallik kechishi</label>
+            <select name="course" class="form-select form-select-sm">
+              {% for v, l in courses %}<option value="{{ v }}">{{ l }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-12">
+            <input name="note" class="form-control form-control-sm" placeholder="Izoh (ixtiyoriy)">
+          </div>
+          <div class="col-12 text-end">
+            <button class="btn btn-sm btn-success">
+              <i class="bi bi-plus-lg"></i> Tashxis qo'shish
+            </button>
+          </div>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+
+    {% comment %} AMALLAR {% endcomment %}
+    {% if can_edit %}
+    <div class="card shadow-sm mb-3">
+      <div class="card-header bg-white fw-bold py-2"><i class="bi bi-send"></i> Amallar</div>
+      <div class="card-body">
+        {% if episode.status == 'draft' %}
+          <form method="post" action="{% url 'clinical:episode_send' episode.pk %}" class="mb-3">
+            {% csrf_token %}
+            <button class="btn btn-success w-100">
+              <i class="bi bi-hospital"></i> Qabulxona hamshirasiga yuborish
+            </button>
+            <div class="form-text">
+              Hamshira bemorni ko'radi va kravat beradi. Kravatni shifokor tanlamaydi.
+            </div>
+          </form>
+        {% elif episode.status == 'sent' %}
+          <div class="alert alert-info py-2 small mb-3">
+            <i class="bi bi-check2-circle"></i> Qabulxonaga yuborilgan
+            ({{ episode.sent_at|date:"d.m.Y H:i" }}). Hamshira kravat berishini kuting.
+          </div>
+        {% endif %}
+
+        {% comment %} VIPISKA — davolash yakunlanganda {% endcomment %}
+        <a href="{% url 'clinical:episode_discharge' episode.pk %}"
+           class="btn btn-outline-success w-100 mb-3">
+          <i class="bi bi-file-earmark-medical"></i>
+          {% if episode.discharge %}Vipiskani ochish{% else %}Vipiska yozish{% endif %}
+        </a>
+
+        {% if episode.status != 'admitted' %}
+          <form method="post" action="{% url 'clinical:episode_cancel' episode.pk %}"
+                onsubmit="return confirm('Qabul yozuvi bekor qilinsinmi?')">
+            {% csrf_token %}
+            <input name="cancel_reason" class="form-control form-control-sm mb-2"
+                   placeholder="Bekor qilish sababi">
+            <button class="btn btn-outline-danger btn-sm w-100">
+              <i class="bi bi-x-circle"></i> Qabul yozuvini bekor qilish
+            </button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if previous %}
+    <div class="card shadow-sm">
+      <div class="card-header bg-white fw-bold py-2">
+        <i class="bi bi-clock-history"></i> Oldingi epizodlar
+      </div>
+      <ul class="list-group list-group-flush small">
+        {% for e in previous %}
+          <li class="list-group-item d-flex justify-content-between">
+            <span>{{ e.created_at|date:"d.m.Y" }} — {{ e.reason|default:"—"|truncatechars:38 }}</span>
+            <a href="{% url 'clinical:episode_detail' e.pk %}">ochish</a>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+
+<script>
+{% comment %} MKB-10 jonli qidiruv {% endcomment %}
+(function () {
+  var box = document.getElementById('icdSearch');
+  if (!box) return;
+  var out = document.getElementById('icdResults');
+  var hidden = document.getElementById('icdId');
+  var chosen = document.getElementById('icdChosen');
+  var timer = null;
+
+  box.addEventListener('input', function () {
+    clearTimeout(timer);
+    var q = box.value.trim();
+    if (q.length < 2) { out.innerHTML = ''; return; }
+    timer = setTimeout(function () {
+      fetch('{% url "clinical:icd_search" %}?q=' + encodeURIComponent(q))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          out.innerHTML = '';
+          d.results.forEach(function (it) {
+            var a = document.createElement('button');
+            a.type = 'button';
+            a.className = 'list-group-item list-group-item-action py-1 small';
+            a.textContent = it.code + ' — ' + it.name;
+            a.addEventListener('click', function () {
+              hidden.value = it.id;
+              chosen.innerHTML = '<span class="badge bg-primary">' +
+                it.code + '</span> ' + it.name;
+              out.innerHTML = '';
+              box.value = '';
+            });
+            out.appendChild(a);
+          });
+          if (!d.results.length) {
+            out.innerHTML = '<div class="list-group-item small text-muted">' +
+              'Topilmadi — pastdagi matn maydonidan foydalaning.</div>';
+          }
+        });
+    }, 250);
+  });
+})();
+</script>
+{% endblock %}

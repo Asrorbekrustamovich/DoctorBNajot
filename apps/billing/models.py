@@ -110,6 +110,23 @@ class InvoiceItem(Auditable, BaseModel):
         SURGERY = "surgery", "Jarrohlik amaliyoti"
         OTHER = "other", "Boshqa"
 
+    class PaymentMode(models.TextChoices):
+        """Qachon to'lanadi.
+
+        Klinikaning qoidasi: ambulator qabul va TEKSHIRUVLAR (analiz, UZI,
+        EKG…) xizmat KO'RSATILISHIDAN OLDIN to'lanadi. Statsionar yotish
+        esa kassaga yoziladi va yakunda hisoblanadi.
+
+        Tekshiruvga bu qoida qayerdan buyurilganidan qat'i nazar tegishli:
+        ambulator qabulda ham, statsionarda yotgan bemorda ham — avval
+        to'lov, keyin tekshiruv.
+        """
+        PREPAID = "prepaid", "Oldindan to'lanadi"
+        POSTPAID = "postpaid", "Kassaga (yakunda)"
+
+    # Qaysi band oldindan to'lanishi turiga qarab avtomatik aniqlanadi.
+    PREPAID_TYPES = (ItemType.SERVICE,)
+
     invoice = models.ForeignKey(
         Invoice, verbose_name="Hisob", on_delete=models.CASCADE, related_name="items"
     )
@@ -122,6 +139,16 @@ class InvoiceItem(Auditable, BaseModel):
     quantity = models.DecimalField("Soni/Miqdori", max_digits=10, decimal_places=2, default=1)
     price = models.DecimalField("Narxi", max_digits=12, decimal_places=2)
     total_price = models.DecimalField("Jami narxi", max_digits=12, decimal_places=2)
+    payment_mode = models.CharField(
+        "To'lov tartibi", max_length=20, choices=PaymentMode.choices,
+        default=PaymentMode.POSTPAID, db_index=True,
+    )
+    paid_at = models.DateTimeField("To'langan vaqt", null=True, blank=True)
+    paid_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="Qabul qildi (kassir)",
+        null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="collected_items",
+    )
 
     class Meta:
         verbose_name = "Hisob bandi"
@@ -130,8 +157,25 @@ class InvoiceItem(Auditable, BaseModel):
     def __str__(self) -> str:
         return f"{self.name} x{self.quantity} = {self.total_price}"
 
+    @property
+    def is_prepaid_required(self) -> bool:
+        return self.payment_mode == self.PaymentMode.PREPAID
+
+    @property
+    def is_paid(self) -> bool:
+        return self.paid_at is not None
+
     def save(self, *args, **kwargs):
         self.total_price = self.price * self.quantity
+        # To'lov tartibi turdan kelib chiqadi: xizmat — oldindan,
+        # palata/dori/operatsiya — kassaga. Qo'lda o'zgartirilgan bo'lsa
+        # tegmaymiz (`_mode_locked`).
+        if not getattr(self, "_mode_locked", False):
+            self.payment_mode = (
+                self.PaymentMode.PREPAID
+                if self.item_type in self.PREPAID_TYPES
+                else self.PaymentMode.POSTPAID
+            )
         super().save(*args, **kwargs)
 
 

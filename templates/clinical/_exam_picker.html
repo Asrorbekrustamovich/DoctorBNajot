@@ -1,0 +1,200 @@
+{% comment %}
+  TEKSHIRUV TAYINLASH — «+Analiz», «+EKG», «+UZI», «+Endoskop», «+Rentgen».
+
+  Nima uchun modal: tekshiruvlar 60 tadan oshadi, ularni qabul oynasiga
+  tekis ro'yxat qilib yozsak shifokor kerakligini qidirib topa olmaydi.
+  Shuning uchun har bir guruh o'z tugmasiga ega, tugma bosilganda faqat
+  o'sha guruh ochiladi.
+
+  Talab qilingan xatti-harakatlar:
+    · har bir tekshiruv yonida narxi turadi
+    · bir nechtasini belgilash mumkin
+    · har bir guruhda «Tanlovni bekor qilish»
+    · pastda nechta tanlangani va jami summa
+    · «Bemorga tayinlash» tugmasi
+
+  Kerakli kontekst:
+    exam_groups   — clinical.selectors.exam_picker_groups()
+    assign_url    — POST manzili (services=<uuid> ko'p marta)
+{% endcomment %}
+
+<style>
+/* Tekshiruv qatori. Belgilangan-belgilanmagani BIR QARASHDA bilinishi
+   kerak: katta katakcha, ko'k ramka, ko'kimtir fon va o'ng tomonda ✓.
+   Ilgari faqat kichkina katakcha bor edi va u Bootstrap'ning
+   `.form-check` manfiy chekkasi tufayli chegaraga chiqib ketardi. */
+.exam-item {
+  display: flex;
+  align-items: flex-start;
+  gap: .6rem;
+  padding: .45rem .6rem;
+  border: 1.5px solid #dee2e6;
+  border-radius: .4rem;
+  cursor: pointer;
+  background: #fff;
+  transition: border-color .12s, background-color .12s, box-shadow .12s;
+  position: relative;
+  width: 100%;
+  margin: 0;
+}
+.exam-item:hover { border-color: #86b7fe; background: #f8fbff; }
+
+.exam-item .exam-check {
+  flex: 0 0 auto;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: .15rem 0 0 0;      /* Bootstrap manfiy chekkasini bekor qilamiz */
+  float: none;
+  cursor: pointer;
+}
+
+.exam-item .exam-body { flex: 1 1 auto; min-width: 0; }
+.exam-item .exam-title {
+  display: flex; justify-content: space-between; gap: .5rem; align-items: baseline;
+}
+.exam-item .exam-name { line-height: 1.25; }
+.exam-item .exam-price { color: #198754; font-weight: 600; white-space: nowrap; }
+.exam-item .exam-meta { display: block; font-size: .72rem; color: #6c757d; margin-top: .1rem; }
+
+/* --- TANLANGAN holat --- */
+.exam-item.is-picked {
+  border-color: #0d6efd;
+  background: #e7f1ff;
+  box-shadow: 0 0 0 .15rem rgba(13,110,253,.15);
+}
+.exam-item.is-picked .exam-name { font-weight: 600; }
+.exam-item.is-picked::after {
+  content: "✓";
+  position: absolute; top: .25rem; right: .45rem;
+  color: #0d6efd; font-weight: 700; font-size: .85rem;
+}
+
+/* --- Allaqachon tayinlangan (o'chirilgan) --- */
+.exam-item.is-assigned {
+  background: #f1f3f5; border-style: dashed; cursor: not-allowed; opacity: .8;
+}
+.exam-item.is-assigned .exam-name { color: #6c757d; }
+</style>
+
+<div class="exam-picker" id="examPicker">
+
+  {# --- Guruh tugmalari --- #}
+  <div class="d-flex flex-wrap gap-2 mb-2">
+    {% for g in exam_groups %}
+      {% comment %}
+        `data-bs-toggle` ATAYLAB ishlatilmaydi: ochishdan oldin qabul
+        oynasini yashirishimiz kerak, Bootstrap'ning o'z ishlov beruvchisi
+        esa buni kutmasdan ikkinchi modalni ochib yuboradi va ikkita fon
+        ustma-ust tushadi. Ochish to'liq exam_picker.js zimmasida.
+      {% endcomment %}
+      <button type="button"
+              class="btn btn-outline-primary btn-sm position-relative exam-group-btn"
+              data-exam-open="examModal-{{ g.id }}">
+        <span class="me-1">{{ g.icon }}</span>{{ g.label }}
+        <span class="badge rounded-pill bg-light text-dark ms-1">{{ g.count }}</span>
+        <span class="badge rounded-pill bg-danger ms-1 d-none"
+              data-group-counter="{{ g.id }}">0</span>
+      </button>
+    {% empty %}
+      <div class="text-muted small">
+        Tekshiruvlar guruhi sozlanmagan. Superadmin →
+        <a href="{% url 'clinical:service_settings' %}">Xizmatlar sozlamalari</a>.
+      </div>
+    {% endfor %}
+  </div>
+
+  {# --- Umumiy hisob va yuborish --- #}
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2
+              border rounded p-2 bg-light">
+    <div class="small">
+      <span class="fw-bold" id="examPickedCount">0</span> ta tekshiruv tanlandi ·
+      jami <span class="fw-bold text-success" id="examPickedSum">0</span> so'm
+      <div class="text-muted" style="font-size:.78rem">
+        Bemor to'lovni registraturada amalga oshiradi. To'lovdan keyin
+        tekshiruv tegishli kabinetda ko'rinadi.
+      </div>
+    </div>
+    <div class="d-flex gap-2">
+      <button type="button" class="btn btn-sm btn-outline-secondary"
+              id="examClearAll" disabled>
+        <i class="bi bi-x-circle"></i> Hammasini bekor qilish
+      </button>
+      <button type="button" class="btn btn-sm btn-success"
+              id="examAssignBtn" disabled
+              data-url="{{ assign_url }}">
+        <i class="bi bi-send-check"></i> Bemorga tayinlash
+      </button>
+    </div>
+  </div>
+
+  <div id="examPickerMsg" class="mt-2"></div>
+</div>
+
+{# ------------------------------------------------------------------ #}
+{# Har bir guruh uchun alohida modal                                    #}
+{# ------------------------------------------------------------------ #}
+{% for g in exam_groups %}
+<div class="modal fade" id="examModal-{{ g.id }}" tabindex="-1"
+     aria-labelledby="examModalLabel-{{ g.id }}" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+
+      <div class="modal-header py-2">
+        {% comment %}
+          «Orqaga» — bu modal qabul oynasi USTIDA ochiladi. Faqat ✕ bo'lsa
+          foydalanuvchi qayerga qaytayotganini bilmaydi va butun qabul
+          oynasi yopilib ketdimi deb o'ylaydi. Tugma aniq aytadi.
+        {% endcomment %}
+        <button type="button" class="btn btn-sm btn-outline-secondary me-2"
+                data-exam-back aria-label="Orqaga qaytish">
+          <i class="bi bi-arrow-left"></i> Orqaga
+        </button>
+        <h6 class="modal-title flex-grow-1 mb-0" id="examModalLabel-{{ g.id }}">
+          {{ g.icon }} {{ g.name }}
+          <span class="badge bg-primary ms-1 d-none"
+                data-group-picked-badge="{{ g.id }}">0</span>
+        </h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"
+                aria-label="Yopish"></button>
+      </div>
+
+      <div class="modal-body py-2">
+        <input type="text" class="form-control form-control-sm mb-2"
+               placeholder="Qidirish…" data-exam-search="{{ g.id }}"
+               aria-label="Tekshiruv qidirish">
+
+        {% if g.services %}
+          <div class="row row-cols-1 row-cols-md-2 g-1 mb-2">
+            {% for s in g.services %}{% include "clinical/_exam_picker_item.html" with s=s g=g %}{% endfor %}
+          </div>
+        {% endif %}
+
+        {% for c in g.children %}
+          <div class="mt-2">
+            <div class="fw-semibold small text-uppercase text-secondary
+                        border-bottom pb-1 mb-1">{{ c.name }}</div>
+            <div class="row row-cols-1 row-cols-md-2 g-1">
+              {% for s in c.services %}{% include "clinical/_exam_picker_item.html" with s=s g=g %}{% endfor %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+
+      <div class="modal-footer py-2 d-flex justify-content-between">
+        <button type="button" class="btn btn-sm btn-outline-danger"
+                data-exam-clear="{{ g.id }}">
+          <i class="bi bi-eraser"></i> Tanlovni bekor qilish
+        </button>
+        <div class="small text-muted">
+          <span data-group-picked="{{ g.id }}">0</span> ta tanlandi ·
+          <span data-group-sum="{{ g.id }}">0</span> so'm
+        </div>
+        <button type="button" class="btn btn-sm btn-primary" data-exam-back>
+          <i class="bi bi-check2"></i> Tayyor
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endfor %}

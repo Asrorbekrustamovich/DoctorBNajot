@@ -1,0 +1,104 @@
+{% comment %}
+  TAYINLANGAN TEKSHIRUVLAR VA NATIJALARI — shifokor ko'radigan panel.
+
+  Shifokor dori yozishdan oldin natijalarni ko'rishi kerak. Ilgari buning
+  uchun boshqa sahifaga o'tish kerak edi va qabul oynasi yopilib qolardi.
+
+  Har bir natija yonida «Chop etish» — alohida rasmiy blank sifatida
+  chiqadi (EKG, UZI, analiz). Bu tugma registratura ekranida ham xuddi
+  shu shablon orqali ishlatiladi.
+
+  Kerakli kontekst: exam_orders — clinical.selectors.visit_exam_orders()
+{% endcomment %}
+
+{% if exam_orders %}
+<div class="card shadow-sm mb-3 border-success">
+  <div class="card-header bg-success text-white fw-bold py-2 d-flex
+              justify-content-between align-items-center">
+    <span><i class="bi bi-clipboard2-pulse"></i> Tekshiruv natijalari</span>
+    <span class="badge bg-light text-dark">{{ exam_orders|length }} ta</span>
+  </div>
+  <div class="card-body py-2">
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th style="width:26%">Tekshiruv</th>
+            <th style="width:12%">Holati</th>
+            <th>Natija</th>
+            <th style="width:14%" class="text-end">Amal</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for o in exam_orders %}
+          <tr>
+            <td>
+              <div class="fw-semibold">{{ o.service.name }}</div>
+              <div class="text-muted" style="font-size:.72rem">
+                {% if o.service.category %}{{ o.service.category }}{% endif %}
+                {% if o.performed_by %} · {{ o.performed_by.get_full_name|default:o.performed_by.username }}{% endif %}
+              </div>
+            </td>
+            <td>
+              {% if o.status == 'completed' %}
+                <span class="badge bg-success">Tayyor</span>
+              {% elif o.status == 'in_progress' %}
+                <span class="badge bg-info text-dark">Bajarilmoqda</span>
+              {% elif o.status == 'paid' %}
+                <span class="badge bg-primary">To'landi</span>
+              {% elif o.status == 'waiting' %}
+                <span class="badge bg-warning text-dark">To'lov kutilmoqda</span>
+              {% else %}
+                <span class="badge bg-secondary">{{ o.get_status_display }}</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if o.result_rows.all %}
+                <table class="table table-sm table-borderless mb-1"
+                       style="font-size:.8rem">
+                  {% for r in o.result_rows.all %}
+                    <tr class="{% if r.is_abnormal %}text-danger fw-semibold{% endif %}">
+                      <td class="py-0 ps-0">{{ r.name }}</td>
+                      <td class="py-0">{{ r.value }} {{ r.unit }}</td>
+                      <td class="py-0 text-muted">{{ r.reference }}</td>
+                    </tr>
+                  {% endfor %}
+                </table>
+              {% endif %}
+              {% if o.result_text %}
+                <div style="font-size:.82rem; white-space:pre-wrap">{{ o.result_text }}</div>
+              {% endif %}
+              {% if not o.has_result %}
+                <span class="text-muted small">Natija hali kiritilmagan</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              {% if o.has_result %}
+                <a href="{% url 'clinical:service_result_print' o.id %}"
+                   target="_blank" rel="noopener"
+                   class="btn btn-sm btn-outline-dark">
+                  <i class="bi bi-printer"></i> Chop etish
+                </a>
+              {% else %}
+                <button class="btn btn-sm btn-outline-secondary" disabled>
+                  <i class="bi bi-printer"></i>
+                </button>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if exam_orders|length > 1 %}
+      <div class="text-end mt-2">
+        <a href="{% url 'clinical:visit_results_print' visit.pk %}"
+           target="_blank" rel="noopener"
+           class="btn btn-sm btn-dark">
+          <i class="bi bi-printer-fill"></i> Hammasini bitta blankda chop etish
+        </a>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}

@@ -1,71 +1,54 @@
 #!/usr/bin/env bash
 # ============================================================
-#  2) YANGILASH (deploy) — kod o'zgargandan keyin har safar.
+#  YANGILASH — kodni serverga chiqarish.
 #
-#  Ishlatish:
-#      bash server/2-yangilash.sh
-#      bash server/2-yangilash.sh --no-git     # git pull qilmasdan
+#    sudo bash server/2-yangilash.sh
 #
-#  Nima qiladi: zaxira -> kodni yangilash -> paketlar -> migratsiya
-#  -> statik fayllar -> xizmatlarni qayta ishga tushirish -> tekshirish
+#  Har bosqichda xato bo'lsa TO'XTAYDI (set -e) — yarim yangilangan
+#  holat eng yomon variant.
 # ============================================================
 set -euo pipefail
 
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$PROJECT_DIR"
+APP_DIR="${APP_DIR:-/opt/edumed-his}"
+SERVICE="${SERVICE:-edumed-his}"
 
-say() { echo -e "\n\033[1;36m==> $*\033[0m"; }
-ok()  { echo -e "  \033[1;32m✓\033[0m $*"; }
-err() { echo -e "  \033[1;31m✗\033[0m $*" >&2; }
+cd "$APP_DIR"
 
-DO_GIT=1
-[ "${1:-}" = "--no-git" ] && DO_GIT=0
+say() { printf '\n\033[1;36m== %s ==\033[0m\n' "$1"; }
 
-# shellcheck disable=SC1091
+say "1/7  Zaxira"
+bash server/5-zaxira.sh || echo "  (zaxira o'tkazib yuborildi)"
+
+say "2/7  Serverni to'xtatish"
+systemctl stop "$SERVICE" || true
+
+say "3/7  Kutubxonalar"
 source .venv/bin/activate
+pip install -q -r requirements.txt
 
-# ---------- 1. Zaxira (orqaga qaytish kerak bo'lsa) ----------
-say "Yangilashdan oldin zaxira"
-python manage.py backup_db --keep 30 || err "Zaxira olinmadi — davom etilmoqda"
-
-# ---------- 2. Kod ----------
-if [ "$DO_GIT" = "1" ] && [ -d .git ]; then
-    say "Kod yangilanmoqda (git pull)"
-    git pull --ff-only
-    ok "Kod yangilandi: $(git rev-parse --short HEAD)"
-fi
-
-# ---------- 3. Paketlar ----------
-say "Paketlar tekshirilmoqda"
-pip install -r requirements.txt -q
-ok "Paketlar dolzarb"
-
-# ---------- 4. Migratsiya ----------
-say "Migratsiyalar"
+say "4/7  Migratsiyalar"
 python manage.py migrate --noinput
-ok "Baza dolzarb"
 
-# ---------- 5. Statik ----------
-say "Statik fayllar"
-python manage.py collectstatic --noinput -v 0
-ok "staticfiles/ yangilandi"
+say "5/7  Statik fayllar"
+python manage.py collectstatic --noinput >/dev/null
+echo "  yig'ildi"
 
-# ---------- 6. Xizmatlar ----------
-say "Xizmatlar qayta ishga tushirilmoqda"
-if systemctl list-unit-files 2>/dev/null | grep -q edumed-his; then
-    sudo systemctl restart edumed-his
-    ok "edumed-his qayta ishga tushdi"
-    if systemctl list-unit-files | grep -q edumed-celery; then
-        sudo systemctl restart edumed-celery
-        ok "edumed-celery qayta ishga tushdi"
-    fi
-else
-    err "systemd xizmati topilmadi — qo'lda ishga tushiring"
-fi
+say "6/7  Huquqlar"
+chown -R www-data:www-data "$APP_DIR/media" "$APP_DIR/logs" 2>/dev/null || true
+mkdir -p "$APP_DIR/media/tts"
+chown -R www-data:www-data "$APP_DIR/media/tts"
 
-# ---------- 7. Tekshirish ----------
-say "Tekshirish"
+say "7/7  Tekshiruv"
+# deploy_check xato topsa 1 qaytaradi va skript shu yerda to'xtaydi —
+# serverni buzuq holatda ishga tushirmaymiz.
+python manage.py deploy_check
+
+say "Ishga tushirish"
+systemctl start "$SERVICE"
 sleep 3
-bash server/4-tekshirish.sh || err "Tekshiruvda muammo bor — loglarni ko'ring"
+systemctl status "$SERVICE" --no-pager | head -8
+nginx -t && systemctl reload nginx
 
-say "YANGILASH TUGADI"
+printf '\n\033[1;32mTayyor.\033[0m Ovozni tekshirish:\n'
+printf '  https://doctorbnajot.uz/registration/board/tts/health/\n'
+printf 'Muammo bo%%s sa: server/YUKLASH.md\n'

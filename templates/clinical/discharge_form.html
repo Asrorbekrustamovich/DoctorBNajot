@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Vipiska yozish — {{ patient.full_name }}{% endblock %}
+
+{% block content %}
+<h1 class="h4 mb-1"><i class="bi bi-file-earmark-medical"></i> Vipiska yozish</h1>
+<p class="text-muted small mb-3">
+  {{ patient.full_name }} · {{ episode.department|default:"bo'lim ko'rsatilmagan" }}
+  {% if episode.room %} · {{ episode.room.name }}{% endif %}
+</p>
+
+{% if messages %}
+  {% for m in messages %}
+    <div class="alert alert-{{ m.tags }} alert-dismissible fade show">{{ m }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+  {% endfor %}
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card shadow-sm">
+      <div class="card-header bg-white fw-bold py-2">Yakuniy xulosa</div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+
+          <div class="row g-2 mb-3">
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Davolash natijasi</label>
+              <select name="outcome" class="form-select form-select-sm">
+                {% for v, l in outcomes %}
+                  <option value="{{ v }}" {% if summary and summary.outcome == v %}selected{% endif %}>{{ l }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Mehnat qobiliyati</label>
+              <select name="work_capacity" class="form-select form-select-sm" id="wc">
+                {% for v, l in capacities %}
+                  <option value="{{ v }}" {% if summary and summary.work_capacity == v %}selected{% endif %}>{{ l }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Kasallik varaqasi (dan)</label>
+              <input type="date" name="sick_leave_from" class="form-control form-control-sm"
+                     value="{{ summary.sick_leave_from|date:'Y-m-d'|default:'' }}">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Kasallik varaqasi (gacha)</label>
+              <input type="date" name="sick_leave_to" class="form-control form-control-sm"
+                     value="{{ summary.sick_leave_to|date:'Y-m-d'|default:'' }}">
+            </div>
+          </div>
+
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">O'tkazilgan davolash</label>
+            <textarea name="treatment_given" rows="4" class="form-control form-control-sm"
+                      placeholder="Infuzion terapiya, antibiotiklar, jarrohlik…">{{ summary.treatment_given|default:'' }}</textarea>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Chiqishdagi holati</label>
+            <textarea name="condition_at_discharge" rows="3" class="form-control form-control-sm">{{ summary.condition_at_discharge|default:'' }}</textarea>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Tavsiyalar</label>
+            <textarea name="recommendations" rows="4" class="form-control form-control-sm"
+                      placeholder="Parhez, rejim, dorilar, cheklovlar…">{{ summary.recommendations|default:'' }}</textarea>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Nazorat ko'rigi</label>
+            <input name="follow_up" class="form-control form-control-sm"
+                   value="{{ summary.follow_up|default:'' }}"
+                   placeholder="masalan: 10 kundan keyin oilaviy shifokorga">
+          </div>
+
+          <button class="btn btn-success">
+            <i class="bi bi-file-earmark-check"></i>
+            {% if summary %}Vipiskani yangilash{% else %}Vipiskani shakllantirish{% endif %}
+          </button>
+          {% if summary %}
+            <a href="{% url 'clinical:discharge_print' episode.pk %}" target="_blank"
+               rel="noopener" class="btn btn-outline-dark">
+              <i class="bi bi-printer"></i> Chop etish
+            </a>
+          {% endif %}
+        </form>
+      </div>
+    </div>
+  </div>
+
+  {% comment %}
+    O'ng tomonda — vipiskaga AVTOMATIK tushadigan ma'lumot. Shifokor
+    buni qo'lda ko'chirib yozmasligi kerak, faqat to'liq ekanini
+    ko'rib chiqadi.
+  {% endcomment %}
+  <div class="col-lg-5">
+    <div class="card shadow-sm">
+      <div class="card-header bg-light fw-bold py-2">
+        <i class="bi bi-magic"></i> Hujjatga o'zi tushadi
+      </div>
+      <ul class="list-group list-group-flush small">
+        <li class="list-group-item">
+          <b>Tashxislar:</b> {{ diagnoses|length }} ta
+          {% for d in diagnoses %}<div class="text-muted">· {{ d.label }}</div>{% endfor %}
+        </li>
+        <li class="list-group-item">
+          <b>Tekshiruv natijalari:</b> {{ orders|length }} ta
+          {% for o in orders %}<div class="text-muted">· {{ o.service.name }}</div>{% endfor %}
+        </li>
+        <li class="list-group-item"><b>Operatsiyalar:</b> {{ surgeries|length }} ta</li>
+        <li class="list-group-item"><b>Berilgan dorilar:</b> {{ medicines|length }} ta</li>
+        <li class="list-group-item">
+          <b>Kelgandagi holati:</b>
+          {% if episode.complaints %}yozilgan{% else %}
+            <span class="text-warning">yozilmagan</span>{% endif %}
+        </li>
+      </ul>
+      <div class="card-footer small text-muted">
+        Yotgan kunlar, sanalar va bo'lim ham avtomatik qo'shiladi.
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

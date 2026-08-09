@@ -1,6 +1,7 @@
 from django.urls import path
 from apps.clinical.views import VisitConsultationView
 from apps.clinical import views
+from apps.clinical import episode_views
 
 app_name = "clinical"
 
@@ -55,6 +56,8 @@ urlpatterns = [
     path("service/add/", views.add_service, name="add_service"),
     path("service/<uuid:service_id>/update-price/", views.update_service_price, name="update_service_price"),
     path("service/<uuid:service_id>/toggle/", views.toggle_service, name="toggle_service"),
+    path("service/<uuid:service_id>/routing/", views.update_service_routing, name="update_service_routing"),
+    path("service/category/<uuid:category_id>/defaults/", views.update_category_defaults, name="update_category_defaults"),
 
     # Surgery Settings
     path("surgery/settings/", views.surgery_settings, name="surgery_settings"),
@@ -130,4 +133,22 @@ urlpatterns = [
     path("examiner/order/<uuid:order_id>/call/", views.ExaminerOrderCallView.as_view(), name="examiner_order_call"),
     path("examiner/order/<uuid:order_id>/accept/", views.ExaminerOrderAcceptView.as_view(), name="examiner_order_accept"),
     path("examiner/order/<uuid:order_id>/defer/", views.ExaminerOrderDeferView.as_view(), name="examiner_order_defer"),
+
+    # --- Statsionar epizodi (ambulator shifokor rasmiylashtiradi) ---
+    path("episode/", episode_views.episode_search, name="episode_search"),
+    path("episode/patient/<uuid:patient_id>/new/", episode_views.episode_create, name="episode_create"),
+    path("episode/<uuid:pk>/", episode_views.episode_detail, name="episode_detail"),
+    path("episode/<uuid:pk>/exam/", episode_views.episode_save_exam, name="episode_save_exam"),
+    path("episode/<uuid:pk>/diagnosis/add/", episode_views.episode_add_diagnosis, name="episode_add_diagnosis"),
+    path("episode/<uuid:pk>/diagnosis/<uuid:diagnosis_id>/delete/", episode_views.episode_delete_diagnosis, name="episode_delete_diagnosis"),
+    path("episode/<uuid:pk>/send/", episode_views.episode_send, name="episode_send"),
+    path("episode/<uuid:pk>/cancel/", episode_views.episode_cancel, name="episode_cancel"),
+    path("icd/search/", episode_views.icd_search, name="icd_search"),
+    path("nurse/incoming/", episode_views.nurse_incoming, name="nurse_incoming"),
+    path("episode/<uuid:pk>/discharge/", episode_views.episode_discharge, name="episode_discharge"),
+    path("episode/<uuid:pk>/discharge/print/", episode_views.discharge_print, name="discharge_print"),
+
+    # Tekshiruv natijalarini chop etish (shifokor ham, registratura ham)
+    path("result/<uuid:order_id>/print/", views.ServiceResultPrintView.as_view(), name="service_result_print"),
+    path("visit/<uuid:visit_id>/results/print/", views.VisitResultsPrintView.as_view(), name="visit_results_print"),
 ]

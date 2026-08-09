@@ -45,6 +45,14 @@ class Patient(Auditable, BaseModel):
         "JSHSHIR", max_length=14, null=True, blank=True, unique=True,
         validators=[jshshir_validator],
     )
+    # Bolalarda JSHSHIR hali bo'lmaydi — ular tug'ilganlik haqidagi
+    # guvohnoma (metrika) bo'yicha qidiriladi. Statsionarga
+    # rasmiylashtirishda hujjat turi shu ikkovidan tanlanadi.
+    birth_certificate = models.CharField(
+        "Metrika (tug'ilganlik guvohnomasi)", max_length=20,
+        null=True, blank=True, unique=True,
+        help_text="Bolalar uchun. Masalan: I-AB 123456",
+    )
     address = models.CharField("Manzil", max_length=255, blank=True)
     relative_name = models.CharField("Qarindoshi (FIO)", max_length=200, blank=True)
     relative_phone = models.CharField(

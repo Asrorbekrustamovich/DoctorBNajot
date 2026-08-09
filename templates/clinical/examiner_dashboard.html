@@ -28,11 +28,27 @@
                     </td>
                     <td>
                         <div class="fw-bold">{{ order.visit.patient.full_name }}</div>
-                        <div class="small text-muted">{{ order.service.name }}</div>
+                        <div class="small text-muted">
+                            {{ order.service.name }}
+                            {% if order.is_paid %}
+                            <span class="badge bg-success ms-1">To'langan</span>
+                            {% else %}
+                            <span class="badge bg-danger ms-1">To'lanmagan</span>
+                            {% endif %}
+                        </div>
                     </td>
                     <td class="small text-muted">
                         Qabul qildi:
-                        {{ order.accepted_by.get_full_name|default:order.accepted_by.username|default:"—" }}
+                        {% comment %}
+                          `default:` filtrining ARGUMENTI ham hisoblanadi.
+                          `accepted_by` bo'sh bo'lsa `accepted_by.username`
+                          o'qib bo'lmaydi va shablon xato bilan yiqiladi
+                          (sahifa 500 beradi). Shuning uchun avval
+                          mavjudligini tekshiramiz.
+                        {% endcomment %}
+                        {% if order.accepted_by %}
+                          {{ order.accepted_by.get_full_name|default:order.accepted_by.username }}
+                        {% else %}—{% endif %}
                     </td>
                     <td class="text-end pe-3 text-nowrap">
                         <button type="button" class="btn btn-sm btn-outline-secondary"
@@ -100,7 +116,24 @@
                             </td>
                             <td>
                                 <span class="badge bg-info text-dark">{{ order.service.name }}</span>
-                                {% if order.service.room or order.service.responsible_staff %}
+                                {% comment %} TO'LOV HOLATI — bo'lim buni ko'rishi shart.
+                                   Kassa registraturada, laboratoriya pulni
+                                   o'zi ko'rmaydi; shuning uchun bemor
+                                   to'laganmi yoki yo'qmi shu yerda aytiladi. {% endcomment %}
+                                {% if order.is_paid %}
+                                <span class="badge bg-success ms-1">
+                                    <i class="bi bi-cash-coin"></i> To'langan
+                                </span>
+                                {% else %}
+                                <span class="badge bg-danger ms-1">
+                                    <i class="bi bi-lock"></i> To'lanmagan
+                                </span>
+                                <div class="small text-danger mt-1">
+                                    Tekshiruv puli oldindan to'lanadi —
+                                    bemorni registraturaga yo'llang.
+                                </div>
+                                {% endif %}
+                                {% if order.service.destination %}
                                 <div class="small text-muted mt-1">
                                     <i class="bi bi-geo-alt"></i> {{ order.service.destination }}
                                 </div>
@@ -109,7 +142,8 @@
                             <td class="text-end pe-3 text-nowrap">
                                 <form method="post" action="{% url 'clinical:examiner_order_call' order.id %}" class="d-inline">
                                     {% csrf_token %}
-                                    <button type="submit" class="btn btn-sm btn-warning" title="Tabloda e'lon qilinadi va ovoz bilan chaqiriladi">
+                                    <button type="submit" class="btn btn-sm btn-warning"
+                                            {% if not order.is_paid %}disabled title="To'lov qilinmagan"{% else %}title="Tabloda e'lon qilinadi va ovoz bilan chaqiriladi"{% endif %}>
                                         <i class="bi bi-megaphone"></i>
                                         {% if order.called_at %}Qayta chaqirish{% else %}Chaqirish{% endif %}
                                     </button>

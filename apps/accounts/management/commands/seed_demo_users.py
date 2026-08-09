@@ -25,7 +25,7 @@ DEMO_USERS: tuple[tuple[str, str, str, str], ...] = (
     ("palata_hamshira", Role.Code.WARD_NURSE, "Palata", "Hamshirasi"),
     ("laborant", Role.Code.LAB, "Laboratoriya", "Xodimi"),
     ("radiolog", Role.Code.RADIOLOGY, "Radiologiya", "Xodimi"),
-    ("farmatsevt", Role.Code.PHARMACY, "Dorixona", "Xodimi"),
+    # ("farmatsevt", Role.Code.PHARMACY, "Dorixona", "Xodimi"),
     ("ombor", Role.Code.WAREHOUSE, "Ombor", "Mudiri"),
     ("kassir", Role.Code.CASHIER, "Kassa", "Xodimi"),
     ("buxgalter", Role.Code.ACCOUNTANT, "Hisob", "Xodimi"),

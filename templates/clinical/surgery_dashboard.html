@@ -51,15 +51,21 @@
           <div class="modal-body">
               <div class="mb-3">
                   <label class="form-label fw-bold text-primary"><i class="bi bi-search"></i> Bemor qidiruv (Ism / JSHSHIR / Pasport)</label>
-                  <input type="text" id="surgery_quick_search" class="form-control border-primary bg-light" placeholder="Qidirish uchun yozing..." autocomplete="off">
-                  <small class="form-text">Ma'lumot terilishi bilan pastdagi qutida bemor avtomatik tanlanadi.</small>
+                  <input type="text" id="surgery_quick_search"
+                         data-patient-search="surgery_patient_select"
+                         data-hint="surgery_search_hint"
+                         class="form-control border-primary"
+                         placeholder="Ism, familiya, JSHSHIR, metrika, pasport yoki karta raqami"
+                         autocomplete="off">
+                  <small class="form-text" id="surgery_search_hint">Yozgan sari ro'yxat qisqaradi. Bitta bemor qolsa — o'zi tanlanadi.</small>
               </div>
               <div class="mb-3">
                   <label class="form-label fw-bold">Bemorni tanlang <span class="text-danger">*</span></label>
                   <select name="patient_id" id="surgery_patient_select" class="form-select" required>
                       <option value="">-- Tanlang --</option>
                       {% for p in patients %}
-                      <option value="{{ p.id }}">{{ p.full_name }} JSHSHIR: {{ p.pinfl|default:'-' }} SERIA: {{ p.passport_number|default:'-' }}{% if p.card_number %} — {{ p.card_number }}{% endif %}</option>
+                      <option value="{{ p.id }}"
+                              data-search="{{ p.full_name|lower }} {{ p.jshshir|default:'' }} {{ p.birth_certificate|default:''|lower }} {{ p.passport|default:''|lower }} {{ p.card_number|lower }}">{{ p.full_name }}{% if p.jshshir %} · JSHSHIR {{ p.jshshir }}{% endif %}{% if p.birth_certificate %} · Metrika {{ p.birth_certificate }}{% endif %}{% if p.passport %} · {{ p.passport }}{% endif %}{% if p.card_number %} · {{ p.card_number }}{% endif %}</option>
                       {% endfor %}
                   </select>
                   <div class="form-text">Bemorlar ro'yxatidan tanlanadi. Operatsiya bemorning joriy tashrifiga (chekiga) qo'shiladi.</div>
@@ -149,28 +155,13 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const quickSearch = document.getElementById('surgery_quick_search');
-    const select = document.getElementById('surgery_patient_select');
-    
-    if (quickSearch && select) {
-        quickSearch.addEventListener('input', function() {
-            const query = this.value.trim().toUpperCase();
-            if (query.length >= 4) { // 4 ta harf/raqam kiritilgach izlaydi
-                const options = select.options;
-                for (let i = 1; i < options.length; i++) {
-                    const text = options[i].text.toUpperCase();
-                    if (text.includes('JSHSHIR: ' + query) || text.includes('SERIA: ' + query) || text.includes(query)) {
-                        select.value = options[i].value;
-                        // Select2 ulangan bo'lsa yangilash
-                        if (typeof $ !== 'undefined' && .hasClass('select2-hidden-accessible')) {
-                            .trigger('change');
-                        }
-                        break;
-                    }
-                }
-            }
-        });
-    }
+    /* Bemor qidiruvi static/js/patient_search.js ga ko'chirildi.
+
+       Bu yerda ilgari shunday qator bor edi:
+           if (typeof $ !== 'undefined' && .hasClass('select2-…'))
+       Nuqtadan oldin hech narsa yo'q — bu SINTAKSIS XATOSI. Brauzer
+       butun <script> blokini tashlab yuborardi, ya'ni bu oynadagi
+       hech qanday skript ishlamagan. */
 });
 </script>
 {% endblock %}

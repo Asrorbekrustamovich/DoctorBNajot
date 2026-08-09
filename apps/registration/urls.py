@@ -11,4 +11,5 @@ urlpatterns = [
     path("board/", views.BoardView.as_view(), name="board"),
     path("board/feed/", views.board_feed, name="board_feed"),
     path("board/tts/", views.tts_speak, name="tts_speak"),
+    path("board/tts/health/", views.tts_health, name="tts_health"),
 ]

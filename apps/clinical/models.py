@@ -1,6 +1,7 @@
 """Klinik jarayonlar va xizmatlar modellar."""
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 from apps.accounts.models import Role
 from apps.audit.mixins import Auditable
@@ -8,10 +9,111 @@ from apps.core.models import BaseModel, LockableMixin
 from apps.registration.models import Visit
 
 
+class ServiceCategory(Auditable, BaseModel):
+    """Tekshiruvlar guruhi — ikki bosqichli daraxt.
+
+    NEGA KERAK: katalog tekis ro'yxat edi va shifokor 100+ tekshiruv ichidan
+    kerakligini qidirib topishi kerak bo'lardi. Amalda tekshiruvlar tabiiy
+    guruhlarga bo'linadi:
+
+        Laboratoriya
+            ├── Klinik tahlillar     (qon ivish vaqti, leykoformula, najas…)
+            ├── Biokimyoviy tahlillar
+            ├── Gormonlar
+            ├── Gepatit
+            ├── Koagulogramma
+            ├── Markazlashgan serologiya va PZR-diagnostika
+            └── Sitologiya
+        EKG      ·  UZI  ·  Endoskopiya  ·  Rentgen
+
+    Ikki bosqich yetarli: bundan chuqurroq daraxt interfeysda chalkashtiradi,
+    shuning uchun `parent` faqat bitta daraja pastga ruxsat etadi
+    (clean() da tekshiriladi).
+    """
+
+    class Kind(models.TextChoices):
+        LAB = "lab", "Laboratoriya"
+        DIAGNOSTIC = "diagnostic", "Instrumental diagnostika"
+        OTHER = "other", "Boshqa"
+
+    name = models.CharField("Guruh nomi", max_length=150)
+    parent = models.ForeignKey(
+        "self", verbose_name="Yuqori guruh", null=True, blank=True,
+        on_delete=models.PROTECT, related_name="children",
+    )
+    kind = models.CharField(
+        "Turi", max_length=20, choices=Kind.choices, default=Kind.LAB,
+        help_text="Modalda qaysi tugma ostida chiqishini belgilaydi.",
+    )
+    # Modalda tugma yorlig'i: «+Analiz», «+EKG», «+UZI»…
+    button_label = models.CharField(
+        "Tugma yozuvi", max_length=50, blank=True,
+        help_text="Faqat yuqori darajadagi guruhlarda. Bo'sh bo'lsa nom ishlatiladi.",
+    )
+    icon = models.CharField("Belgi (emoji)", max_length=8, blank=True)
+    sort_order = models.PositiveSmallIntegerField("Tartib", default=100)
+    is_active = models.BooleanField("Faolmi?", default=True)
+
+    # --- KIM BAJARADI (guruh darajasidagi standart) ---
+    # «Radiolog» degan alohida rol yo'q, shuning uchun kim javobgar ekani
+    # superadmin tomonidan shu yerda yoki har bir tekshiruvda belgilanadi.
+    # Tekshiruvda ko'rsatilmagan bo'lsa — guruhdagisi ishlatiladi.
+    default_role = models.ForeignKey(
+        Role, verbose_name="Standart bajaruvchi rol", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="default_service_categories",
+    )
+    default_staff = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="Standart mas'ul xodim",
+        null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="default_service_categories",
+    )
+    default_room = models.ForeignKey(
+        "AmbulatoryRoom", verbose_name="Standart kabinet", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="default_service_categories",
+    )
+
+    class Meta:
+        verbose_name = "Tekshiruvlar guruhi"
+        verbose_name_plural = "Tekshiruvlar guruhlari"
+        ordering = ["sort_order", "name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["parent", "name"], name="uniq_category_name_per_parent",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.parent.name} · {self.name}" if self.parent_id else self.name
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.parent_id and self.parent_id == self.pk:
+            raise ValidationError({"parent": "Guruh o'zini o'ziga bo'ysundira olmaydi."})
+        if self.parent_id and self.parent.parent_id:
+            raise ValidationError(
+                {"parent": "Daraxt ikki bosqichdan chuqur bo'lmasligi kerak."}
+            )
+
+    @property
+    def label(self) -> str:
+        return self.button_label or self.name
+
+    @property
+    def is_root(self) -> bool:
+        return self.parent_id is None
+
+
 class ServiceCatalog(Auditable, BaseModel):
     """Narxli xizmatlar katalogi (Shifokor ko'rigi, UZI, EKG, Analizlar)."""
 
     name = models.CharField("Xizmat nomi", max_length=200, unique=True)
+    category = models.ForeignKey(
+        ServiceCategory, verbose_name="Guruh", null=True, blank=True,
+        on_delete=models.PROTECT, related_name="services",
+        help_text="Bo'sh bo'lsa tekshiruv tayinlash modalida ko'rinmaydi "
+                  "(masalan «Shifokor ko'rigi» kabi xizmatlar).",
+    )
+    sort_order = models.PositiveSmallIntegerField("Tartib", default=100)
     price = models.DecimalField("Narxi", max_digits=12, decimal_places=2, default=0)
     is_active = models.BooleanField("Faolmi?", default=True)
     
@@ -37,10 +139,34 @@ class ServiceCatalog(Auditable, BaseModel):
     class Meta:
         verbose_name = "Xizmat"
         verbose_name_plural = "Xizmatlar katalogi"
-        ordering = ["name"]
+        ordering = ["sort_order", "name"]
 
     def __str__(self) -> str:
         return f"{self.name} ({self.price} so'm)"
+
+    # ------------------------------------------------------------------
+    # KIM BAJARADI — xizmat darajasi, keyin guruh darajasi
+    # ------------------------------------------------------------------
+    # «Radiolog» degan alohida rol yo'q. Shuning uchun har bir tekshiruvda
+    # kim javobgar ekani superadmin tomonidan belgilanadi. Har bir tekshiruvni
+    # alohida sozlash zerikarli bo'lgani uchun guruh darajasida standart
+    # qiymat beriladi va tekshiruv uni «meros» qilib oladi.
+
+    @property
+    def effective_staff(self):
+        return self.responsible_staff or (
+            self.category.default_staff if self.category_id else None
+        )
+
+    @property
+    def effective_role(self):
+        return self.allowed_role or (
+            self.category.default_role if self.category_id else None
+        )
+
+    @property
+    def effective_room(self):
+        return self.room or (self.category.default_room if self.category_id else None)
 
     def can_be_performed_by(self, user) -> bool:
         """Shu xodim ushbu tekshiruvni bajara oladimi?
@@ -49,23 +175,27 @@ class ServiceCatalog(Auditable, BaseModel):
           1. Mas'ul xodim tanlangan  -> FAQAT o'sha xodim
           2. Rol tanlangan           -> o'sha roldagi hamma
           3. Hech narsa tanlanmagan  -> mutaxassis roliga ega hamma
+        Xizmatda ko'rsatilmagan bo'lsa, guruhdagi standart qiymat ishlaydi.
         """
         if getattr(user, "is_superuser", False):
             return True
-        if self.responsible_staff_id:
-            return self.responsible_staff_id == user.pk
-        if self.allowed_role_id:
-            return self.allowed_role_id == getattr(user, "role_id", None)
+        staff = self.effective_staff
+        if staff is not None:
+            return staff.pk == user.pk
+        role = self.effective_role
+        if role is not None:
+            return role.pk == getattr(user, "role_id", None)
         return True
 
     @property
     def owner_label(self) -> str:
         """Kim bajaradi — qisqa yozuv (ro'yxatlarda ko'rsatish uchun)."""
-        if self.responsible_staff_id:
-            u = self.responsible_staff
-            return u.get_full_name() or u.username
-        if self.allowed_role_id:
-            return f"{self.allowed_role.name} (bo'lim)"
+        staff = self.effective_staff
+        if staff is not None:
+            return staff.get_full_name() or staff.username
+        role = self.effective_role
+        if role is not None:
+            return f"{role.name} (bo'lim)"
         return "Biriktirilmagan"
 
     @property
@@ -76,13 +206,15 @@ class ServiceCatalog(Auditable, BaseModel):
         Ma'lumot bo'lmasa bo'sh qaytaradi (interfeys o'zi ogohlantiradi).
         """
         parts = []
-        if self.room_id:
-            parts.append(self.room.name)
-        if self.responsible_staff_id:
-            xodim = self.responsible_staff.get_full_name() or self.responsible_staff.username
-            parts.append(xodim)
-        elif self.allowed_role_id:
-            parts.append(self.allowed_role.name)
+        room = self.effective_room
+        if room is not None:
+            parts.append(room.name)
+        staff = self.effective_staff
+        role = self.effective_role
+        if staff is not None:
+            parts.append(staff.get_full_name() or staff.username)
+        elif role is not None:
+            parts.append(role.name)
         return " — ".join(parts)
 
 
@@ -193,6 +325,9 @@ class ServiceOrder(Auditable, BaseModel):
         settings.AUTH_USER_MODEL, verbose_name="Bajardi", null=True, blank=True,
         on_delete=models.SET_NULL, related_name="performed_services"
     )
+    # Natija qachon yozildi — blankda «Natija sanasi» sifatida chiqadi va
+    # shifokor natija yangimi yoki eskimi ekanini ko'radi.
+    result_at = models.DateTimeField("Natija vaqti", null=True, blank=True)
 
     # --- CHAQIRISH (tabloda e'lon qilinadi) ---
     # Tekshiruv tayinlanishi bilan tabloda chiqmaydi — navbatda kutadi.
@@ -235,6 +370,112 @@ class ServiceOrder(Auditable, BaseModel):
         if self._state.adding and (self.price_snapshot or 0) == 0:
             self.price_snapshot = self.service.price
         super().save(*args, **kwargs)
+
+    # ------------------------------------------------------------------
+    @property
+    def has_result(self) -> bool:
+        """Natija yozilganmi — matn yoki ko'rsatkichlar bo'lsa."""
+        return bool(self.result_text.strip()) or self.result_rows.exists()
+
+    @property
+    def is_paid(self) -> bool:
+        """Bemor shu tekshiruv uchun to'laganmi.
+
+        HAQIQAT MANBAI — CHEK BANDI, status emas. Status xodim tomonidan
+        qo'lda o'zgartirilishi mumkin; pul esa faqat kassada tushadi.
+        Ikkalasini chalkashtirsak, to'lanmagan tekshiruv «to'langan» bo'lib
+        ko'rinib qoladi.
+
+        Chek bandi topilmasa (masalan narxi 0 bo'lgan xizmat) — to'lov
+        talab qilinmaydi.
+        """
+        item = self.invoice_item
+        if item is None:
+            return True
+        return item.is_paid
+
+    @property
+    def invoice_item(self):
+        """Shu tekshiruvga tegishli chek bandi."""
+        from apps.billing.models import InvoiceItem
+        return InvoiceItem.objects.filter(reference_id=self.id).first()
+
+    @property
+    def payment_blocked_reason(self) -> str:
+        """Tekshiruvni bajarishga to'lov to'sqinlik qilyaptimi.
+
+        Bo'sh satr — to'siq yo'q.
+        """
+        if (self.price_snapshot or 0) <= 0:
+            return ""
+        if self.is_paid:
+            return ""
+        return ("Bemor bu tekshiruv uchun to'lov qilmagan. "
+                "Avval registraturada to'lansin.")
+
+
+class ServiceResultRow(Auditable, BaseModel):
+    """Tekshiruv natijasining bitta ko'rsatkichi.
+
+    NEGA ALOHIDA JADVAL: laboratoriya natijasi «matn» emas, jadval —
+    ko'rsatkich / qiymat / o'lchov birligi / norma. Erkin matnga yozilsa
+    blankni chiroyli chop etib bo'lmaydi va normadan chetlanishni tizim
+    ajrata olmaydi. UZI/EKG kabi tavsifiy tekshiruvlarda esa jadval bo'sh
+    qoladi va `result_text` ishlatiladi — ikkalasi birga yashaydi.
+    """
+
+    order = models.ForeignKey(
+        ServiceOrder, verbose_name="Tekshiruv", on_delete=models.CASCADE,
+        related_name="result_rows",
+    )
+    name = models.CharField("Ko'rsatkich", max_length=150)
+    value = models.CharField("Natija", max_length=100, blank=True)
+    unit = models.CharField("O'lchov birligi", max_length=40, blank=True)
+    reference = models.CharField("Norma", max_length=100, blank=True)
+    is_abnormal = models.BooleanField(
+        "Normadan chetda", default=False,
+        help_text="Blankda qalin va rangli ko'rsatiladi.",
+    )
+    sort_order = models.PositiveSmallIntegerField("Tartib", default=100)
+
+    class Meta:
+        verbose_name = "Natija ko'rsatkichi"
+        verbose_name_plural = "Natija ko'rsatkichlari"
+        ordering = ["sort_order", "name"]
+
+    def __str__(self) -> str:
+        return f"{self.name}: {self.value} {self.unit}".strip()
+
+
+class ResultTemplateRow(Auditable, BaseModel):
+    """Tekshiruv uchun oldindan tayyor ko'rsatkichlar ro'yxati.
+
+    Laborant «Umumiy qon tahlili» ni ochganda gemoglobin, eritrotsit,
+    leykotsit… qatorlari o'zi chiqadi — har safar qo'lda yozilmaydi.
+    Norma ham shu yerda saqlanadi va superadmin uni bir joydan boshqaradi.
+    """
+
+    service = models.ForeignKey(
+        ServiceCatalog, verbose_name="Tekshiruv", on_delete=models.CASCADE,
+        related_name="result_template",
+    )
+    name = models.CharField("Ko'rsatkich", max_length=150)
+    unit = models.CharField("O'lchov birligi", max_length=40, blank=True)
+    reference = models.CharField("Norma", max_length=100, blank=True)
+    sort_order = models.PositiveSmallIntegerField("Tartib", default=100)
+
+    class Meta:
+        verbose_name = "Natija shabloni qatori"
+        verbose_name_plural = "Natija shabloni qatorlari"
+        ordering = ["sort_order", "name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["service", "name"], name="uniq_template_row_per_service",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.service.name} · {self.name}"
 
 
 class ServiceCatalogPriceHistory(BaseModel):
@@ -1128,3 +1369,281 @@ class RoomLeftover(Auditable, BaseModel):
 
     def __str__(self):
         return f"{self.room} | {self.stock.name} — {self.quantity} {self.stock.unit}"
+
+
+# ==========================================================================
+#  STATSIONAR EPIZODI (DMED uslubidagi «murojaat epizodi»)
+# --------------------------------------------------------------------------
+#  Bemor bir necha marta yotishi mumkin. Har bir yotish — alohida EPIZOD:
+#  o'z sababi, o'z tashxislari, o'z dastlabki ko'rigi bilan. Ilgari faqat
+#  `InpatientStay` (kravat bilan bog'liq yozuv) bor edi va u yotqizish
+#  QARORI bilan yotqizish FAKTINI ajratmasdi. Ambulator shifokor esa
+#  bemorni kravat tanlanmasdan oldin yo'llaydi.
+#
+#  Shuning uchun epizod kravatdan mustaqil yaratiladi:
+#      ambulator shifokor epizod ochadi  →  qabulxona hamshirasi ko'radi
+#      →  hamshira kravat beradi (InpatientStay)  →  davolash  →  vipiska
+# ==========================================================================
+
+
+class ICD10Code(BaseModel):
+    """MKB-10 (XKT-10) tashxis kodlari ma'lumotnomasi.
+
+    Alohida jadval: kodni qo'lda yozdirsak har kim har xil yozadi
+    («Z99.9», «z99,9», «Z 99.9») va statistika yig'ilmaydi. Superadmin
+    ro'yxatni to'ldiradi, shifokor esa qidirib tanlaydi.
+    """
+
+    code = models.CharField("Kod", max_length=10, unique=True, db_index=True)
+    name = models.CharField("Tashxis nomi", max_length=300)
+    chapter = models.CharField("Bo'lim", max_length=150, blank=True)
+    is_active = models.BooleanField("Faolmi?", default=True)
+
+    class Meta:
+        verbose_name = "MKB-10 kodi"
+        verbose_name_plural = "MKB-10 kodlari"
+        ordering = ["code"]
+
+    def __str__(self) -> str:
+        return f"{self.code} — {self.name}"
+
+
+class AdmissionEpisode(Auditable, LockableMixin, BaseModel):
+    """Statsionarga yotqizish epizodi."""
+
+    class DocumentType(models.TextChoices):
+        JSHSHIR = "jshshir", "JSHSHIR"
+        BIRTH_CERT = "metrika", "Metrika (tug'ilganlik guvohnomasi)"
+
+    class Purpose(models.TextChoices):
+        TREATMENT = "treatment", "Davolash uchun"
+        SURGERY = "surgery", "Operatsiya uchun"
+        OTHER = "other", "Boshqa"
+
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Rasmiylashtirilmoqda"
+        SENT = "sent", "Qabulxonaga yuborildi"
+        ADMITTED = "admitted", "Yotqizildi"
+        DISCHARGED = "discharged", "Vipiska berildi"
+        CANCELLED = "cancelled", "Bekor qilindi"
+
+    patient = models.ForeignKey(
+        "patients.Patient", verbose_name="Bemor", on_delete=models.PROTECT,
+        related_name="episodes",
+    )
+    visit = models.ForeignKey(
+        Visit, verbose_name="Ambulator qabul", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="episodes",
+    )
+    stay = models.OneToOneField(
+        InpatientStay, verbose_name="Yotish yozuvi", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="episode",
+    )
+
+    # --- Kim yubordi ---
+    # «Qaysi shifokor yuborgani ham bo'lishi kerak» — talab shu.
+    referred_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="Yo'llagan shifokor",
+        null=True, blank=True, on_delete=models.PROTECT,
+        related_name="referred_episodes",
+    )
+
+    document_type = models.CharField(
+        "Hujjat turi", max_length=20, choices=DocumentType.choices,
+        default=DocumentType.JSHSHIR,
+    )
+    document_number = models.CharField("Hujjat raqami", max_length=30, blank=True)
+
+    reason = models.CharField(
+        "Murojaat epizodi (kasallik sababi)", max_length=300, blank=True)
+    purpose = models.CharField(
+        "Yotqizish maqsadi", max_length=20, choices=Purpose.choices,
+        default=Purpose.TREATMENT,
+    )
+    purpose_note = models.CharField("Maqsad izohi", max_length=255, blank=True)
+
+    # Bemorni birlamchi ko'rik bilan ham, ko'riksiz ham yotqizish mumkin —
+    # shoshilinch holatda ko'rikni keyin yozadilar.
+    with_primary_exam = models.BooleanField("Birlamchi ko'rik bilan", default=True)
+
+    department = models.CharField("Bo'lim", max_length=150, blank=True)
+    room = models.ForeignKey(
+        Room, verbose_name="Palata", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="episodes",
+    )
+
+    # --- Dastlabki ko'rik (statsionarda yoziladi) ---
+    complaints = models.TextField("Shikoyatlar", blank=True)
+    anamnesis_morbi = models.TextField("Kasallik tarixi (Anamnesis morbi)", blank=True)
+    anamnesis_vitae = models.TextField("Hayot anamnezi (Anamnesis vitae)", blank=True)
+    status_localis = models.TextField("Mahalliy holat (Status localis)", blank=True)
+    epid_anamnesis = models.TextField("Epidemiologik anamnez", blank=True)
+    status_praesens = models.TextField("Obyektiv holat (Status praesens)", blank=True)
+    allergo_anamnesis = models.TextField("Allergoanamnez", blank=True)
+    neuro_status = models.TextField("Nevrologik holati", blank=True)
+    clinical_diagnosis = models.TextField("Klinik tashxis", blank=True)
+
+    status = models.CharField(
+        "Holati", max_length=20, choices=Status.choices,
+        default=Status.DRAFT, db_index=True,
+    )
+    sent_at = models.DateTimeField("Qabulxonaga yuborilgan", null=True, blank=True)
+    cancel_reason = models.CharField("Bekor qilish sababi", max_length=255, blank=True)
+
+    class Meta:
+        verbose_name = "Statsionar epizodi"
+        verbose_name_plural = "Statsionar epizodlari"
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["patient", "status"])]
+
+    def __str__(self) -> str:
+        return f"{self.patient.full_name} — {self.get_purpose_display()} ({self.created_at:%d.%m.%Y})"
+
+    @property
+    def needs_anesthesiologist(self) -> bool:
+        """Operatsiya uchun yotqizilsa, istoriyaga anesteziolog qo'shiladi."""
+        return self.purpose == self.Purpose.SURGERY
+
+    @property
+    def is_open(self) -> bool:
+        return self.status in (self.Status.DRAFT, self.Status.SENT, self.Status.ADMITTED)
+
+    @property
+    def main_diagnosis(self):
+        return self.diagnoses.filter(kind=EpisodeDiagnosis.Kind.MAIN).first()
+
+
+class EpisodeDiagnosis(Auditable, BaseModel):
+    """Epizoddagi tashxis. Bitta epizodda bir nechta bo'lishi mumkin."""
+
+    class Stage(models.TextChoices):
+        PRELIMINARY = "preliminary", "Dastlabki tashxis"
+        FINAL = "final", "Yakuniy tashxis"
+
+    class Kind(models.TextChoices):
+        MAIN = "main", "Asosiy"
+        CONCOMITANT = "concomitant", "Hamroh"
+        COMPLICATION = "complication", "Asorat"
+        BACKGROUND = "background", "Fon"
+        COMPETING = "competing", "Raqobatdosh"
+
+    class Course(models.TextChoices):
+        UNSPECIFIED = "unspecified", "Belgilanmagan"
+        ACUTE = "acute", "O'tkir"
+        SUBACUTE = "subacute", "O'tkir osti"
+        FIRST_CHRONIC = "first_chronic", "Hayotda birinchi marta surunkali kasallik aniqlandi"
+        CHRONIC = "chronic", "Surunkali"
+
+    episode = models.ForeignKey(
+        AdmissionEpisode, verbose_name="Epizod", on_delete=models.CASCADE,
+        related_name="diagnoses",
+    )
+    icd = models.ForeignKey(
+        ICD10Code, verbose_name="MKB-10", null=True, blank=True,
+        on_delete=models.PROTECT, related_name="diagnoses",
+    )
+    # Ma'lumotnomada topilmagan holat uchun — lekin kod bo'lsa `icd` afzal.
+    free_text = models.CharField("Tashxis (matn)", max_length=300, blank=True)
+
+    stage = models.CharField(
+        "Tashxis turi", max_length=20, choices=Stage.choices, default=Stage.PRELIMINARY)
+    kind = models.CharField(
+        "Xili", max_length=20, choices=Kind.choices, default=Kind.MAIN)
+    course = models.CharField(
+        "Kasallik kechishi", max_length=20, choices=Course.choices,
+        default=Course.UNSPECIFIED)
+    note = models.CharField("Izoh", max_length=255, blank=True)
+
+    class Meta:
+        verbose_name = "Epizod tashxisi"
+        verbose_name_plural = "Epizod tashxislari"
+        ordering = ["kind", "created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.label} ({self.get_kind_display()})"
+
+    @property
+    def label(self) -> str:
+        if self.icd_id:
+            return f"{self.icd.code} — {self.icd.name}"
+        return self.free_text or "—"
+
+
+class DischargeSummary(Auditable, LockableMixin, BaseModel):
+    """VIPISKA — statsionar epizodining yakuniy hujjati.
+
+    Bemor 5 kun yotib, hamma xizmatdan foydalangan bo'lsa, chiqishda unga
+    bitta hujjat beriladi: qachon kelgan, nima bilan kelgan, nima
+    qilingan, qanday chiqqan. Ilgari tizimda faqat «javob berildi» degan
+    status bor edi — hujjatning o'zi shakllanmasdi.
+
+    Hujjat tarkibining KATTA QISMI AVTOMATIK yig'iladi (tashxislar,
+    tekshiruv natijalari, dorilar, operatsiya, yotgan kunlar). Shifokor
+    faqat xulosa qismini yozadi: davolash natijasi va tavsiyalar.
+    Shu sababli vipiska tayyorlash bir necha daqiqa vaqt oladi, soatlar
+    emas.
+    """
+
+    class Outcome(models.TextChoices):
+        RECOVERED = "recovered", "Sog'aydi"
+        IMPROVED = "improved", "Yaxshilandi"
+        UNCHANGED = "unchanged", "O'zgarishsiz"
+        WORSENED = "worsened", "Yomonlashdi"
+        TRANSFERRED = "transferred", "Boshqa muassasaga o'tkazildi"
+        DIED = "died", "Vafot etdi"
+
+    class WorkCapacity(models.TextChoices):
+        FIT = "fit", "Mehnatga layoqatli"
+        SICK_LEAVE = "sick_leave", "Kasallik varaqasi berildi"
+        LIGHT = "light", "Yengil mehnatga tavsiya"
+        UNFIT = "unfit", "Mehnatga layoqatsiz"
+        NOT_APPLICABLE = "n_a", "Tegishli emas"
+
+    episode = models.OneToOneField(
+        AdmissionEpisode, verbose_name="Epizod", on_delete=models.CASCADE,
+        related_name="discharge",
+    )
+    discharged_at = models.DateTimeField("Chiqarilgan vaqt", default=timezone.now)
+    discharged_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="Vipiskani yozgan shifokor",
+        null=True, blank=True, on_delete=models.PROTECT,
+        related_name="discharge_summaries",
+    )
+
+    outcome = models.CharField(
+        "Davolash natijasi", max_length=20, choices=Outcome.choices,
+        default=Outcome.IMPROVED,
+    )
+    work_capacity = models.CharField(
+        "Mehnat qobiliyati", max_length=20, choices=WorkCapacity.choices,
+        default=WorkCapacity.NOT_APPLICABLE,
+    )
+    sick_leave_from = models.DateField("Kasallik varaqasi (dan)", null=True, blank=True)
+    sick_leave_to = models.DateField("Kasallik varaqasi (gacha)", null=True, blank=True)
+
+    treatment_given = models.TextField("O'tkazilgan davolash", blank=True)
+    condition_at_discharge = models.TextField("Chiqishdagi holati", blank=True)
+    recommendations = models.TextField("Tavsiyalar", blank=True)
+    follow_up = models.CharField("Nazorat ko'rigi", max_length=255, blank=True)
+
+    class Meta:
+        verbose_name = "Vipiska"
+        verbose_name_plural = "Vipiskalar"
+        ordering = ["-discharged_at"]
+
+    def __str__(self) -> str:
+        return f"Vipiska — {self.episode.patient.full_name} ({self.discharged_at:%d.%m.%Y})"
+
+    @property
+    def admitted_at(self):
+        """Qachon yotqizilgan. Kravat berilgan bo'lsa — o'sha vaqt."""
+        stay = self.episode.stay
+        return stay.admission_date if stay else self.episode.created_at
+
+    @property
+    def bed_days(self) -> int:
+        """Yotgan kunlar soni. Bir kun yotgan ham 1 kun deb hisoblanadi."""
+        start, end = self.admitted_at, self.discharged_at
+        if not start or not end:
+            return 0
+        return max(1, (end.date() - start.date()).days)

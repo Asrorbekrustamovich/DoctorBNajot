@@ -120,4 +120,88 @@ def generate_invoice_for_visit(visit):
         invoice.recompute_status()
         invoice.save()
 
+        # TO'LOV TAQSIMOTINI QAYTA HISOBLAYMIZ.
+        #
+        # Yuqorida chek bandlari O'CHIRILIB QAYTA yaratildi — ular bilan
+        # birga `paid_at` belgisi ham yo'qoladi. Buni tiklamasak, allaqachon
+        # to'langan tekshiruv har safar «to'lanmagan» bo'lib qoladi va
+        # laborant bemorni chaqira olmaydi (tekshiruv statusi o'zgargan
+        # zahoti shu funksiya qayta ishga tushadi).
+        #
+        # Haqiqat manbai — KASSAGA TUSHGAN PUL (`net_paid`). Taqsimot esa
+        # undan kelib chiqadi, shuning uchun uni har safar qayta hisoblash
+        # xavfsiz va o'z-o'zini tuzatadi.
+        settle_prepaid_items(invoice)
+
     return invoice
+
+
+def settle_prepaid_items(invoice, cashier=None):
+    """To'langan pulni bandlarga taqsimlab, «to'landi» deb belgilaydi.
+    
+    OLDINDAN to'lanadiganlar (ambulator qabul va tekshiruvlar)
+    KASSAGA yoziladiganlardan birinchi qoplanadi.
+    
+    Qo'shimcha: Agar "Shifokor qabuli" to'lansa, avtomatik 50% ulush
+    DoctorShare orqali shifokorga yoziladi. To'lov yetmay bekor bo'lsa, ulush ham o'chadi.
+    """
+    from django.utils import timezone
+    from .models import InvoiceItem
+    from apps.billing.models import DoctorShare
+    from decimal import Decimal
+
+    available = invoice.net_paid or Decimal(0)
+    items = list(invoice.items.order_by("-payment_mode", "created_at"))
+
+    newly_paid = 0
+    for item in items:
+        cost = item.total_price or Decimal(0)
+        is_consultation = item.name.startswith("Shifokor qabuli")
+        
+        if available >= cost and cost > 0:
+            available -= cost
+            if item.paid_at is None:
+                item.paid_at = timezone.now()
+                item.paid_by = cashier
+                item._mode_locked = True
+                item.save(update_fields=["paid_at", "paid_by", "updated_at"])
+                newly_paid += 1
+                
+                # Moliya 50/50: Shifokor o'zining qabulidan 50% oladi
+                if is_consultation and invoice.visit and invoice.visit.doctor:
+                    share_amount = cost / Decimal('2')
+                    DoctorShare.objects.create(
+                        doctor=invoice.visit.doctor,
+                        invoice=invoice,
+                        amount=share_amount,
+                        description=f"{item.name} uchun 50% ulush"
+                    )
+        else:
+            # Pul yetmadi, to'lanmagan deb hisoblanadi
+            if item.paid_at is not None:
+                item.paid_at = None
+                item.paid_by = None
+                item._mode_locked = True
+                item.save(update_fields=["paid_at", "paid_by", "updated_at"])
+                
+                # Agar oldin to'langan bo'lib, endi pul yetmay (masalan qaytarishda) o'chsa, ulushni ham o'chiramiz
+                if is_consultation and invoice.visit and invoice.visit.doctor:
+                    # Shu qabul uchun olingan hamma musbat ulushlarni o'chirish yoki -50% qilish
+                    DoctorShare.objects.filter(
+                        doctor=invoice.visit.doctor, 
+                        invoice=invoice,
+                        description__startswith=item.name
+                    ).delete()
+
+    return newly_paid
+
+
+def prepaid_debt(invoice) -> Decimal:
+    """Oldindan to'lanishi shart bo'lgan, lekin hali to'lanmagan summa."""
+    from .models import InvoiceItem
+
+    return sum(
+        (i.total_price or Decimal(0))
+        for i in invoice.items.filter(payment_mode=InvoiceItem.PaymentMode.PREPAID)
+        if i.paid_at is None
+    ) or Decimal(0)

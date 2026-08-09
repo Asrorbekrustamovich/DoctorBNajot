@@ -141,7 +141,10 @@ class ClearAllDataTests(TestCase):
         self._run()
         self.assertEqual(User.objects.count(), 1, "Xodimlar o'chib ketdi!")
         self.assertTrue(Role.objects.exists(), "Rollar o'chib ketdi!")
-        self.assertEqual(ServiceCatalog.objects.count(), 1, "Xizmatlar katalogi o'chdi!")
+        # Mutlaq son emas: katalogga migratsiya bilan yangi xizmat
+        # qo'shilishi mumkin. Muhimi — mavjud yozuv o'chib ketmasligi.
+        self.assertTrue(ServiceCatalog.objects.filter(pk=self.xizmat.pk).exists(),
+                        "Xizmatlar katalogi o'chdi!")
         self.assertEqual(Room.objects.count(), 1, "Palatalar o'chdi!")
         self.assertEqual(OperatingRoom.objects.count(), 1, "Operatsion xonalar o'chdi!")
         self.assertEqual(SurgeryType.objects.count(), 1, "Operatsiya turlari o'chdi!")

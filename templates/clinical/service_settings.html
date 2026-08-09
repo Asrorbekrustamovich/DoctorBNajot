@@ -5,7 +5,7 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="h3"><i class="bi bi-gear"></i> Xizmatlar katalogi va narxlari</h1>
+    <h1 class="h3"><i class="bi bi-gear"></i> Xizmatlar katalogi, narxlar va mas'ullar</h1>
 </div>
 
 {% if messages %}
@@ -36,26 +36,125 @@
                 <button class="btn btn-primary w-100"><i class="bi bi-plus-lg"></i> Qo'shish</button>
             </div>
         </form>
+        <div class="form-text mt-2">
+            Qo'shgandan keyin uni pastdagi jadvalda guruhga joylang — aks holda
+            shifokorning «+Analiz» modalida ko'rinmaydi.
+        </div>
     </div>
 </div>
 
-<div class="card shadow-sm">
-    <div class="card-header">Barcha xizmatlar</div>
+{% comment %} ------------------------------------------------------------------
+   GURUHLAR — standart mas'ul.
+   «Radiolog» degan alohida rol yo'q. Har bir tekshiruvni alohida sozlash
+   zerikarli bo'lgani uchun avval GURUHGA mas'ul biriktiriladi; tekshiruv
+   uni meros qilib oladi. Kerak bo'lsa pastdagi jadvalda alohida
+   xizmat ustidan yoziladi.
+   ------------------------------------------------------------------ {% endcomment %}
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-dark text-white">
+        <i class="bi bi-diagram-3"></i> Tekshiruvlar guruhlari — kim bajaradi
+    </div>
     <div class="card-body p-0">
-        <table class="table table-hover table-sm mb-0 align-middle">
-            <thead>
+        <table class="table table-sm mb-0 align-middle">
+            <thead class="table-light">
                 <tr>
-                    <th class="ps-3">Xizmat nomi</th>
-                    <th>Joriy narxi</th>
-                    <th>Holat</th>
-                    <th class="text-end pe-3">Amallar</th>
+                    <th class="ps-3">Guruh</th>
+                    <th>Standart rol (bo'lim)</th>
+                    <th>Standart xodim</th>
+                    <th>Kabinet</th>
+                    <th class="text-end pe-3">Saqlash</th>
                 </tr>
             </thead>
             <tbody>
-                {% for svc in services %}
+            {% for c in categories %}
+                <tr>
+                    <td class="{% if c.parent %}ps-5 text-muted{% else %}ps-3 fw-bold{% endif %}">
+                        {% if c.parent %}└ {% else %}{{ c.icon }} {% endif %}{{ c.name }}
+                        <span class="badge bg-light text-dark ms-1">{{ c.services.count }}</span>
+                    </td>
+                    <td class="small">{{ c.default_role.name|default:"—" }}</td>
+                    <td class="small">
+                        {% if c.default_staff %}{{ c.default_staff.get_full_name|default:c.default_staff.username }}{% else %}—{% endif %}
+                    </td>
+                    <td class="small">{{ c.default_room.name|default:"—" }}</td>
+                    <td class="text-end pe-3">
+                        <button type="button" class="btn btn-sm btn-outline-dark"
+                                data-edit-category
+                                data-url="{% url 'clinical:update_category_defaults' c.id %}"
+                                data-name="{{ c }}"
+                                data-role="{{ c.default_role_id|default:'' }}"
+                                data-staff="{{ c.default_staff_id|default:'' }}"
+                                data-room="{{ c.default_room_id|default:'' }}">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="card-footer small text-muted">
+        Xodim tanlansa — faqat o'sha odam bajaradi. Faqat rol tanlansa —
+        o'sha bo'limdagi hamma ko'radi. Ikkalasi ham bo'sh bo'lsa — hamma ko'radi.
+    </div>
+</div>
+
+{# XIZMATLAR — guruh bo'yicha ajratilgan #}
+{% for group_name, items in grouped.items %}
+<div class="card shadow-sm mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="fw-bold">{{ group_name }}</span>
+        <span class="badge bg-secondary">{{ items|length }}</span>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-hover table-sm mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-3" style="width:22%">Xizmat nomi</th>
+                    <th style="width:16%">Narxi</th>
+                    <th style="width:38%">Kim bajaradi / qayerda</th>
+                    <th style="width:10%">Holat</th>
+                    <th class="text-end pe-3">Amal</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for svc in items %}
                 <tr {% if not svc.is_active %}class="text-muted"{% endif %}>
-                    <td class="ps-3 fw-bold">{{ svc.name }}</td>
-                    <td>{{ svc.price|intcomma }} so'm</td>
+                    <td class="ps-3 fw-semibold">{{ svc.name }}</td>
+                    <td>
+                        <form method="post" action="{% url 'clinical:update_service_price' svc.id %}" class="d-inline-flex gap-1 align-items-center">
+                            {% csrf_token %}
+                            <input name="price" type="number" step="0.01" min="0" class="form-control form-control-sm" style="width:110px;" value="{{ svc.price }}" required>
+                            <button class="btn btn-sm btn-outline-primary" title="Narxni saqlash"><i class="bi bi-pencil"></i></button>
+                        </form>
+                        <div class="text-muted" style="font-size:.7rem">
+                            O'zgarishi eski buyurtmalarga ta'sir qilmaydi
+                        </div>
+                    </td>
+                    {% comment %} Tanlov ro'yxatlari HAR QATORDA takrorlanmaydi.
+                       74 xizmat × 68 <option> = 1 MB dan ortiq sahifa edi va
+                       xodimlar soni oshgani sayin yomonlashardi. Endi
+                       ro'yxatlar bir marta (pastda, JSON'da) yuboriladi va
+                       umumiy modalga JS orqali joylanadi. {% endcomment %}
+                    <td>
+                        <div style="font-size:.8rem">
+                            <b>{{ svc.owner_label }}</b>
+                            {% if svc.destination %}<span class="text-muted"> · {{ svc.destination }}</span>{% endif %}
+                        </div>
+                        <div class="text-muted" style="font-size:.72rem">
+                            Guruh: {{ svc.category|default:"— guruhsiz —" }}
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-dark mt-1"
+                                data-edit-routing
+                                data-url="{% url 'clinical:update_service_routing' svc.id %}"
+                                data-name="{{ svc.name }}"
+                                data-category="{{ svc.category_id|default:'' }}"
+                                data-role="{{ svc.allowed_role_id|default:'' }}"
+                                data-staff="{{ svc.responsible_staff_id|default:'' }}"
+                                data-room="{{ svc.room_id|default:'' }}">
+                            <i class="bi bi-person-gear"></i> O'zgartirish
+                        </button>
+                    </td>
                     <td>
                         {% if svc.is_active %}
                         <span class="badge bg-success">Faol</span>
@@ -64,12 +163,7 @@
                         {% endif %}
                     </td>
                     <td class="text-end pe-3">
-                        <form method="post" action="{% url 'clinical:update_service_price' svc.id %}" class="d-inline-flex gap-1 align-items-center">
-                            {% csrf_token %}
-                            <input name="price" type="number" step="0.01" min="0" class="form-control form-control-sm" style="width:120px;" value="{{ svc.price }}" required>
-                            <button class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></button>
-                        </form>
-                        <form method="post" action="{% url 'clinical:toggle_service' svc.id %}" class="d-inline ms-1">
+                        <form method="post" action="{% url 'clinical:toggle_service' svc.id %}" class="d-inline">
                             {% csrf_token %}
                             {% if svc.is_active %}
                             <button class="btn btn-sm btn-outline-danger" title="O'chirish"><i class="bi bi-x-lg"></i></button>
@@ -79,11 +173,108 @@
                         </form>
                     </td>
                 </tr>
-                {% empty %}
-                <tr><td colspan="4" class="text-center text-muted py-3">Xizmatlar qo'shilmagan</td></tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 </div>
+{% empty %}
+<div class="alert alert-info">Xizmatlar qo'shilmagan.</div>
+{% endfor %}
+
+{# ---------- Umumiy «kim bajaradi» modali ---------- #}
+<div class="modal fade" id="routingModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" id="routingForm">
+        {% csrf_token %}
+        <div class="modal-header">
+          <h6 class="modal-title"><i class="bi bi-person-gear"></i> <span id="routingName"></span></h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Yopish"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-2" id="routingCategoryBox">
+            <label class="form-label small fw-semibold">Guruh</label>
+            <select name="category" id="routingCategory" class="form-select form-select-sm"></select>
+            <div class="form-text">Guruhsiz xizmat shifokorning «+Analiz» modalida ko'rinmaydi.</div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Bajaruvchi rol (bo'lim)</label>
+            <select name="allowed_role" id="routingRole" class="form-select form-select-sm"></select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Mas'ul xodim</label>
+            <select name="responsible_staff" id="routingStaff" class="form-select form-select-sm"></select>
+            <div class="form-text">Tanlansa — faqat shu odam bajaradi, rol e'tiborga olinmaydi.</div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Kabinet</label>
+            <select name="room" id="routingRoom" class="form-select form-select-sm"></select>
+          </div>
+          <div class="alert alert-light border small mb-0">
+            Ikkalasi ham bo'sh qoldirilsa, guruhdagi standart qiymat ishlaydi.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>
+          <button class="btn btn-sm btn-dark"><i class="bi bi-save"></i> Saqlash</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{{ picker_options|json_script:"routingOptions" }}
+<script>
+(function () {
+  var OPTS = JSON.parse(document.getElementById('routingOptions').textContent);
+
+  function fill(select, items, empty, current) {
+    select.innerHTML = '';
+    var o = document.createElement('option');
+    o.value = ''; o.textContent = empty;
+    select.appendChild(o);
+    items.forEach(function (it) {
+      var e = document.createElement('option');
+      e.value = it[0]; e.textContent = it[1];
+      if (it[0] === current) e.selected = true;
+      select.appendChild(e);
+    });
+  }
+
+  document.addEventListener('click', function (ev) {
+    var t = ev.target.closest && ev.target.closest('[data-edit-routing],[data-edit-category]');
+    if (!t) return;
+
+    // Guruh tahriri va xizmat tahriri bir xil modalni ishlatadi, farqi —
+    // guruhda «Guruh» maydoni yo'q va maydon nomlari `default_*` bo'ladi.
+    var isCategory = t.hasAttribute('data-edit-category');
+
+    // `form.action = …` o'rniga setAttribute: agar formada `action` nomli
+    // maydon bo'lsa, `form.action` o'sha ELEMENTNI qaytaradi va manzil
+    // o'rniga u yoziladi. setAttribute bunday tuzoqqa tushmaydi.
+    document.getElementById('routingForm').setAttribute('action', t.dataset.url);
+    document.getElementById('routingName').textContent = t.dataset.name;
+
+    var catBox = document.getElementById('routingCategoryBox');
+    catBox.classList.toggle('d-none', isCategory);
+    var cat = document.getElementById('routingCategory');
+    cat.disabled = isCategory;          // o'chirilgan maydon yuborilmaydi
+    if (!isCategory) fill(cat, OPTS.categories, '— guruhsiz —', t.dataset.category);
+
+    var role = document.getElementById('routingRole');
+    var staff = document.getElementById('routingStaff');
+    var room = document.getElementById('routingRoom');
+    role.name = isCategory ? 'default_role' : 'allowed_role';
+    staff.name = isCategory ? 'default_staff' : 'responsible_staff';
+    room.name = isCategory ? 'default_room' : 'room';
+
+    fill(role, OPTS.roles, '— tanlanmagan —', t.dataset.role);
+    fill(staff, OPTS.staff, '— tanlanmagan —', t.dataset.staff);
+    fill(room, OPTS.rooms, '— tanlanmagan —', t.dataset.room);
+
+    new bootstrap.Modal(document.getElementById('routingModal')).show();
+  });
+})();
+</script>
 {% endblock %}

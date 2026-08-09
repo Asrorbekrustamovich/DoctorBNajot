@@ -1,0 +1,127 @@
+/* Matn maydonlarini kattalashtirish — ko'rinish qismi.
+   Mantiq: static/js/textarea_expand.js */
+
+.ta-wrap {
+  position: relative;
+}
+
+/* Tugma matn ustiga tushmasligi uchun maydonga o'ng tomondan joy beramiz */
+.ta-wrap > textarea {
+  padding-right: 2.1rem;
+  resize: vertical;
+  min-height: 2.6rem;
+  transition: height .08s linear;
+}
+
+.ta-expand {
+  position: absolute;
+  top: .3rem;
+  right: .35rem;
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  line-height: 1;
+  font-size: .72rem;
+  color: #6c757d;
+  background: rgba(255, 255, 255, .85);
+  border: 1px solid #dee2e6;
+  border-radius: .3rem;
+  cursor: pointer;
+  opacity: .55;
+  transition: opacity .12s, color .12s, border-color .12s;
+}
+.ta-wrap:hover .ta-expand,
+.ta-wrap > textarea:focus + .ta-expand {
+  opacity: 1;
+}
+.ta-expand:hover {
+  color: #0d6efd;
+  border-color: #86b7fe;
+}
+
+/* --- Katta oyna --- */
+.ta-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;               /* Bootstrap modalidan (1055) tepada */
+  background: rgba(20, 25, 30, .55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2vh 2vw;
+}
+.ta-modal[hidden] { display: none; }
+
+body.ta-modal-open { overflow: hidden; }
+
+.ta-modal-box {
+  background: #fff;
+  border-radius: .6rem;
+  width: min(1100px, 96vw);
+  height: min(88vh, 900px);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .3);
+  overflow: hidden;
+}
+
+.ta-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .6rem .9rem;
+  border-bottom: 1px solid #dee2e6;
+  background: #f8f9fa;
+}
+.ta-modal-title {
+  font-weight: 600;
+  font-size: .95rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ta-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  flex: 0 0 auto;
+}
+.ta-modal-count {
+  font-size: .75rem;
+  color: #6c757d;
+  margin-right: .3rem;
+}
+
+.ta-modal-input {
+  flex: 1 1 auto;
+  border: 0;
+  border-radius: 0;
+  resize: none;
+  padding: 1rem 1.2rem;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+.ta-modal-input:focus {
+  box-shadow: none;
+  outline: none;
+}
+
+.ta-modal-foot {
+  padding: .4rem .9rem;
+  border-top: 1px solid #dee2e6;
+  background: #f8f9fa;
+  font-size: .74rem;
+  color: #6c757d;
+}
+.ta-modal-foot kbd {
+  background: #e9ecef;
+  color: #212529;
+  padding: .05rem .3rem;
+  border-radius: .2rem;
+  font-size: .72rem;
+}
+
+@media print {
+  .ta-expand, .ta-modal { display: none !important; }
+}

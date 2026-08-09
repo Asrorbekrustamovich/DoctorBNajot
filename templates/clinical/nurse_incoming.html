@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Statsionarga yo'naltirilgan bemorlar — Doctor B Najot{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="h3 mb-1"><i class="bi bi-hospital"></i> Statsionarga yo'naltirilgan bemorlar</h1>
+    <p class="text-muted small mb-0">
+      Barcha yo'naltirilgan bemorlar, yotqizilganlar va javob berib chiqib ketganlar ro'yxati
+    </p>
+  </div>
+</div>
+
+{% if messages %}
+  {% for m in messages %}
+    <div class="alert alert-{{ m.tags }} alert-dismissible fade show">{{ m }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+  {% endfor %}
+{% endif %}
+
+<!-- Status Filtrlari -->
+<div class="mb-3 d-flex gap-2">
+  <a href="{% url 'clinical:nurse_incoming' %}" class="btn btn-sm {% if not current_status %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+    Barchasi <span class="badge bg-secondary ms-1">{{ counts.all }}</span>
+  </a>
+  <a href="{% url 'clinical:nurse_incoming' %}?status=sent" class="btn btn-sm {% if current_status == 'sent' %}btn-warning text-dark{% else %}btn-outline-warning text-dark{% endif %}">
+    <i class="bi bi-clock"></i> Kutayotganlar <span class="badge bg-dark ms-1">{{ counts.sent }}</span>
+  </a>
+  <a href="{% url 'clinical:nurse_incoming' %}?status=admitted" class="btn btn-sm {% if current_status == 'admitted' %}btn-info text-white{% else %}btn-outline-info{% endif %}">
+    <i class="bi bi-hospital"></i> Yotqizilganlar <span class="badge bg-secondary ms-1">{{ counts.admitted }}</span>
+  </a>
+  <a href="{% url 'clinical:nurse_incoming' %}?status=discharged" class="btn btn-sm {% if current_status == 'discharged' %}btn-success{% else %}btn-outline-success{% endif %}">
+    <i class="bi bi-check-circle"></i> Chiqib ketganlar <span class="badge bg-secondary ms-1">{{ counts.discharged }}</span>
+  </a>
+</div>
+
+<div class="card shadow-sm border-0">
+  <div class="card-body p-0">
+    <table class="table table-hover table-sm mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th class="ps-3">Bemor</th>
+          <th>Yubordi</th>
+          <th>Sabab / Maqsad</th>
+          <th>Tashxis</th>
+          <th class="text-center">Status</th>
+          <th class="text-end pe-3">Amallar</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for e in episodes %}
+        <tr>
+          <td class="ps-3">
+            <div class="fw-semibold">{{ e.patient.full_name }}</div>
+            <div class="small text-muted">
+              {{ e.patient.age }} yosh · {{ e.patient.get_gender_display }}
+              · karta {{ e.patient.card_number }}
+            </div>
+          </td>
+          <td class="small">
+            {{ e.referred_by.get_full_name|default:e.referred_by.username|default:"—" }}
+            <div class="text-muted">{{ e.sent_at|date:"d.m H:i" }}</div>
+          </td>
+          <td class="small">
+            <div>{{ e.reason|default:"—" }}</div>
+            <span class="badge bg-light text-dark">{{ e.get_purpose_display }}</span>
+            {% if not e.with_primary_exam %}
+              <span class="badge bg-danger-subtle text-danger-emphasis">Ko'riksiz</span>
+            {% endif %}
+          </td>
+          <td class="small">
+            {% for d in e.diagnoses.all %}
+              <div>{{ d.label }}{% if d.kind == 'main' %} <b>(asosiy)</b>{% endif %}</div>
+            {% empty %}<span class="text-muted">—</span>{% endfor %}
+          </td>
+          <td class="text-center">
+            {% if e.status == 'sent' %}
+              <span class="badge bg-warning text-dark"><i class="bi bi-clock"></i> Kutmoqda</span>
+            {% elif e.status == 'admitted' %}
+              <span class="badge bg-info text-white"><i class="bi bi-hospital"></i> Yotqizildi</span>
+            {% elif e.status == 'discharged' %}
+              <span class="badge bg-success"><i class="bi bi-check-circle"></i> Chiqib ketgan</span>
+            {% elif e.status == 'cancelled' %}
+              <span class="badge bg-secondary"><i class="bi bi-x-circle"></i> Bekor qilingan</span>
+            {% else %}
+              <span class="badge bg-secondary">{{ e.get_status_display }}</span>
+            {% endif %}
+          </td>
+          <td class="text-end pe-3 text-nowrap">
+            <a href="{% url 'clinical:episode_detail' e.pk %}" class="btn btn-sm btn-outline-secondary">
+              <i class="bi bi-eye"></i> Ko'rish
+            </a>
+            {% if e.status == 'sent' %}
+            <a href="{% url 'clinical:inpatient_dashboard' %}" class="btn btn-sm btn-primary">
+              <i class="bi bi-hospital"></i> Kravat berish
+            </a>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6" class="text-center text-muted py-4">
+          Ro'yxat bo'sh.
+        </td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

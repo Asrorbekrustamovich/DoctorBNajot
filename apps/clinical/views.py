@@ -2,7 +2,7 @@ from django.contrib import messages
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.views.generic import CreateView, TemplateView, View
 from django.db import transaction
 from django.utils import timezone
@@ -23,7 +23,8 @@ from apps.clinical.models import (
     Consultation, ConsultationTemplate, DoctorPrice, ServiceOrder,
     ProcedureRecord, StayChecklistItem, SurgeryReport, ServiceCatalog,
     Room, Bed, InpatientStay, SurgeryType, SurgicalItem, SurgerySchedule,
-    AnesthesiaRequest, SurgeryVitals, NurseUsageItem
+    AnesthesiaRequest, SurgeryVitals, NurseUsageItem,
+    ServiceCategory, ServiceResultRow, ResultTemplateRow, AmbulatoryRoom,
 )
 from apps.clinical.forms import ConsultationForm
 
@@ -58,11 +59,23 @@ class ConsultationModalView(RoleRequiredMixin, TemplateView):
         existing = Consultation.objects.filter(visit=visit, doctor=self.request.user).first()
         context["existing_report"] = existing.report_html if existing else ""
 
-        # Xizmatlar (tayinlash uchun)
-        context["services"] = ServiceCatalog.objects.filter(is_active=True).order_by("name")
-        context["existing_orders"] = list(visit.service_orders.exclude(
-            status=ServiceOrder.Status.CANCELLED
-        ).values_list("service_id", flat=True))
+        # Tekshiruvlar — guruhlangan daraxt («+Analiz», «+UZI», …).
+        # Tekis ro'yxat 60 dan ortiq xizmatda ishlatib bo'lmas edi.
+        from apps.clinical import selectors as clinical_selectors
+
+        assigned = {
+            str(sid) for sid in visit.service_orders.exclude(
+                status=ServiceOrder.Status.CANCELLED
+            ).values_list("service_id", flat=True)
+        }
+        context["exam_groups"] = clinical_selectors.exam_picker_groups(assigned)
+        context["assign_url"] = reverse(
+            "clinical:consultation_assign_services", args=[visit.pk]
+        )
+        # Tayinlangan tekshiruvlar va ularning natijalari — shifokor
+        # qabul oynasidan chiqmasdan ko'radi.
+        context["exam_orders"] = clinical_selectors.visit_exam_orders(visit)
+        context["existing_orders"] = list(assigned)
 
         # Boshqa shifokorlar (yo'naltirish uchun)
         context["doctors"] = User.objects.filter(
@@ -793,18 +806,34 @@ def assign_bed_htmx(request, bed_id):
     from django.contrib.auth import get_user_model
     User = get_user_model()
     bed = get_object_or_404(Bed, id=bed_id)
-    # Har bir bemor uchun faqat eng oxirgi qabulini (Visit) olish (dublikatlarning oldini olish)
-    from django.db.models import Max
-    latest_visit_ids = Visit.objects.values('patient').annotate(max_id=Max('id')).values('max_id')
-    recent_visits = Visit.objects.filter(id__in=latest_visit_ids).order_by("-created_at")[:50]
+
+    # Har bir bemorning ENG OXIRGI qabuli.
+    #
+    # DIQQAT: ilgari bu `Max("id")` orqali qilingan edi. `id` — UUID, uning
+    # «maksimumi» tasodifiy: u vaqt bo'yicha emas, alifbo bo'yicha eng katta
+    # UUID ni beradi. Natijada ro'yxatga bemorning eski qabuli tushib
+    # qolishi mumkin edi. Sana bo'yicha saralab, birinchisini olamiz.
+    seen: set = set()
+    recent_visits = []
+    for v in (Visit.objects.select_related("patient")
+              .order_by("-visit_date", "-created_at")[:400]):
+        if v.patient_id in seen:
+            continue
+        seen.add(v.patient_id)
+        recent_visits.append(v)
+        if len(recent_visits) >= 50:
+            break
     nurses = User.objects.filter(role__code__in=(Role.Code.NURSE, Role.Code.WARD_NURSE), is_active=True)
     doctors = User.objects.filter(role__code__in=(Role.Code.DOCTOR, Role.Code.SURGEON, Role.Code.CHIEF_DOCTOR), is_active=True)
 
+    # DIQQAT: bu yerda ham aniqlanmagan `ward_nurses` bor edi va forma
+    # NameError bilan qulardi — HTMX esa 500 javobni ekranga chiqarmaydi,
+    # shuning uchun modal «Yuklanmoqda…» holatida qotib qolardi.
+    # Shablon `nurses` ni ishlatadi, uning ichida palata hamshiralari ham bor.
     return render(request, "clinical/_assign_bed_form.html", {
         "bed": bed,
         "recent_visits": recent_visits,
         "nurses": nurses,
-        "ward_nurses": ward_nurses,
         "doctors": doctors,
     })
 
@@ -847,12 +876,14 @@ def admit_visit_htmx(request, visit_id):
     doctors = User.objects.filter(role__code__in=(Role.Code.DOCTOR, Role.Code.SURGEON, Role.Code.CHIEF_DOCTOR), is_active=True)
     empty_beds = Bed.objects.filter(is_occupied=False).order_by("room__name", "number")
     
+    # DIQQAT: bu yerda «ward_nurses» degan aniqlanmagan o'zgaruvchi bor edi
+    # va yotqizish formasi har safar NameError bilan qulardi. Shablon uni
+    # umuman ishlatmaydi — `nurses` ichida palata hamshiralari ham bor.
     return render(request, "clinical/_admit_visit_form.html", {
-        "visit": visit, 
+        "visit": visit,
         "nurses": nurses,
-        "ward_nurses": ward_nurses,
         "doctors": doctors,
-        "empty_beds": empty_beds
+        "empty_beds": empty_beds,
     })
 
 @role_required(
@@ -1483,9 +1514,108 @@ def add_bed(request):
 
 @role_required(Role.Code.ADMINISTRATOR, Role.Code.SUPER_ADMIN)
 def service_settings(request):
-    """Xizmatlar katalogi va narxlarini boshqarish sahifasi."""
-    services = ServiceCatalog.objects.all().order_by("name")
-    return render(request, "clinical/service_settings.html", {"services": services})
+    """Xizmatlar katalogi: narx, guruh va KIM BAJARISHI.
+
+    «Radiolog» degan alohida rol yo'q, shuning uchun har bir tekshiruvni
+    kim bajarishi shu yerda biriktiriladi: aniq xodim, yoki rol (bo'lim),
+    yoki guruhdan meros. Kabinet ham shu yerda — bemorga «qayerga borish»
+    ko'rsatiladi.
+    """
+    services = (
+        ServiceCatalog.objects.select_related(
+            "category", "category__parent", "allowed_role",
+            "responsible_staff", "room",
+        )
+        .order_by("category__sort_order", "category__name", "sort_order", "name")
+    )
+
+    # Guruhlar bo'yicha ajratamiz — 90 ta xizmatni tekis ro'yxatda
+    # boshqarib bo'lmaydi.
+    grouped: dict[str, list] = {}
+    for svc in services:
+        key = str(svc.category) if svc.category_id else "Guruhsiz (shifokor qabullari va h.k.)"
+        grouped.setdefault(key, []).append(svc)
+
+    categories = (
+        ServiceCategory.objects.select_related("parent", "default_role",
+                                               "default_staff", "default_room")
+        .order_by("parent__sort_order", "sort_order", "name")
+    )
+
+    roles = Role.objects.all().order_by("name")
+    staff = User.objects.filter(is_active=True).order_by("last_name", "first_name")
+    rooms = AmbulatoryRoom.objects.all().order_by("name")
+
+    # Tanlov ro'yxatlari SAHIFAGA BIR MARTA yuboriladi.
+    # Ilgari har bir xizmat qatorida to'rtta <select> chizilardi:
+    # 74 xizmat × ~70 variant = 1 MB dan ortiq HTML. Xodimlar soni oshgani
+    # sayin bu yomonlashardi. Endi ro'yxat JSON bo'lib bir marta ketadi va
+    # umumiy modalga JS orqali joylanadi.
+    picker_options = {
+        "categories": [[str(c.id), str(c)] for c in categories],
+        "roles": [[str(r.id), r.name] for r in roles],
+        "staff": [[str(u.id), u.get_full_name() or u.username] for u in staff],
+        "rooms": [[str(r.id), r.name] for r in rooms],
+    }
+
+    return render(request, "clinical/service_settings.html", {
+        "services": services,
+        "grouped": grouped,
+        "categories": categories,
+        "roles": roles,
+        "staff": staff,
+        "rooms": rooms,
+        "picker_options": picker_options,
+    })
+
+
+@role_required(Role.Code.ADMINISTRATOR, Role.Code.SUPER_ADMIN)
+@require_POST
+def update_service_routing(request, service_id):
+    """Tekshiruvni guruhga joylash va mas'ulini biriktirish.
+
+    Narxga TEGMAYDI — narx alohida endpoint orqali o'zgaradi, chunki uning
+    tarixi yozilishi shart.
+    """
+    svc = get_object_or_404(ServiceCatalog, id=service_id)
+
+    def pick(model, field):
+        raw = (request.POST.get(field) or "").strip()
+        if not raw:
+            return None
+        return model.objects.filter(pk=raw).first()
+
+    svc.category = pick(ServiceCategory, "category")
+    svc.allowed_role = pick(Role, "allowed_role")
+    svc.responsible_staff = pick(User, "responsible_staff")
+    svc.room = pick(AmbulatoryRoom, "room")
+    svc.save(update_fields=["category", "allowed_role", "responsible_staff",
+                            "room", "updated_at"])
+    messages.success(request, f"«{svc.name}» sozlamalari saqlandi. Mas'ul: {svc.owner_label}.")
+    return redirect("clinical:service_settings")
+
+
+@role_required(Role.Code.ADMINISTRATOR, Role.Code.SUPER_ADMIN)
+@require_POST
+def update_category_defaults(request, category_id):
+    """Guruh darajasidagi standart mas'ul va kabinet.
+
+    Har bir tekshiruvni alohida sozlash zerikarli — «Laboratoriya» guruhiga
+    bir marta laborant biriktirilsa, ichidagi hamma tahlil o'shanga boradi.
+    """
+    cat = get_object_or_404(ServiceCategory, id=category_id)
+
+    def pick(model, field):
+        raw = (request.POST.get(field) or "").strip()
+        return model.objects.filter(pk=raw).first() if raw else None
+
+    cat.default_role = pick(Role, "default_role")
+    cat.default_staff = pick(User, "default_staff")
+    cat.default_room = pick(AmbulatoryRoom, "default_room")
+    cat.save(update_fields=["default_role", "default_staff", "default_room",
+                            "updated_at"])
+    messages.success(request, f"«{cat}» guruhi sozlamalari saqlandi.")
+    return redirect("clinical:service_settings")
 
 
 @role_required(Role.Code.ADMINISTRATOR, Role.Code.SUPER_ADMIN)
@@ -1900,8 +2030,13 @@ def stay_checklist_add(request, stay_id):
 
 
 @role_required(*STAY_DOC_ROLES)
+@require_POST
 def stay_checklist_toggle(request, item_id):
     """ServiceOrder yoki SurgerySchedule holatini o'zgartirish.
+
+    DIQQAT: `@require_POST` shart. Busiz GET so'rovda funksiya `None`
+    qaytarardi va Django «didn't return an HttpResponse» deb 500 berardi.
+    Endi to'g'ri 405 qaytadi.
 
     Template dan type=service_order yoki type=surgery kelib tushadi.
     - service_order: completed <-> waiting
@@ -2097,19 +2232,42 @@ def _examiner_can_touch(user, order) -> bool:
 def _my_orders_filter(user):
     """«Menga tegishli tekshiruvlar» uchun so'rov sharti.
 
-    `can_be_performed_by` bilan aynan bir xil mantiq, faqat SQL tilida.
+    `ServiceCatalog.can_be_performed_by` bilan aynan bir xil mantiq, faqat
+    SQL tilida. IKKALASI BIRGA O'ZGARISHI SHART — aks holda xodim
+    ro'yxatda ko'rmagan tekshiruvni ocha oladi (yoki aksincha).
+
+    Ustuvorlik:
+      1. Mas'ul xodim (xizmatda yoki guruhda) — faqat o'sha odam
+      2. Rol (xizmatda yoki guruhda) — o'sha bo'limdagi hamma
+      3. Hech narsa yo'q — hammaga ochiq
     """
     from django.db.models import Q
+
     if user.is_superuser:
         return Q()
-    return (
-        # 1) Shaxsan menga biriktirilgan
+
+    # «Amaldagi mas'ul xodim» — xizmatdagisi, u bo'lmasa guruhdagisi.
+    staff_is_me = (
         Q(service__responsible_staff=user)
-        # 2) Mas'ul xodim yo'q, lekin mening rolimga tegishli
-        | Q(service__responsible_staff__isnull=True, service__allowed_role=user.role_id)
-        # 3) Umuman biriktirilmagan — hammaga ochiq
-        | Q(service__responsible_staff__isnull=True, service__allowed_role__isnull=True)
+        | Q(service__responsible_staff__isnull=True,
+            service__category__default_staff=user)
     )
+    # Mas'ul xodim umuman yo'q (na xizmatda, na guruhda)
+    no_staff = Q(service__responsible_staff__isnull=True) & (
+        Q(service__category__isnull=True)
+        | Q(service__category__default_staff__isnull=True)
+    )
+    role_is_mine = (
+        Q(service__allowed_role=user.role_id)
+        | Q(service__allowed_role__isnull=True,
+            service__category__default_role=user.role_id)
+    )
+    no_role = Q(service__allowed_role__isnull=True) & (
+        Q(service__category__isnull=True)
+        | Q(service__category__default_role__isnull=True)
+    )
+
+    return staff_is_me | (no_staff & (role_is_mine | no_role))
 
 
 class ExaminerDashboardView(RoleRequiredMixin, TemplateView):
@@ -2192,10 +2350,16 @@ class ExaminerOrderCallView(RoleRequiredMixin, View):
             ),
             id=order_id,
         )
+        blocked = order.payment_blocked_reason
         if not _examiner_can_touch(request.user, order):
             messages.error(request, "Bu tekshiruv sizga biriktirilmagan.")
         elif order.status in (ServiceOrder.Status.COMPLETED, ServiceOrder.Status.CANCELLED):
             messages.error(request, "Bu tekshiruv allaqachon yopilgan.")
+        elif blocked:
+            # OLDINDAN TO'LOV QOIDASI: tekshiruv puli xizmatdan OLDIN
+            # to'lanadi. Bemorni chaqirib, keyin «to'lamagansiz» deyish —
+            # eng yomon variant, shuning uchun chaqiruvning o'zi to'siladi.
+            messages.error(request, blocked)
         else:
             order.called_at = timezone.now()
             order.called_by = request.user
@@ -2217,10 +2381,13 @@ class ExaminerOrderAcceptView(RoleRequiredMixin, View):
         order = get_object_or_404(
             ServiceOrder.objects.select_related("service", "visit__patient"), id=order_id
         )
+        blocked = order.payment_blocked_reason
         if not _examiner_can_touch(request.user, order):
             messages.error(request, "Bu tekshiruv sizning rolingizga tegishli emas.")
         elif order.status in (ServiceOrder.Status.COMPLETED, ServiceOrder.Status.CANCELLED):
             messages.error(request, "Bu tekshiruv allaqachon yopilgan.")
+        elif blocked:
+            messages.error(request, blocked)
         elif order.status == ServiceOrder.Status.IN_PROGRESS:
             kim = order.accepted_by.get_full_name() if order.accepted_by else "boshqa xodim"
             if order.accepted_by_id == request.user.pk:
@@ -2280,28 +2447,66 @@ class ExaminerOrderPerformView(RoleRequiredMixin, View):
     """Mutaxassis tomonidan tekshiruv xulosasini yozish va yakunlash."""
     allowed_roles = EXAMINER_ROLES
 
+    @transaction.atomic
     def post(self, request, order_id):
         order = get_object_or_404(ServiceOrder.objects.select_related("service"), id=order_id)
         result_text = request.POST.get("result_text", "").strip()
 
+        # Jadval ko'rinishidagi ko'rsatkichlar. Uch ro'yxat bir-biriga
+        # indeks bo'yicha mos keladi (HTML'da bir qatorda turadi).
+        names = request.POST.getlist("row_name")
+        values = request.POST.getlist("row_value")
+        units = request.POST.getlist("row_unit")
+        refs = request.POST.getlist("row_ref")
+        abnormals = set(request.POST.getlist("row_abnormal"))
+
+        rows = []
+        for i, nm in enumerate(names):
+            nm = (nm or "").strip()
+            val = (values[i] if i < len(values) else "").strip()
+            # Nomi ham, qiymati ham bo'sh qator — shunchaki to'ldirilmagan,
+            # xato emas. Uni jimgina tashlab ketamiz.
+            if not nm or not val:
+                continue
+            rows.append({
+                "name": nm,
+                "value": val,
+                "unit": (units[i] if i < len(units) else "").strip(),
+                "reference": (refs[i] if i < len(refs) else "").strip(),
+                "is_abnormal": str(i) in abnormals,
+                "sort_order": (i + 1) * 10,
+            })
+
+        blocked = order.payment_blocked_reason
         if not _examiner_can_touch(request.user, order):
             messages.error(request, "Bu tekshiruv sizning rolingizga tegishli emas.")
         elif order.status in (ServiceOrder.Status.COMPLETED, ServiceOrder.Status.CANCELLED):
             messages.error(request, "Bu tekshiruv allaqachon yopilgan.")
-        elif not result_text:
-            messages.error(request, "Xulosa matni kiritilmagan!")
+        elif blocked:
+            messages.error(request, blocked)
+        elif not result_text and not rows:
+            # UZI/EKG da matn, laboratoriyada jadval bo'ladi — bittasi
+            # bo'lsa yetarli, ikkalasini ham talab qilish noto'g'ri.
+            messages.error(request, "Natija kiritilmagan: xulosa matni yoki ko'rsatkichlar kerak.")
         else:
             order.result_text = result_text
             order.status = ServiceOrder.Status.COMPLETED
             order.performed_by = request.user
+            order.result_at = timezone.now()
             # Qabul qilmasdan to'g'ridan-to'g'ri yakunlangan bo'lsa ham
             # kim qachon boshlagani yozilib qolsin
             if order.accepted_at is None:
                 order.accepted_by = request.user
                 order.accepted_at = timezone.now()
             order.save(update_fields=[
-                "result_text", "status", "performed_by",
+                "result_text", "status", "performed_by", "result_at",
                 "accepted_by", "accepted_at", "updated_at",
+            ])
+
+            # Qayta saqlashda eski qatorlar qolib ketmasligi uchun almashtiramiz
+            order.result_rows.all().delete()
+            ServiceResultRow.objects.bulk_create([
+                ServiceResultRow(order=order, **r) for r in rows
             ])
             messages.success(request, f"{order.service.name} tekshiruvi muvaffaqiyatli yakunlandi!")
 
@@ -3579,3 +3784,67 @@ def delete_ambulatory_room(request, pk):
     messages.success(request, f"'{room_name}' xonasi o'chirildi.")
     return redirect("clinical:ambulatory_rooms_settings")
 
+
+
+# ==========================================================================
+#  TEKSHIRUV NATIJASINI CHOP ETISH
+# --------------------------------------------------------------------------
+#  Natija blanki ikki joyda kerak bo'ladi:
+#    · shifokor — qabul oynasidan, bemorga ko'rsatish yoki tikish uchun
+#    · registratura — bemor «natijamni bering» deb kelganda
+#  Shu sababli ruxsat ro'yxatida registratura ham bor. Bu tibbiy sirni
+#  buzmaydi: registratura allaqachon bemorning kartasi bilan ishlaydi.
+# ==========================================================================
+
+RESULT_PRINT_ROLES = [
+    "super_admin", "administrator", "chief_doctor", "doctor",
+    "reception", "nurse", "ward_nurse", "director", "lab", "examiner",
+]
+
+
+class ServiceResultPrintView(RoleRequiredMixin, TemplateView):
+    """Bitta tekshiruv natijasi — rasmiy blank."""
+
+    allowed_roles = RESULT_PRINT_ROLES
+    template_name = "clinical/service_result_print.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        order = get_object_or_404(
+            ServiceOrder.objects.select_related(
+                "service", "service__category", "visit", "visit__patient",
+                "visit__doctor", "performed_by",
+            ).prefetch_related("result_rows"),
+            pk=self.kwargs["order_id"],
+        )
+        ctx["orders"] = [order]
+        ctx["visit"] = order.visit
+        ctx["patient"] = order.visit.patient
+        ctx["single"] = True
+        ctx["printed_at"] = timezone.now()
+        return ctx
+
+
+class VisitResultsPrintView(RoleRequiredMixin, TemplateView):
+    """Bitta tashrifning BARCHA tayyor natijalari — bitta blankda."""
+
+    allowed_roles = RESULT_PRINT_ROLES
+    template_name = "clinical/service_result_print.html"
+
+    def get_context_data(self, **kwargs):
+        from apps.clinical import selectors as clinical_selectors
+
+        ctx = super().get_context_data(**kwargs)
+        visit = get_object_or_404(
+            Visit.objects.select_related("patient", "doctor"),
+            pk=self.kwargs["visit_id"],
+        )
+        orders = [
+            o for o in clinical_selectors.visit_exam_orders(visit) if o.has_result
+        ]
+        ctx["orders"] = orders
+        ctx["visit"] = visit
+        ctx["patient"] = visit.patient
+        ctx["single"] = False
+        ctx["printed_at"] = timezone.now()
+        return ctx

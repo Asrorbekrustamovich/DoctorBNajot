@@ -1,0 +1,44 @@
+{% comment %}
+  Bitta tekshiruv qatori. Alohida fayl — chunki u guruhning bevosita
+  xizmatlarida ham, ichki guruhlarida ham bir xil ko'rinishi kerak.
+
+  Allaqachon tayinlangan tekshiruv qayta tanlanmaydi (checkbox o'chirilgan),
+  lekin ro'yxatdan yo'qolmaydi — shifokor nima allaqachon buyurilganini
+  ko'rib turishi kerak, aks holda ikkinchi marta buyuradi.
+
+  DIQQAT — `.form-check` KLASSI ISHLATILMAYDI.
+  Bootstrap unga `padding-left:1.5em` va ichkaridagi inputga
+  `float:left; margin-left:-1.5em` beradi. Biz esa qatorni `d-flex` bilan
+  tuzganmiz: flex konteynerda `float` e'tiborga olinmaydi, lekin manfiy
+  chekka qoladi — katakcha 1.5em chapga surilib, chegara ustiga chiqadi va
+  belgilangan-belgilanmagani ko'rinmay qoladi. Shuning uchun tartib
+  qo'lda beriladi.
+{% endcomment %}
+<div class="col exam-row" data-exam-name="{{ s.name|lower }}">
+  <label class="exam-item{% if s.assigned %} is-assigned{% endif %}"
+         for="exam_{{ s.id }}">
+    <input class="form-check-input exam-check" type="checkbox"
+           value="{{ s.id }}"
+           id="exam_{{ s.id }}"
+           data-group="{{ g.id }}"
+           data-price="{{ s.price_num }}"
+           {% if s.assigned %}checked disabled{% endif %}>
+    <span class="exam-body">
+      <span class="exam-title">
+        <span class="exam-name">{{ s.name }}</span>
+        <span class="exam-price">{{ s.price|floatformat:0 }} so'm</span>
+      </span>
+      <span class="exam-meta">
+        {% if s.assigned %}
+          <span class="badge bg-secondary">Allaqachon tayinlangan</span>
+        {% elif s.destination %}
+          <i class="bi bi-geo-alt"></i> {{ s.destination }}
+        {% else %}
+          <span class="text-warning-emphasis">
+            <i class="bi bi-exclamation-triangle"></i> Mas'ul biriktirilmagan
+          </span>
+        {% endif %}
+      </span>
+    </span>
+  </label>
+</div>

@@ -1,0 +1,276 @@
+{% comment %}
+  VIPISKA — statsionardan chiqish hujjati (rasmiy blank).
+
+  Mustaqil sahifa: base.html ga bog'lanmaydi, chunki chop etishda menyu
+  va tugmalar qog'ozga tushmasligi kerak.
+
+  Hujjatning katta qismi AVTOMATIK: tashxislar, tekshiruv natijalari,
+  dorilar, operatsiya, yotgan kunlar — hammasi tizimdan olinadi.
+  Shifokor faqat xulosa qismini yozgan.
+{% endcomment %}
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<title>Vipiska — {{ patient.full_name }}</title>
+<style>
+  @page { size: A4; margin: 14mm 12mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "Times New Roman", Georgia, serif; color: #111;
+         margin: 0; padding: 18px; font-size: 12.5px; line-height: 1.45;
+         background: #f4f6f8; }
+  .sheet { max-width: 820px; margin: 0 auto; background: #fff;
+           padding: 26px 30px; box-shadow: 0 2px 14px rgba(0,0,0,.1); }
+  .clinic { text-align: center; }
+  .clinic h1 { margin: 0; font-size: 23px; color: #0f8a72; }
+  .clinic .meta { font-size: 11px; color: #444; margin-top: 2px; }
+  hr.rule { border: 0; border-top: 2px solid #0f8a72; margin: 10px 0 12px; }
+
+  h2.title { text-align: center; font-size: 15px; text-transform: uppercase;
+             letter-spacing: .6px; margin: 4px 0 14px; }
+
+  table.who { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+  table.who td { padding: 2px 0; vertical-align: top; }
+  table.who td.k { width: 150px; font-weight: bold; }
+
+  section { margin-bottom: 13px; page-break-inside: avoid; }
+  section > h3 { font-size: 12.5px; margin: 0 0 4px; padding: 3px 8px;
+                 background: #eef6f4; border-left: 3px solid #0f8a72; }
+  .body { white-space: pre-wrap; padding: 2px 2px 2px 11px; }
+
+  table.grid { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  table.grid th, table.grid td { border: 1px solid #b9c4c2; padding: 3px 6px; }
+  table.grid th { background: #f0f4f3; text-align: left; font-size: 11px; }
+  tr.abn td { color: #b3261e; font-weight: bold; }
+  .dx-main { font-weight: bold; }
+
+  .signs { margin-top: 24px; display: flex; justify-content: space-between; gap: 30px; }
+  .sign { flex: 1; font-size: 11.5px; }
+  .sign .line { border-bottom: 1px solid #444; height: 24px; margin-bottom: 3px; }
+  .foot { margin-top: 14px; font-size: 10px; color: #666; text-align: center; }
+
+  .bar { max-width: 820px; margin: 0 auto 12px; text-align: right; }
+  .bar button, .bar a { font-family: system-ui, sans-serif; font-size: 13px;
+    cursor: pointer; padding: 7px 14px; border-radius: 6px;
+    border: 1px solid #0f8a72; background: #0f8a72; color: #fff;
+    text-decoration: none; margin-left: 6px; }
+  .bar a.ghost { background: #fff; color: #0f8a72; }
+
+  @media print {
+    body { background: #fff; padding: 0; }
+    .sheet { box-shadow: none; padding: 0; max-width: none; }
+    .bar { display: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <a href="{% url 'clinical:episode_detail' episode.pk %}" class="ghost">← Epizodga</a>
+  <button onclick="window.print()">🖨 Chop etish</button>
+</div>
+
+<div class="sheet">
+
+  <div class="clinic">
+    <h1>{{ clinic_name }}</h1>
+    <div class="meta">{{ clinic_address }}{% if clinic_phone %} · Tel: {{ clinic_phone }}{% endif %}</div>
+  </div>
+  <hr class="rule">
+
+  <h2 class="title">Statsionardan chiqish xulosasi (vipiska)</h2>
+
+  <table class="who">
+    <tr><td class="k">Ismi familiyasi:</td>
+        <td>{{ patient.full_name }}{% if patient.age %} ({{ patient.age }} yosh, {{ patient.get_gender_display }}){% endif %}</td></tr>
+    <tr><td class="k">Karta raqami:</td><td>{{ patient.card_number }}</td></tr>
+    {% if episode.document_number %}
+    <tr><td class="k">{{ episode.get_document_type_display }}:</td><td>{{ episode.document_number }}</td></tr>
+    {% endif %}
+    {% if patient.address %}<tr><td class="k">Manzil:</td><td>{{ patient.address }}</td></tr>{% endif %}
+    <tr><td class="k">Bo'lim / palata:</td>
+        <td>{{ episode.department }}{% if episode.room %} · {{ episode.room.name }}{% endif %}</td></tr>
+    <tr><td class="k">Yotqizilgan:</td><td>{{ summary.admitted_at|date:"d.m.Y H:i" }}</td></tr>
+    <tr><td class="k">Chiqarilgan:</td><td>{{ summary.discharged_at|date:"d.m.Y H:i" }}</td></tr>
+    <tr><td class="k">Yotgan kunlar:</td><td><b>{{ summary.bed_days }} kun</b></td></tr>
+    <tr><td class="k">Yotqizish maqsadi:</td><td>{{ episode.get_purpose_display }}</td></tr>
+    <tr><td class="k">Yo'llagan shifokor:</td>
+        <td>{% if episode.referred_by %}{{ episode.referred_by.get_full_name|default:episode.referred_by.username }}{% endif %}</td></tr>
+  </table>
+
+  {% if episode.reason %}
+  <section>
+    <h3>Murojaat sababi</h3>
+    <div class="body">{{ episode.reason }}</div>
+  </section>
+  {% endif %}
+
+  <section>
+    <h3>Tashxislar (MKB-10)</h3>
+    {% if diagnoses %}
+      <table class="grid">
+        <thead><tr><th style="width:46%">Tashxis</th><th>Turi</th><th>Xili</th><th>Kechishi</th></tr></thead>
+        <tbody>
+        {% for d in diagnoses %}
+          <tr class="{% if d.kind == 'main' %}dx-main{% endif %}">
+            <td>{{ d.label }}</td>
+            <td>{{ d.get_stage_display }}</td>
+            <td>{{ d.get_kind_display }}</td>
+            <td>{{ d.get_course_display }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+    {% if episode.clinical_diagnosis %}
+      <div class="body"><b>Klinik tashxis:</b> {{ episode.clinical_diagnosis }}</div>
+    {% endif %}
+  </section>
+
+  {% if episode.complaints or episode.anamnesis_morbi %}
+  <section>
+    <h3>Kelgandagi holati</h3>
+    {% if episode.complaints %}<div class="body"><b>Shikoyatlar:</b> {{ episode.complaints }}</div>{% endif %}
+    {% if episode.anamnesis_morbi %}<div class="body"><b>Anamnesis morbi:</b> {{ episode.anamnesis_morbi }}</div>{% endif %}
+    {% if episode.status_praesens %}<div class="body"><b>Status praesens:</b> {{ episode.status_praesens }}</div>{% endif %}
+    {% if episode.allergo_anamnesis %}<div class="body"><b>Allergoanamnez:</b> {{ episode.allergo_anamnesis }}</div>{% endif %}
+  </section>
+  {% endif %}
+
+  {% if orders %}
+  <section>
+    <h3>O'tkazilgan tekshiruvlar va natijalari</h3>
+    <table class="grid">
+      <thead><tr><th style="width:32%">Tekshiruv</th><th>Natija</th></tr></thead>
+      <tbody>
+      {% for o in orders %}
+        <tr>
+          <td>{{ o.service.name }}<div style="font-size:10px;color:#666">{{ o.result_at|date:"d.m.Y" }}</div></td>
+          <td>
+            {% if o.result_rows.all %}
+              {% for r in o.result_rows.all %}
+                <div{% if r.is_abnormal %} style="color:#b3261e;font-weight:bold"{% endif %}>
+                  {{ r.name }}: {{ r.value }} {{ r.unit }}
+                  {% if r.reference %}<span style="color:#666">(norma {{ r.reference }})</span>{% endif %}
+                </div>
+              {% endfor %}
+            {% endif %}
+            {% if o.result_text %}<div>{{ o.result_text }}</div>{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  {% if surgeries %}
+  <section>
+    <h3>Jarrohlik amaliyoti va bayonnomasi</h3>
+    {% for s in surgeries %}
+      <div style="border: 1px solid #b9c4c2; padding: 8px 10px; margin-bottom: 8px; border-radius: 4px; background: #fafcfc;">
+        <div style="font-weight: bold; font-size: 13px; color: #0f8a72;">
+          <i class="bi bi-heart-pulse"></i> {{ s.surgery_type.name }} — {{ s.scheduled_time|date:"d.m.Y H:i" }}
+        </div>
+        <div style="font-size: 11.5px; color: #333; margin-top: 3px;">
+          <b>Jarroh:</b> {{ s.surgeon.get_full_name|default:s.surgeon.username|default:"—" }}
+          {% if s.anesthesiologist %} · <b>Anesteziolog:</b> {{ s.anesthesiologist.get_full_name }}{% endif %}
+          {% if s.anesthesia_type %} · <b>Narkoz:</b> {{ s.get_anesthesia_type_display }}{% endif %}
+        </div>
+        {% if s.report %}
+          <div style="margin-top: 6px; font-size: 11.5px; border-top: 1px dashed #ccc; padding-top: 4px;">
+            {% if s.report.performed_actions %}<div><b>Bajarilgan amallar:</b> {{ s.report.performed_actions }}</div>{% endif %}
+            {% if s.report.anesthesia %}<div><b>Anesteziya tafsilotlari:</b> {{ s.report.anesthesia }}</div>{% endif %}
+            {% if s.report.injections %}<div><b>Inyeksiyalar (ukollar):</b> {{ s.report.injections }}</div>{% endif %}
+            {% if s.report.consumables %}<div><b>Sarflangan materiallar:</b> {{ s.report.consumables }}</div>{% endif %}
+            {% if s.report.notes %}<div><b>Izoh:</b> {{ s.report.notes }}</div>{% endif %}
+          </div>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {% if procedures %}
+  <section>
+    <h3>Statsionardagi muolajalar va ukollar</h3>
+    <table class="grid">
+      <thead><tr><th>Vaqt</th><th>Turi</th><th>Nomi / Dori</th><th>Izoh / Doza</th><th>Hamshira</th></tr></thead>
+      <tbody>
+      {% for p in procedures %}
+        <tr>
+          <td>{{ p.performed_at|date:"d.m.Y H:i" }}</td>
+          <td>{{ p.get_category_display }}</td>
+          <td>{{ p.name }}</td>
+          <td>{{ p.notes|default:"" }}</td>
+          <td>{{ p.nurse.get_full_name|default:p.nurse.username }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  {% if medicines %}
+  <section>
+    <h3>Berilgan dori-darmonlar</h3>
+    <table class="grid">
+      <thead><tr><th style="width:60%">Nomi</th><th>Miqdori</th></tr></thead>
+      <tbody>
+      {% for m in medicines %}
+        <tr><td>{{ m.batch.medicine.name|default:"—" }}</td><td>{{ m.quantity }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  {% if summary.treatment_given %}
+  <section>
+    <h3>O'tkazilgan davolash</h3>
+    <div class="body">{{ summary.treatment_given }}</div>
+  </section>
+  {% endif %}
+
+  <section>
+    <h3>Chiqishdagi holati va natija</h3>
+    <div class="body"><b>Davolash natijasi:</b> {{ summary.get_outcome_display }}</div>
+    {% if summary.condition_at_discharge %}
+      <div class="body">{{ summary.condition_at_discharge }}</div>
+    {% endif %}
+    <div class="body"><b>Mehnat qobiliyati:</b> {{ summary.get_work_capacity_display }}
+      {% if summary.sick_leave_from %}
+        ({{ summary.sick_leave_from|date:"d.m.Y" }} — {{ summary.sick_leave_to|date:"d.m.Y" }})
+      {% endif %}
+    </div>
+  </section>
+
+  {% if summary.recommendations or summary.follow_up %}
+  <section>
+    <h3>Tavsiyalar</h3>
+    {% if summary.recommendations %}<div class="body">{{ summary.recommendations }}</div>{% endif %}
+    {% if summary.follow_up %}<div class="body"><b>Nazorat ko'rigi:</b> {{ summary.follow_up }}</div>{% endif %}
+  </section>
+  {% endif %}
+
+  <div class="signs">
+    <div class="sign">
+      <div class="line"></div>
+      Davolovchi shifokor:
+      {% if summary.discharged_by %}{{ summary.discharged_by.get_full_name|default:summary.discharged_by.username }}{% endif %}
+    </div>
+    <div class="sign">
+      <div class="line"></div>
+      Bo'lim mudiri (imzo, muhr)
+    </div>
+  </div>
+
+  <div class="foot">
+    Hujjat {{ printed_at|date:"d.m.Y H:i" }} da chop etildi.
+    Vipiska tibbiy sir hisoblanadi va faqat bemorga yoki uning qonuniy
+    vakiliga beriladi.
+  </div>
+
+</div>
+</body>
+</html>
