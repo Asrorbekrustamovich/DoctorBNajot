@@ -9,7 +9,7 @@
 # ============================================================
 set -euo pipefail
 
-APP_DIR="${APP_DIR:-/opt/edumed-his}"
+APP_DIR="${APP_DIR:-/opt/DoctorBNajot}"
 SERVICE="${SERVICE:-edumed-his}"
 
 cd "$APP_DIR"
