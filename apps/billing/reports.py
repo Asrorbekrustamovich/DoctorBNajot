@@ -125,7 +125,7 @@ def build_report(start: datetime.date, end: datetime.date) -> dict:
         )
     }
 
-    THIRD = Decimal("3")
+    HALF = Decimal("2")
     seen_ids = set()
     for row in doctors:
         row["name"] = f"{row['doctor__last_name']} {row['doctor__first_name']}".strip() or "—"
@@ -133,8 +133,8 @@ def build_report(start: datetime.date, end: datetime.date) -> dict:
         row["surgeries"] = s["surgeries"] if s else 0
         row["surgery_income"] = s["surgery_income"] if s else Decimal(0)
         row["total_income"] = row["income"] + row["surgery_income"]
-        # SHIFOKOR ULUSHI: (qabul + operatsiya) summasining 1/3 qismi
-        row["doctor_share"] = (row["total_income"] / THIRD).quantize(Decimal("0.01"))
+        # SHIFOKOR ULUSHI: (qabul + operatsiya) summasining 50% qismi (1/2)
+        row["doctor_share"] = (row["total_income"] / HALF).quantize(Decimal("0.01"))
         row["clinic_share"] = row["total_income"] - row["doctor_share"]
         seen_ids.add(row["doctor__id"])
 
@@ -151,8 +151,8 @@ def build_report(start: datetime.date, end: datetime.date) -> dict:
             "surgeries": s["surgeries"],
             "surgery_income": total,
             "total_income": total,
-            "doctor_share": (total / THIRD).quantize(Decimal("0.01")),
-            "clinic_share": total - (total / THIRD).quantize(Decimal("0.01")),
+            "doctor_share": (total / HALF).quantize(Decimal("0.01")),
+            "clinic_share": total - (total / HALF).quantize(Decimal("0.01")),
         })
     doctors.sort(key=lambda r: r["total_income"], reverse=True)
 
