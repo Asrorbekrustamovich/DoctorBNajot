@@ -101,323 +101,7 @@ _INVOICE_EDIT_ROLES = (
 )
 
 
-@role_required(*_INVOICE_VIEW_ROLES)
-def view_invoice(request, visit_id):
-    """Bitta vizit (bemor) ning hamma xarajatlarini ko'rish va hisoblash.
-
-    Bemor boshqa shifokorga yo'naltirilgan bo'lsa ham Visit bitta,
-    shuning uchun chek ham bitta bo'ladi (barcha xizmatlar shu yerda).
-
-    Chekni barcha klinik/registratura xodimlari ko'ra oladi, lekin pul
-    amallari (to'lov/qaytarish/bekor) faqat can_edit=True bo'lganda ko'rinadi.
-    """
-    visit = get_object_or_404(Visit, id=visit_id)
-
-    # Har safar ko'rganda hisobni qaytadan avtomat yangilaymiz (toki u to'liq yopilmagan bo'lsa)
-    invoice = generate_invoice_for_visit(visit)
-
-    user = request.user
-    can_edit = user.is_superuser or user.has_role(*_INVOICE_EDIT_ROLES)
-
-    ctx = {
-        "visit": visit,
-        "invoice": invoice,
-        "can_edit": can_edit,
-    }
-    # Rasmiy Word yuklab olish
-    if request.GET.get("format") == "word":
-        from django.template.loader import render_to_string
-        from apps.core.exports import export_html_to_word
-        ctx["word_export"] = True
-        html = render_to_string("billing/invoice_detail.html", ctx, request=request)
-        fname = f"Chek_{visit.patient.last_name}_{visit.patient.first_name}"
-        return export_html_to_word(html, fname)
-    return render(request, "billing/invoice_detail.html", ctx)
-
-
-@role_required(Role.Code.CASHIER, Role.Code.ACCOUNTANT, Role.Code.DIRECTOR, Role.Code.SUPER_ADMIN)
-def edit_inpatient_days(request, stay_id):
-    """Kassir yoki Buxgalterga statsionar yotish kunlarini o'zgartirish imkonini beradi."""
-    if request.method == "POST":
-        from apps.clinical.models import InpatientStay
-        from django.db import transaction
-        from .services import generate_invoice_for_visit
-        
-        stay = get_object_or_404(InpatientStay, id=stay_id)
-        try:
-            new_days = int(request.POST.get("total_days", stay.total_days))
-            reason = request.POST.get("audit_reason", "").strip()
-            
-            if not reason:
-                messages.error(request, "Tahrirlash sababini kiritish majburiy!")
-                return redirect(request.META.get('HTTP_REFERER') or "billing:dashboard")
-                
-            if new_days < 0:
-                messages.error(request, "Kunlar soni manfiy bo'lishi mumkin emas.")
-            elif new_days != stay.total_days:
-                with transaction.atomic():
-                    # 1. Update stay days
-                    stay.total_days = new_days
-                    
-                    # 2. Recalculate stay amount
-                    total = new_days * stay.daily_price
-                    if stay.is_companion:
-                        total += new_days * stay.companion_daily_price
-                    stay.total_amount = total
-                    
-                    stay._audit_reason = reason
-                    stay.save(update_fields=["total_days", "total_amount"])
-                    
-                    # 3. Regenerate invoice
-                    generate_invoice_for_visit(stay.visit)
-                    
-                    messages.success(request, f"Bemorning yotish kunlari {new_days} kunga o'zgartirildi va chek qayta hisoblandi.")
-            else:
-                messages.info(request, "Kunlar soni o'zgarmadi.")
-        except ValueError:
-            messages.error(request, "Noto'g'ri raqam kiritildi.")
-            
-    return redirect(request.META.get('HTTP_REFERER') or "billing:dashboard")
-
-@role_required(Role.Code.CASHIER, Role.Code.ACCOUNTANT, Role.Code.DIRECTOR, Role.Code.SUPER_ADMIN)
-def cancel_inpatient_stay(request, stay_id):
-    """Kassir yoki Buxgalterga statsionar yotishni bekor qilish imkonini beradi."""
-    if request.method == "POST":
-        from apps.clinical.models import InpatientStay
-        from django.db import transaction
-        from .services import generate_invoice_for_visit
-        
-        with transaction.atomic():
-            stay = get_object_or_404(InpatientStay.objects.select_for_update(), id=stay_id)
-            if _visit_invoice_locked(request, stay.visit):
-                return redirect(request.META.get('HTTP_REFERER') or "billing:dashboard")
-            if stay.status == InpatientStay.Status.CANCELLED:
-                messages.warning(request, "Bu xona allaqachon bekor qilingan.")
-            else:
-                stay.status = InpatientStay.Status.CANCELLED
-                stay.save(update_fields=["status"])
-                generate_invoice_for_visit(stay.visit)
-                messages.success(request, "Xona yotishi bekor qilindi va chekdan o'chirildi.")
-                
-    return redirect(request.META.get('HTTP_REFERER') or "billing:dashboard")
-
-
-@role_required(Role.Code.CASHIER, Role.Code.ACCOUNTANT, Role.Code.DIRECTOR, Role.Code.SUPER_ADMIN)
-def pay_invoice(request, invoice_id):
-    """To'lovni qabul qilish (Qisman yoki To'liq)."""
-    if request.method == "POST":
-        payment_amount_str = request.POST.get("amount", "0").replace(",", ".").strip()
-
-        try:
-            amount = Decimal(payment_amount_str)
-        except Exception:
-            messages.error(request, "Summani to'g'ri kiriting.")
-            return redirect(request.META.get('HTTP_REFERER') or "billing:dashboard")
-
-        from django.db import transaction
-        with transaction.atomic():
-            invoice = get_object_or_404(
-                Invoice.objects.select_for_update(), id=invoice_id
-            )
-
-            if invoice.status == Invoice.Status.CANCELLED:
-                messages.error(request, "Bekor qilingan chekka to'lov qabul qilinmaydi.")
-            elif invoice.status == Invoice.Status.PAID:
-                messages.warning(request, "Bu chek allaqachon to'liq to'langan.")
-            elif amount <= 0:
-                messages.warning(request, "Nol yoki manfiy summa kiritish mumkin emas.")
-            elif amount > invoice.debt:
-                messages.warning(
-                    request,
-                    f"Kiritilgan summa qarzdorlikdan katta. Qarzdorlik: {invoice.debt} so'm.",
-                )
-            else:
-                # To'lovni qo'shish
-                invoice.paid_amount += amount
-
-
-
-                # Holatni yangilash (qaytarilgan pullar ham hisobga olinadi)
-                invoice.recompute_status()
-                if invoice.status == Invoice.Status.PAID and not invoice.paid_at:
-                    invoice.paid_at = timezone.now()
-
-                invoice.cashier = request.user
-                invoice.save()
-
-                # To'langan pulni bandlarga taqsimlaymiz. Oldindan
-                # to'lanadigan bandlar (qabul, tekshiruvlar) birinchi
-                # qoplanadi — shundan keyingina laboratoriya bemorni
-                # chaqira oladi.
-                from apps.billing.services import settle_prepaid_items
-                settle_prepaid_items(invoice, cashier=request.user)
-                messages.success(
-                    request,
-                    f"{amount} so'm to'lov qabul qilindi. "
-                    f"Qarzdorlik: {max(Decimal(0), invoice.debt)} so'm.",
-                )
-
-    return redirect(request.META.get('HTTP_REFERER') or "billing:dashboard")
-
-
-@role_required(Role.Code.CASHIER, Role.Code.ACCOUNTANT, Role.Code.DIRECTOR, Role.Code.SUPER_ADMIN)
-def refund_invoice(request, invoice_id):
-    """Pul qaytarish (xatolik, otmen yoki dori qaytarilishi sababli).
-
-    Faqat amalda to'langan (va hali qaytarilmagan) summa doirasida
-    qaytariladi. Har bir qaytarish sabab bilan tarixda saqlanadi.
-    """
-    if request.method != "POST":
-        return redirect("billing:dashboard")
-
-    amount_str = request.POST.get("amount", "0").replace(",", ".").strip()
-    reason = request.POST.get("reason", "").strip()
-
-    try:
-        amount = Decimal(amount_str)
-    except Exception:
-        messages.error(request, "Summani to'g'ri kiriting.")
-        return redirect(request.META.get('HTTP_REFERER') or "billing:dashboard")
-
-    from django.db import transaction
-    with transaction.atomic():
-        invoice = get_object_or_404(Invoice.objects.select_for_update(), id=invoice_id)
-
-        if _invoice_locked(request, invoice):
-            return redirect(request.META.get('HTTP_REFERER') or "billing:dashboard")
-        if not reason:
-            messages.error(request, "Qaytarish sababini yozish shart.")
-        elif invoice.status == Invoice.Status.CANCELLED:
-            messages.error(request, "Bekor qilingan chek bo'yicha qaytarish mumkin emas.")
-        elif amount <= 0:
-            messages.warning(request, "Nol yoki manfiy summa kiritish mumkin emas.")
-        elif amount > invoice.refundable_amount:
-            messages.warning(
-                request,
-                f"Qaytarish summasi to'langan puldan oshmasligi kerak. "
-                f"Maksimal: {invoice.refundable_amount} so'm.",
-            )
-        else:
-            Refund.objects.create(
-                invoice=invoice, amount=amount, reason=reason,
-                refunded_by=request.user,
-            )
-            invoice.refunded_amount += amount
-
-            if hasattr(invoice, 'visit') and invoice.visit and invoice.visit.doctor:
-                share_amount = -(amount / Decimal('3'))
-                from apps.billing.models import DoctorShare
-                DoctorShare.objects.create(
-                    doctor=invoice.visit.doctor,
-                    invoice=invoice,
-                    amount=share_amount,
-                    description=f"Qaytarilgan to'lov uchun ulush chegirildi ({amount} so'm)"
-                )
-            invoice.recompute_status()
-            invoice.cashier = request.user
-            invoice.save()
-            messages.success(
-                request,
-                f"{amount} so'm qaytarildi ({reason}). "
-                f"Kassada qolgan: {invoice.net_paid} so'm.",
-            )
-
-    return redirect(request.META.get('HTTP_REFERER') or "billing:dashboard")
-
-
-@role_required(
-    Role.Code.CASHIER, Role.Code.ACCOUNTANT, Role.Code.DIRECTOR,
-    Role.Code.SUPER_ADMIN, Role.Code.DOCTOR,
-)
-def cancel_service_order(request, order_id):
-    """Xizmat buyurtmasini otmen qilish — chekdan avtomatik chiqadi.
-
-    Agar chek allaqachon to'langan bo'lsa, ortiqcha summa chekda
-    "qaytarilishi lozim" bo'lib ko'rinadi va kassir uni qaytaradi.
-    """
-    from apps.clinical.models import ServiceOrder
-
-    if request.method != "POST":
-        return redirect("billing:dashboard")
-
-    from django.db import transaction
-    with transaction.atomic():
-        order = get_object_or_404(
-            ServiceOrder.objects.select_for_update().select_related("visit", "service"),
-            id=order_id,
-        )
-        if _visit_invoice_locked(request, order.visit):
-            return redirect(request.META.get('HTTP_REFERER') or "billing:dashboard")
-        if order.status == ServiceOrder.Status.CANCELLED:
-            messages.warning(request, "Bu xizmat allaqachon bekor qilingan.")
-        elif order.status in (ServiceOrder.Status.IN_PROGRESS, ServiceOrder.Status.COMPLETED):
-            messages.error(
-                request,
-                "Bajarilayotgan/bajarilgan xizmatni otmen qilib bo'lmaydi. "
-                "Xatolik bo'lsa, pul qaytarish bo'limidan foydalaning.",
-            )
-        else:
-            order.status = ServiceOrder.Status.CANCELLED
-            order.result_text = (
-                f"Otmen qilindi: {request.user.get_full_name() or request.user.username}. "
-                + request.POST.get("reason", "").strip()
-            ).strip()
-            order.save(update_fields=["status", "result_text"])
-            generate_invoice_for_visit(order.visit)
-            messages.success(request, f"'{order.service.name}' xizmati bekor qilindi, chek yangilandi.")
-
-    return redirect(request.META.get('HTTP_REFERER') or "billing:dashboard")
-
-
-@role_required(
-    Role.Code.CASHIER, Role.Code.ACCOUNTANT,
-    Role.Code.DIRECTOR, Role.Code.SUPER_ADMIN,
-)
-def return_medicine(request, dispense_id):
-    """Dorini qaytarib olish: ombor qoldig'i tiklanadi, chek yangilanadi."""
-    from apps.pharmacy.models import MedicineBatch, MedicineDispense
-
-    if request.method != "POST":
-        return redirect("billing:dashboard")
-
-    from django.db import transaction
-    with transaction.atomic():
-        dispense = get_object_or_404(
-            MedicineDispense.objects.select_for_update().select_related("batch__medicine", "visit"),
-            id=dispense_id,
-        )
-        if _visit_invoice_locked(request, dispense.visit):
-            return redirect(request.META.get('HTTP_REFERER') or "billing:dashboard")
-        if dispense.is_returned:
-            messages.warning(request, "Bu dori allaqachon qaytarilgan.")
-        else:
-            dispense.is_returned = True
-            dispense.returned_at = timezone.now()
-            dispense.returned_by = request.user
-            dispense.return_reason = request.POST.get("reason", "").strip()
-            dispense.save(update_fields=[
-                "is_returned", "returned_at", "returned_by", "return_reason",
-            ])
-
-            # Ombor qoldig'ini tiklash
-            batch = MedicineBatch.objects.select_for_update().get(pk=dispense.batch_id)
-            batch.quantity_available += dispense.quantity
-            batch.save(update_fields=["quantity_available"])
-
-            generate_invoice_for_visit(dispense.visit)
-            messages.success(
-                request,
-                f"{dispense.batch.medicine.name} (x{dispense.quantity}) qaytarib olindi, "
-                "ombor qoldig'i tiklandi, chek yangilandi.",
-            )
-
-    return redirect(request.META.get('HTTP_REFERER') or "billing:dashboard")
-
-
-@role_required(
-    Role.Code.CASHIER, Role.Code.ACCOUNTANT,
-    Role.Code.DIRECTOR, Role.Code.SUPER_ADMIN,
-)
+@role_required(*_INVOICE_EDIT_ROLES)
 def edit_medicine_quantity(request, dispense_id):
     """Kassir yoki dorixonachiga dori miqdorini tahrirlash imkonini beradi."""
     from apps.pharmacy.models import MedicineBatch, MedicineDispense
@@ -472,7 +156,7 @@ def edit_medicine_quantity(request, dispense_id):
                 
     return redirect(request.META.get('HTTP_REFERER') or "billing:dashboard")
 
-@role_required(Role.Code.CASHIER, Role.Code.ACCOUNTANT, Role.Code.DIRECTOR, Role.Code.SUPER_ADMIN)
+@role_required(*_INVOICE_EDIT_ROLES)
 def edit_consultation_fee(request, cons_id):
     """Kassir yoki Buxgalterga shifokor qabuli narxini tahrirlash imkonini beradi."""
     from apps.clinical.models import Consultation
@@ -547,10 +231,7 @@ def patient_invoices(request, patient_id):
         "can_edit": user.is_superuser or user.has_role(*_INVOICE_EDIT_ROLES),
     })
 
-@role_required(
-    Role.Code.ADMINISTRATOR, Role.Code.RECEPTION, Role.Code.SUPER_ADMIN,
-    Role.Code.CASHIER, Role.Code.ACCOUNTANT, Role.Code.DIRECTOR,
-)
+@role_required(*_INVOICE_EDIT_ROLES)
 def registrator_payments(request):
     """Registrator uchun to'lov qabul qilish sahifasi.
     
@@ -695,7 +376,7 @@ class SuperadminStatisticsView(RoleRequiredMixin, TemplateView):
         return context
 
 
-@role_required(Role.Code.CASHIER, Role.Code.ACCOUNTANT, Role.Code.DIRECTOR, Role.Code.SUPER_ADMIN, Role.Code.ADMINISTRATOR, Role.Code.RECEPTION)
+@role_required(*_INVOICE_EDIT_ROLES)
 def edit_surgery_price(request, surgery_id):
     """Operatsiya narxini tahrirlash."""
     from apps.clinical.models import SurgerySchedule
@@ -734,7 +415,7 @@ def edit_surgery_price(request, surgery_id):
     return redirect(request.META.get('HTTP_REFERER') or "billing:registrator_payments")
 
 
-@role_required(Role.Code.CASHIER, Role.Code.ACCOUNTANT, Role.Code.DIRECTOR, Role.Code.SUPER_ADMIN, Role.Code.ADMINISTRATOR, Role.Code.RECEPTION)
+@role_required(*_INVOICE_EDIT_ROLES)
 def cancel_surgery(request, surgery_id):
     """Operatsiyani bekor qilish (chekdan o'chirish)."""
     from apps.clinical.models import SurgerySchedule
