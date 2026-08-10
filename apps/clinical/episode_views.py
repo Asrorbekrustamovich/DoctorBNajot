@@ -240,7 +240,18 @@ def episode_save_exam(request, pk):
         "reason", "purpose", "purpose_note", "with_primary_exam",
         "department", "room", "updated_at",
     ])
-    messages.success(request, "Dastlabki ko'rik saqlandi.")
+    
+    if request.POST.get("action_send") == "1":
+        if not episode.reason:
+            messages.error(request, "Murojaat sababi kiritilmagan. Yuborish bekor qilindi.")
+        else:
+            episode.status = AdmissionEpisode.Status.SENT
+            episode.sent_at = timezone.now()
+            episode.save(update_fields=["status", "sent_at", "updated_at"])
+            messages.success(request, "Saqlandi va Qabulxona hamshirasiga yuborildi.")
+    else:
+        messages.success(request, "Dastlabki ko'rik saqlandi.")
+        
     return redirect("clinical:episode_detail", pk=pk)
 
 

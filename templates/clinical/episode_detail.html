@@ -81,7 +81,7 @@
         <i class="bi bi-clipboard2-pulse"></i> Dastlabki ko'rik
       </div>
       <div class="card-body">
-        <form method="post" action="{% url 'clinical:episode_save_exam' episode.pk %}">
+        <form id="exam-form" method="post" action="{% url 'clinical:episode_save_exam' episode.pk %}">
           {% csrf_token %}
           <fieldset {% if not can_edit %}disabled{% endif %}>
 
@@ -288,15 +288,15 @@
       <div class="card-header bg-white fw-bold py-2"><i class="bi bi-send"></i> Amallar</div>
       <div class="card-body">
         {% if episode.status == 'draft' %}
-          <form method="post" action="{% url 'clinical:episode_send' episode.pk %}" class="mb-3">
-            {% csrf_token %}
-            <button class="btn btn-success w-100">
+          <div class="mt-2">
+            <span class="badge bg-light text-dark">{{ episode.get_purpose_display }}</span>
+            <button type="submit" form="exam-form" name="action_send" value="1" class="btn btn-success w-100 mb-2 mt-2">
               <i class="bi bi-hospital"></i> Qabulxona hamshirasiga yuborish
             </button>
-            <div class="form-text">
+            <div class="form-text mb-3">
               Hamshira bemorni ko'radi va kravat beradi. Kravatni shifokor tanlamaydi.
             </div>
-          </form>
+          </div>
         {% elif episode.status == 'sent' %}
           <div class="alert alert-info py-2 small mb-3">
             <i class="bi bi-check2-circle"></i> Qabulxonaga yuborilgan
