@@ -50,22 +50,12 @@
                     {% endif %}
                     {% if user.role.code != 'administrator' and user.role.code != 'reception' %}
                         {% if visit.status == 'accepted' or visit.status == 'waiting' %}
-                            <button type="button" class="btn btn-sm btn-outline-primary"
-                                hx-get="{% url 'clinical:admit_visit' visit.pk %}"
-                                hx-target="#modals-here">
-                                <i class="bi bi-hospital"></i> Yotqizish
-                            </button>
                             <button type="button" class="btn btn-sm btn-success"
                                 hx-get="{% url 'clinical:consultation_modal' visit.pk %}"
                                 hx-target="#modals-here">
                                 <i class="bi bi-play-fill"></i> Boshlash
                             </button>
                         {% elif visit.status == 'in_progress' %}
-                            <button type="button" class="btn btn-sm btn-outline-primary"
-                                hx-get="{% url 'clinical:admit_visit' visit.pk %}"
-                                hx-target="#modals-here">
-                                <i class="bi bi-hospital"></i> Yotqizish
-                            </button>
                             <button type="button" class="btn btn-sm btn-warning"
                                 hx-get="{% url 'clinical:consultation_modal' visit.pk %}"
                                 hx-target="#modals-here">
