@@ -357,7 +357,7 @@ def episode_cancel(request, pk):
 
 @role_required(
     Role.Code.NURSE, Role.Code.WARD_NURSE, Role.Code.RECEPTION,
-    Role.Code.SUPER_ADMIN, Role.Code.ADMINISTRATOR, Role.Code.CHIEF_DOCTOR,
+    Role.Code.SUPER_ADMIN, Role.Code.ADMINISTRATOR,
 )
 def nurse_incoming(request):
     """Statsionarga yo'naltirilgan bemorlar ro'yxati (barcha statuslar)."""

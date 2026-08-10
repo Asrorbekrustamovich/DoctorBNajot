@@ -178,7 +178,7 @@
                     {% if user.is_superuser or user.role.code in "super_admin,administrator,chief_doctor,doctor" %}
                     <a href="{% url 'clinical:episode_search' %}" class="{% if request.resolver_match.url_name == 'episode_search' or request.resolver_match.url_name == 'episode_detail' %}active{% endif %}"><i class="bi bi-file-medical"></i> Statsionarga rasmiylashtirish</a>
                     {% endif %}
-                    {% if user.is_superuser or user.role.code in "super_admin,administrator,chief_doctor,nurse,ward_nurse,reception" %}
+                    {% if user.is_superuser or user.role.code in "super_admin,administrator,nurse,ward_nurse,reception" %}
                     <a href="{% url 'clinical:nurse_incoming' %}" class="{% if request.resolver_match.url_name == 'nurse_incoming' %}active{% endif %}"><i class="bi bi-box-arrow-in-down"></i> Yo'naltirilganlar</a>
                     {% endif %}
                     {% if user.is_superuser or user.role.code == "administrator" or user.role.code == "super_admin" or user.role.code == "surgery_admin" %}
