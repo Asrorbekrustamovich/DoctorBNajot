@@ -88,16 +88,60 @@
         </div>
         {% endfor %}
 
-        <!-- Tekshiruvlar -->
+        <!-- Tekshiruvlar ro'yxati -->
         {% if visit.service_orders.all %}
         <div class="mb-2">
-            <strong class="small text-muted">TEKSHIRUVLAR:</strong>
+            <strong class="small text-muted">TEKSHIRUVLAR (RO'YXAT):</strong>
             {% for o in visit.service_orders.all %}
             <span class="badge {% if o.status == 'completed' %}bg-success{% elif o.status == 'cancelled' %}bg-secondary text-decoration-line-through{% else %}bg-warning text-dark{% endif %}" title="{{ o.performed_by.get_full_name|default:'' }}">
                 {{ o.service.name }} {% if o.status == 'completed' %}✓{% elif o.status == 'cancelled' %}✗{% endif %}
             </span>
             {% endfor %}
         </div>
+        
+        <!-- Bajarilgan tekshiruvlar xulosalari -->
+        {% for o in visit.service_orders.all %}
+            {% if o.status == 'completed' %}
+            <div class="border border-success rounded p-2 mb-2 bg-light">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <strong class="text-success"><i class="bi bi-file-earmark-medical"></i> {{ o.service.name }} natijasi</strong>
+                    <span class="small text-muted">Bajardi: {{ o.performed_by.get_full_name|default:"-" }}</span>
+                </div>
+                
+                {% if o.result_rows.all %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered bg-white mb-2">
+                        <thead class="table-light small text-muted">
+                            <tr>
+                                <th>Ko'rsatkich</th>
+                                <th>Natija</th>
+                                <th>Birlik</th>
+                                <th>Norma</th>
+                            </tr>
+                        </thead>
+                        <tbody class="small">
+                            {% for row in o.result_rows.all %}
+                            <tr>
+                                <td>{{ row.name }} {% if row.is_abnormal %}<span class="text-danger fw-bold" title="Normadan chetga chiqqan">⚠️</span>{% endif %}</td>
+                                <td {% if row.is_abnormal %}class="text-danger fw-bold"{% endif %}>{{ row.value }}</td>
+                                <td>{{ row.unit|default:"-" }}</td>
+                                <td>{{ row.reference|default:"-" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+                
+                {% if o.result_text %}
+                <div class="small">
+                    <strong>Xulosa (Tavsif):</strong><br>
+                    {{ o.result_text|linebreaksbr }}
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+        {% endfor %}
         {% endif %}
 
         <!-- Dorilar -->
