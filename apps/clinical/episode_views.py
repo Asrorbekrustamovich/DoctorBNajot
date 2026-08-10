@@ -438,6 +438,15 @@ def episode_discharge(request, pk):
     summary = getattr(episode, "discharge", None)
 
     if request.method == "POST":
+        if episode.purpose == AdmissionEpisode.Purpose.SURGERY:
+            has_surgery = False
+            if hasattr(episode, 'visit') and episode.visit:
+                has_surgery = episode.visit.surgeries.filter(status='completed').exists()
+            
+            if not has_surgery:
+                messages.error(request, "Xatolik: Bemor operatsiya uchun yotqizilgan, lekin hech qanday yakunlangan operatsiya topilmadi! Oldin operatsiya bayonnomasini to'ldiring.")
+                return redirect("clinical:episode_discharge", pk=episode.pk)
+
         if summary is None:
             summary = DischargeSummary(episode=episode)
         summary.discharged_by = request.user
