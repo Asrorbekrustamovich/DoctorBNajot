@@ -191,8 +191,11 @@
                     </thead>
                     <tbody>
                         {% for order in completed_orders %}
-                        <tr>
-                            <td class="ps-3 small">{{ order.updated_at|time:"H:i" }}</td>
+                        <tr style="cursor: pointer;" onclick="window.open('{% url 'clinical:service_result_print' order.id %}', '_blank')" title="Natijani ko'rish va chop etish">
+                            <td class="ps-3 small">
+                                {{ order.updated_at|time:"H:i" }}
+                                <div class="mt-1"><i class="bi bi-printer text-primary"></i></div>
+                            </td>
                             <td class="small">{{ order.visit.patient.full_name }}</td>
                             <td><span class="badge bg-light text-dark border">{{ order.service.name }}</span></td>
                         </tr>
