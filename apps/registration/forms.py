@@ -25,6 +25,7 @@ class VisitForm(forms.Form):
 
 
     def __init__(self, *args: object, **kwargs: object) -> None:
+        import re
         kwargs.pop("instance", None)  # CreateView yuboradi, lekin Form'ga kerak emas
         super().__init__(*args, **kwargs)
         self.fields["doctor"].queryset = User.objects.filter(  # type: ignore[attr-defined]
@@ -32,5 +33,11 @@ class VisitForm(forms.Form):
             Q(specialty__icontains="ambulator") | Q(specialty__icontains="amblator"),
             is_active=True
         ).order_by("last_name")
-        self.fields["doctor"].label_from_instance = lambda obj: f"{obj.get_full_name() or obj.username} ({obj.specialty or (obj.role.name if obj.role else 'Shifokor')})"
+        
+        def format_doctor_label(obj):
+            spec = obj.specialty or (obj.role.name if obj.role else 'Shifokor')
+            spec = re.sub(r'(?i)\s*/\s*amb(?:u?)lator\b', '', spec).strip()
+            return f"{obj.get_full_name() or obj.username} ({spec})"
+            
+        self.fields["doctor"].label_from_instance = format_doctor_label
         self.fields["patient"].label_from_instance = lambda obj: f"{obj.last_name} {obj.first_name} {f' | JSHSHIR: {obj.jshshir}' if obj.jshshir else ''} {f' | Seria: {obj.passport}' if obj.passport else ''}"
