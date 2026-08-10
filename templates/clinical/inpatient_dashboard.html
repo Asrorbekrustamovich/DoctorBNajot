@@ -182,11 +182,11 @@
                                     <span class="badge bg-success mb-2">Bo'sh</span>
                                     <p class="mb-1 text-muted small">Oddiy: {{ bed.price_per_day }} so'm/kun</p>
                                     <p class="mb-2 text-muted small">Paketli (dori ichida): {{ bed.package_price_per_day }} so'm/kun</p>
-                                    {% if user.is_superuser or user.role.code == 'administrator' %}
-                                    <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#assignModal" hx-get="{% url 'clinical:assign_bed' bed.id %}" hx-target="#assignModalBody">
-                                        <i class="bi bi-person-plus"></i> Joylashtirish
-                                    </button>
-                                    {% endif %}
+                                      {% if user.is_superuser or user.role.code in 'administrator,reception,nurse,ward_nurse,chief_doctor' %}
+                                      <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#assignModal" hx-get="{% url 'clinical:assign_bed' bed.id %}" hx-target="#assignModalBody">
+                                          <i class="bi bi-person-plus"></i> Joylashtirish
+                                      </button>
+                                      {% endif %}
                                 {% endif %}
                             </div>
                         </div>

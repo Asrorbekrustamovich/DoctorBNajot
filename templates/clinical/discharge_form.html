@@ -15,6 +15,13 @@
   {% endfor %}
 {% endif %}
 
+{% if ready_msg %}
+  <div class="alert {% if is_ready %}alert-success{% else %}alert-warning{% endif %} d-flex align-items-center mb-3">
+    <i class="bi {% if is_ready %}bi-check-circle-fill{% else %}bi-exclamation-triangle-fill{% endif %} me-2 fs-5"></i>
+    <div>{{ ready_msg }}</div>
+  </div>
+{% endif %}
+
 <div class="row g-3">
   <div class="col-lg-7">
     <div class="card shadow-sm">
@@ -72,17 +79,18 @@
                    value="{{ summary.follow_up|default:'' }}"
                    placeholder="masalan: 10 kundan keyin oilaviy shifokorga">
           </div>
-
-          <button class="btn btn-success">
-            <i class="bi bi-file-earmark-check"></i>
-            {% if summary %}Vipiskani yangilash{% else %}Vipiskani shakllantirish{% endif %}
-          </button>
-          {% if summary %}
-            <a href="{% url 'clinical:discharge_print' episode.pk %}" target="_blank"
-               rel="noopener" class="btn btn-outline-dark">
-              <i class="bi bi-printer"></i> Chop etish
-            </a>
-          {% endif %}
+          <div class="mt-3">
+            <button class="btn btn-success" {% if not is_ready %}disabled{% endif %}>
+              <i class="bi bi-file-earmark-check"></i>
+              {% if summary %}Vipiskani yangilash{% else %}Vipiskani shakllantirish{% endif %}
+            </button>
+            {% if summary %}
+              <a href="{% url 'clinical:discharge_print' episode.pk %}" target="_blank"
+                 rel="noopener" class="btn btn-outline-dark">
+                <i class="bi bi-printer"></i> Chop etish
+              </a>
+            {% endif %}
+          </div>
         </form>
       </div>
     </div>
