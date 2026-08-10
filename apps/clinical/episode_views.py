@@ -438,6 +438,10 @@ def episode_discharge(request, pk):
     summary = getattr(episode, "discharge", None)
 
     if request.method == "POST":
+        if episode.status != AdmissionEpisode.Status.ADMITTED:
+            messages.error(request, "Xatolik: Bemor hali palataga yotqizilmagan (kravat berilmagan). Vipiska yozishga ruxsat yo'q.")
+            return redirect("clinical:episode_discharge", pk=episode.pk)
+
         if episode.purpose == AdmissionEpisode.Purpose.SURGERY:
             has_surgery = False
             if hasattr(episode, 'visit') and episode.visit:
@@ -469,12 +473,32 @@ def episode_discharge(request, pk):
         messages.success(request, "Vipiska shakllantirildi.")
         return redirect("clinical:discharge_print", pk=episode.pk)
 
+    is_ready = True
+    ready_msg = ""
+    
+    if episode.status != AdmissionEpisode.Status.ADMITTED:
+        is_ready = False
+        ready_msg = "Kutilyapti: Bemor hali palataga yotqizilmagan (kravat berilmagan). Vipiska yozishga ruxsat yo'q."
+    elif episode.purpose == AdmissionEpisode.Purpose.SURGERY:
+        has_surgery = False
+        if hasattr(episode, 'visit') and episode.visit:
+            has_surgery = episode.visit.surgeries.filter(status='completed').exists()
+        if not has_surgery:
+            is_ready = False
+            ready_msg = "Kutilyapti: Operatsiya bayonnomasi kiritilmagan. Hozircha Vipiska yozishga ruxsat yo'q."
+        else:
+            ready_msg = "Tayyor: Bemor yotqizilgan va operatsiya bajarilgan. Vipiskani shakllantirishingiz mumkin."
+    else:
+        ready_msg = "Tayyor: Bemor yotqizilgan va davolash yakunlangan. Vipiskani shakllantirishingiz mumkin."
+
     ctx = {
         "episode": episode,
         "patient": episode.patient,
         "summary": summary,
         "outcomes": DischargeSummary.Outcome.choices,
         "capacities": DischargeSummary.WorkCapacity.choices,
+        "is_ready": is_ready,
+        "ready_msg": ready_msg,
     }
     ctx.update(_episode_dossier(episode))
     return render(request, "clinical/discharge_form.html", ctx)
