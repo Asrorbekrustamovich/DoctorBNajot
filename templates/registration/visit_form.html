@@ -17,8 +17,8 @@
                     {% csrf_token %}
                     <div class="row mb-3">
                         <div class="col-md-12 mb-3">
-                            <label class="form-label fw-bold text-primary"><i class="bi bi-search"></i> Tezkor qidiruv (JSHSHIR / Pasport)</label>
-                            <input type="text" id="patient_quick_search" class="form-control border-primary bg-light" placeholder="14 ta raqam yoki AA1234567..." autocomplete="off">
+                            <label class="form-label fw-bold text-primary"><i class="bi bi-search"></i> Tezkor qidiruv (JSHSHIR / Pasport / Metrika)</label>
+                            <input type="text" id="patient_quick_search" class="form-control border-primary bg-light" placeholder="JSHSHIR (14 raqam), pasport (AA1234567) yoki metrika (I-AB 123456)" autocomplete="off">
                             <small class="form-text">Ma'lumot terilishi bilan pastdagi qutida bemor avtomatik tanlanadi.</small>
                         </div>
                     </div>
@@ -62,21 +62,27 @@ $(document).ready(function() {
         }
     });
 
-    // Tezkor qidiruv (JSHSHIR yoki Pasport orqali)
+    /* Tezkor qidiruv: JSHSHIR, pasport yoki METRIKA.
+     *
+     * Bo'shliq va tirelar ikkala tomondan olib tashlanadi. Metrika
+     * turlicha yoziladi — «I-AB 123456», «I AB123456», «IAB123456» —
+     * va oddiy solishtirishda ular bir-biriga mos kelmaydi. JSHSHIR ham
+     * shunday: registrator raqamni bo'shliq bilan terishi mumkin. */
+    function siq(s) {
+        return (s || '').toUpperCase().replace(/[\s\-]/g, '');
+    }
+
     $('#patient_quick_search').on('input', function() {
-        var query = $(this).val().trim().toUpperCase();
-        if (query.length >= 5) { // 5 ta belgidan oshsa qidirishni boshlaydi
-            var found = false;
-            $('#id_patient option').each(function() {
-                var text = $(this).text().toUpperCase();
-                // Select ichidagi text JSHSHIR yoki Seriyani o'z ichiga olgan bo'lsa
-                if (text.includes('JSHSHIR: ' + query) || text.includes('SERIA: ' + query) || text.includes(query)) {
-                    $('#id_patient').val($(this).val()).trigger('change');
-                    found = true;
-                    return false; // loopdan chiqish
-                }
-            });
-        }
+        var xom = $(this).val().trim();
+        var query = siq(xom);
+        if (query.length < 5) { return; }   // juda qisqa — hammasi mos keladi
+
+        $('#id_patient option').each(function() {
+            if (siq($(this).text()).includes(query)) {
+                $('#id_patient').val($(this).val()).trigger('change');
+                return false;               // topildi, loopdan chiqamiz
+            }
+        });
     });
 });
 </script>

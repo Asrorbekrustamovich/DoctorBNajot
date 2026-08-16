@@ -17,16 +17,16 @@
                                 <select name="surgeon_id" class="form-select">
                                     <option value="">-- Tanlang --</option>
                                     {% for u in surgeons %}
-                                    <option value="{{ u.id }}" {% if surgery.surgeon_id == u.id %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
+                                    <option value="{{ u.id }}" {% if surgery.surgeon_id == u.id %}selected{% endif %}>{{ u.get_full_name|default:u.username }}{% if u.specialty %} — {{ u.specialty }}{% endif %}</option>
                                     {% endfor %}
                                 </select>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label">Operatsion asistent</label>
+                                <label class="form-label">Anestiziska</label>
                                 <select name="assistant_id" class="form-select">
                                     <option value="">-- Yo'q --</option>
                                     {% for u in assistants %}
-                                    <option value="{{ u.id }}" {% if surgery.assistant_id == u.id %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
+                                    <option value="{{ u.id }}" {% if surgery.assistant_id == u.id %}selected{% endif %}>{{ u.get_full_name|default:u.username }}{% if u.specialty %} — {{ u.specialty }}{% endif %}</option>
                                     {% endfor %}
                                 </select>
                             </div>
@@ -35,7 +35,7 @@
                                 <select name="anesthesiologist_id" class="form-select">
                                     <option value="">-- Yo'q --</option>
                                     {% for u in anesthesiologists %}
-                                    <option value="{{ u.id }}" {% if surgery.anesthesiologist_id == u.id %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
+                                    <option value="{{ u.id }}" {% if surgery.anesthesiologist_id == u.id %}selected{% endif %}>{{ u.get_full_name|default:u.username }}{% if u.specialty %} — {{ u.specialty }}{% endif %}</option>
                                     {% endfor %}
                                 </select>
                             </div>
@@ -44,7 +44,7 @@
                                 <select name="operating_nurse_id" class="form-select">
                                     <option value="">-- Yo'q --</option>
                                     {% for u in operating_nurses %}
-                                    <option value="{{ u.id }}" {% if surgery.operating_nurse_id == u.id %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
+                                    <option value="{{ u.id }}" {% if surgery.operating_nurse_id == u.id %}selected{% endif %}>{{ u.get_full_name|default:u.username }}{% if u.specialty %} — {{ u.specialty }}{% endif %}</option>
                                     {% endfor %}
                                 </select>
                             </div>
@@ -53,7 +53,7 @@
                                 <select name="ward_nurse_id" class="form-select">
                                     <option value="">-- Yo'q --</option>
                                     {% for u in ward_nurses %}
-                                    <option value="{{ u.id }}" {% if surgery.ward_nurse_id == u.id %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
+                                    <option value="{{ u.id }}" {% if surgery.ward_nurse_id == u.id %}selected{% endif %}>{{ u.get_full_name|default:u.username }}{% if u.specialty %} — {{ u.specialty }}{% endif %}</option>
                                     {% endfor %}
                                 </select>
                             </div>
@@ -267,10 +267,73 @@
                         </h5>
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
-                    <form method="post" action="{% url 'clinical:surgery_report_save' surgery.id %}">
+                    <form method="post" id="rep-form-{{ surgery.id }}"
+                          action="{% url 'clinical:surgery_report_save' surgery.id %}">
                         {% csrf_token %}
-                        <fieldset {% if surgery.report.is_locked and not user.is_superuser and user.role.code != 'super_admin' %}disabled{% endif %}>
+                        <fieldset {% if surgery.report.is_locked and not user.is_superuser and "super_admin" not in user.role_codes %}disabled{% endif %}>
                         <div class="modal-body">
+
+                            {% comment %}
+                              OLDINGI BAYONNOMALARDAN NUSXA OLISH.
+
+                              Vipiskadagi «Statsionar hisobotlari» bilan bir
+                              xil mantiq: jarroh bayonnomani noldan yozmaydi,
+                              oldingisidan tayyor parchani oladi. Takroriy va
+                              bir turdagi operatsiyalarda matn deyarli bir xil.
+
+                              Ochilib-yopiladigan blok — sahifani bekorga
+                              cho'zmasligi uchun boshida yopiq turadi.
+                            {% endcomment %}
+                            {% if surgery.past_reports %}
+                            <div class="accordion mb-3" id="pastRep{{ surgery.id }}">
+                              <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                  <button class="accordion-button collapsed py-2" type="button"
+                                          data-bs-toggle="collapse"
+                                          data-bs-target="#pastRepBody{{ surgery.id }}">
+                                    <i class="bi bi-clock-history me-2"></i>
+                                    Bemorning oldingi bayonnomalari
+                                    <span class="badge bg-secondary ms-2">{{ surgery.past_reports|length }}</span>
+                                  </button>
+                                </h2>
+                                <div id="pastRepBody{{ surgery.id }}" class="accordion-collapse collapse"
+                                     data-bs-parent="#pastRep{{ surgery.id }}">
+                                  <div class="accordion-body small">
+                                    <div class="text-muted mb-2">
+                                      Kerakli bo'lak yonidagi <b>Ko'chirish</b> tugmasini bosing —
+                                      matn shu bayonnomaning tegishli maydoniga qo'shiladi.
+                                    </div>
+                                    {% for pr in surgery.past_reports %}
+                                      <div class="border rounded p-2 mb-2">
+                                        <div class="fw-semibold">
+                                          {{ pr.sana|date:"d.m.Y" }} · {{ pr.turi }}
+                                          {% if pr.usul %}<span class="badge bg-light text-dark">{{ pr.usul }}</span>{% endif %}
+                                          {% if pr.jarroh %}
+                                            · {{ pr.jarroh.get_full_name|default:pr.jarroh.username }}
+                                          {% endif %}
+                                        </div>
+                                        {% for blok in pr.bloklar %}
+                                          <div class="rep-blok border-top pt-1 mt-1">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                              <span class="text-muted">{{ blok.0 }}</span>
+                                              <button type="button"
+                                                      class="btn btn-sm btn-outline-primary py-0 px-2 srep-copy"
+                                                      data-form="rep-form-{{ surgery.id }}"
+                                                      data-field="{{ blok.2 }}">
+                                                <i class="bi bi-clipboard-plus"></i> Ko'chirish
+                                              </button>
+                                            </div>
+                                            <div class="blok-text" style="white-space:pre-wrap">{{ blok.1 }}</div>
+                                          </div>
+                                        {% endfor %}
+                                      </div>
+                                    {% endfor %}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            {% endif %}
+
                             <div class="mb-3">
                                 <label class="form-label fw-bold">Bemor ahvoli (qanday keldi)</label>
                                 <textarea name="arrival_condition" class="form-control" rows="2">{{ surgery.report.arrival_condition }}</textarea>
@@ -307,7 +370,7 @@
                             <a href="{% url 'clinical:surgery_report_print' surgery.id %}" target="_blank" class="btn btn-outline-dark me-auto"><i class="bi bi-file-earmark-text"></i> Rasmiy ko'rinish (Word/Chop)</a>
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Yopish</button>
                             {% if surgery.report.is_locked %}
-                                {% if user.is_superuser or user.role.code == 'super_admin' %}
+                                {% if user.is_superuser or 'super_admin' in user.role_codes %}
                                 <button type="submit" formaction="{% url 'clinical:document_lock' 'surgery_report' surgery.report.id %}" name="action" value="unlock" class="btn btn-outline-danger"><i class="bi bi-unlock"></i> Ochish (superadmin)</button>
                                 <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Saqlash</button>
                                 {% else %}
@@ -326,3 +389,46 @@
             </div>
         </div>
 {% endfor %}
+
+<script>
+/* OLDINGI BAYONNOMADAN MATNNI KO'CHIRISH.
+ *
+ * DELEGATSIYA ishlatiladi — tugmalarga bittalab bog'lanmaydi. Modallar
+ * sikl ichida chiziladi va bu skript ulardan keyin turgani bilan,
+ * kelajakda joyi almashsa yoki modal HTMX bilan qayta yuklansa,
+ * bittalab bog'lash jimgina ishlamay qo'yardi. Statsionar hisobotlarida
+ * aynan shu xato bo'lgan edi.
+ *
+ * Matn QO'SHILADI — ustiga yozilmaydi: jarroh bir necha bayonnomadan
+ * parcha yig'ishi mumkin. */
+document.addEventListener('click', function (e) {
+  if (!e.target.closest) return;
+  var btn = e.target.closest('.srep-copy');
+  if (!btn) return;
+  e.preventDefault();
+
+  var forma = document.getElementById(btn.dataset.form);
+  var blok = btn.closest('.rep-blok');
+  var matn = blok ? blok.querySelector('.blok-text') : null;
+  if (!forma || !matn) return;
+
+  var maydon = forma.querySelector('[name="' + btn.dataset.field + '"]');
+  if (!maydon) return;
+
+  var parcha = matn.innerText.trim();
+  maydon.value = maydon.value.trim()
+    ? maydon.value.trim() + '\n' + parcha
+    : parcha;
+  maydon.focus();
+
+  var asl = btn.innerHTML;
+  btn.classList.add('btn-success');
+  btn.classList.remove('btn-outline-primary');
+  btn.innerHTML = '<i class="bi bi-check-lg"></i> Qo\'shildi';
+  setTimeout(function () {
+    btn.innerHTML = asl;
+    btn.classList.remove('btn-success');
+    btn.classList.add('btn-outline-primary');
+  }, 1200);
+});
+</script>

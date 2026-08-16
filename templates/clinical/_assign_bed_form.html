@@ -67,15 +67,27 @@
         </div>
     </div>
 
+    {% comment %}
+      HUJJATLASHTIRISH HAMSHIRASI — TANLANMAYDI.
+
+      Hujjatni bemorni qabul qilgan odam yuritadi, ya'ni aynan shu
+      yotqizishni rasmiylashtirayotgan qabulxona hamshirasi. Uni
+      ro'yxatdan tanlatish ikki tomondan noto'g'ri edi: hamshira
+      boshqasini tanlab qo'yishi mumkin edi, va bo'sh qoldirilsa hujjat
+      umuman egasiz qolardi — keyin kim yozganini aniqlab bo'lmasdi.
+
+      Shuning uchun maydon ko'rinadi, lekin o'zgarmaydi. Serverda ham
+      formaga ishonilmaydi — u yerda ham shu foydalanuvchi qo'yiladi.
+    {% endcomment %}
     <div class="mb-3">
         <label class="form-label fw-bold">Hujjatlashtirish hamshirasi</label>
-        <select name="doc_nurse" class="form-select">
-            <option value="">-- Tanlang --</option>
-            {% for nurse in nurses %}
-            <option value="{{ nurse.id }}">{{ nurse.get_full_name|default:nurse.username }}</option>
-            {% endfor %}
-        </select>
-        <div class="form-text">Nima berildi/qilindi hisobotini (+/-) yuritadi.</div>
+        <input type="text" class="form-control bg-light" readonly
+               value="{{ request.user.get_full_name|default:request.user.username }}">
+        <div class="form-text">
+            <i class="bi bi-lock"></i>
+            Hujjatni qabul qilayotgan hamshira yuritadi — o'zgartirib bo'lmaydi.
+            Nima berildi/qilindi hisobotini (+/-) shu odam yuritadi.
+        </div>
     </div>
 
     <div class="mb-3">

@@ -1,3 +1,4 @@
+from django.http import JsonResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views.generic import TemplateView, DetailView
 from django.contrib import messages
@@ -46,14 +47,15 @@ class BillingDashboardView(RoleRequiredMixin, TemplateView):
         # navbat/tashrif bo'yicha emas, aks holda bir bemor takrorlanib chalkashadi.
         qs = Patient.objects.filter(visits__isnull=False).distinct()
 
-        search = self.request.GET.get("q", "").strip()
-        if search:
-            qs = qs.filter(
-                Q(first_name__icontains=search)
-                | Q(last_name__icontains=search)
-                | Q(card_number__icontains=search)
-                | Q(phone__icontains=search)
-            )
+        # QIDIRUV — bemorlar bo'limidagi bilan BIR XIL.
+        #
+        # Ilgari bu yerda alohida filtr yozilgan edi va unda hujjatlar
+        # umuman yo'q edi: registrator JSHSHIR yoki metrika bo'yicha
+        # bemorni topa olmasdi. Endi umumiy funksiya — bir joyda
+        # tuzatilsa, hamma joyda tuzaladi.
+        from apps.patients.selectors import search_patients
+
+        qs = search_patients(qs, self.request.GET.get("q", ""))
         qs = qs.order_by("last_name", "first_name")[:200]
 
         rows = []
@@ -202,6 +204,146 @@ def cancel_inpatient_stay(request, stay_id):
     return redirect(request.META.get('HTTP_REFERER') or "billing:dashboard")
 
 
+def _apply_item_prices(request, invoice):
+    """Registrator to'g'rilagan narxlarni chek bandlariga yozadi.
+
+    Forma `item_price_<band_id>` maydonlarini yuboradi. Faqat HALI
+    TO'LANMAGAN bandlar o'zgaradi — to'langaniga tegib bo'lmaydi, aks
+    holda kassadagi pul bilan chek bir-biriga mos kelmay qoladi.
+
+    Narx 0 bo'lishi mumkin: shifokorning qarindoshi bepul davolanadi.
+
+    KATALOG NARXIGA TEGILMAYDI — bu bitta bemorning chekidagi tuzatish.
+    """
+    from decimal import InvalidOperation
+
+    ozgargan = []
+    tuzatishlar = {}
+    for band in invoice.items.filter(paid_at__isnull=True):
+        xom = request.POST.get(f"item_price_{band.pk}")
+        if xom is None:
+            continue
+        try:
+            yangi = Decimal(str(xom).replace(",", ".").strip() or "0")
+        except (InvalidOperation, ValueError):
+            continue
+        if yangi < 0:
+            continue
+        if yangi == (band.total_price or Decimal(0)):
+            continue
+
+        band.price = yangi
+        band.quantity = Decimal(1)
+        band._mode_locked = True          # to'lov turi o'zgarmasin
+        band.save(update_fields=["price", "quantity", "total_price", "updated_at"])
+        ozgargan.append((band.name, yangi))
+
+        # TUZATISH CHEKDA SAQLANADI.
+        #
+        # HAQIQIY XATO: narx faqat bandga yozilardi. Chek esa har bir
+        # tekshiruv qo'shilganda butunlay qayta tuziladi — bandlar
+        # o'chib, katalog narxidan yangidan yaratiladi. Natijada
+        # tuzatish yo'qolardi: 50 000 lik qabul 100 000 ga tuzatilib
+        # to'langach, analiz qo'shilishi bilan qabul yana 50 000 bo'lib
+        # qolar va 90 000 lik qarz 40 000 bo'lib ko'rinardi.
+        if band.reference_id:
+            tuzatishlar[str(band.reference_id)] = str(yangi)
+
+    if not ozgargan:
+        return
+
+    # Chek summasini qayta yig'amiz
+    invoice.price_overrides = {**(invoice.price_overrides or {}), **tuzatishlar}
+    invoice.total_amount = sum(
+        (i.total_price or Decimal(0)) for i in invoice.items.all()
+    ) or Decimal(0)
+    invoice.recompute_status()
+    invoice.save(update_fields=["price_overrides", "total_amount", "status",
+                                "updated_at"])
+
+    matn = ", ".join(f"{nom} → {narx:g} so'm" for nom, narx in ozgargan)
+    messages.info(request, f"Narx to'g'rilandi: {matn}")
+
+
+@role_required(*_INVOICE_EDIT_ROLES)
+def edit_item_price(request, item_id):
+    """Chek bandining narxini to'g'rilash — TEKSHIRUVLAR uchun ham.
+
+    Ilgari faqat shifokor qabulini tahrirlash mumkin edi. Tekshiruvda
+    esa faqat «bekor qilish» bor edi — holbuki narx eskirgan bo'lishi
+    yoki bemorga chegirma berilishi mumkin, va butunlay bekor qilish
+    o'rniga narxini to'g'rilash kerak bo'ladi.
+
+    Tuzatish chekda saqlanadi (`price_overrides`) — chek qayta
+    tuzilganda yo'qolib ketmaydi. Katalog narxiga tegilmaydi.
+    """
+    from decimal import InvalidOperation
+
+    from .models import InvoiceItem
+
+    qaytish = request.META.get("HTTP_REFERER") or "billing:dashboard"
+    if request.method != "POST":
+        return redirect(qaytish)
+
+    band = get_object_or_404(
+        InvoiceItem.objects.select_related("invoice"), id=item_id)
+    invoice = band.invoice
+
+    if _invoice_locked(request, invoice):
+        return redirect(qaytish)
+
+    if band.paid_at is not None:
+        messages.error(
+            request,
+            "Bu band allaqachon to'langan — narxini o'zgartirib bo'lmaydi. "
+            "Xatolik bo'lsa pulni qaytarib, qaytadan rasmiylashtiring.")
+        return redirect(qaytish)
+
+    sabab = (request.POST.get("audit_reason") or "").strip()
+    if not sabab:
+        messages.error(request, "O'zgartirish sababini kiriting.")
+        return redirect(qaytish)
+
+    try:
+        yangi = Decimal(str(request.POST.get("price") or "0").replace(",", "."))
+    except (InvalidOperation, ValueError):
+        messages.error(request, "Narx noto'g'ri kiritildi.")
+        return redirect(qaytish)
+
+    if yangi < 0:
+        messages.error(request, "Narx manfiy bo'lishi mumkin emas.")
+        return redirect(qaytish)
+
+    eski = band.total_price or Decimal(0)
+    band.price = yangi
+    band.quantity = Decimal(1)
+    band._mode_locked = True
+    band._audit_reason = sabab
+    band.save(update_fields=["price", "quantity", "total_price", "updated_at"])
+
+    # Tuzatish chekda saqlanadi — qayta hisoblashda yo'qolmasin
+    if band.reference_id:
+        invoice.price_overrides = {
+            **(invoice.price_overrides or {}),
+            str(band.reference_id): str(yangi),
+        }
+
+    invoice.total_amount = sum(
+        (i.total_price or Decimal(0)) for i in invoice.items.all()
+    ) or Decimal(0)
+    invoice.recompute_status()
+    invoice.save(update_fields=["price_overrides", "total_amount", "status",
+                                "updated_at"])
+
+    from apps.billing.services import settle_prepaid_items
+    settle_prepaid_items(invoice)
+
+    messages.success(
+        request,
+        f"«{band.name}» narxi {eski:g} → {yangi:g} so'm ga o'zgartirildi.")
+    return redirect(qaytish)
+
+
 @role_required(*_INVOICE_EDIT_ROLES)
 def pay_invoice(request, invoice_id):
     """To'lovni qabul qilish (Qisman yoki To'liq)."""
@@ -220,10 +362,37 @@ def pay_invoice(request, invoice_id):
                 Invoice.objects.select_for_update(), id=invoice_id
             )
 
+            # NARXNI TO'LOV PAYTIDA TO'G'RILASH.
+            #
+            # Ikki holat uchun kerak:
+            #   · katalogdagi narx eskirib qolgan bo'lishi mumkin;
+            #   · bemor shifokorning qarindoshi bo'lib, bepul yoki
+            #     chegirma bilan davolanishi mumkin.
+            #
+            # MUHIM: bu faqat SHU CHEK BANDINI o'zgartiradi. Katalogdagi
+            # asosiy narxga TEGMAYDI — aks holda bitta bemorga qilingan
+            # chegirma hammaga tarqalib ketardi.
+            _apply_item_prices(request, invoice)
+            invoice.refresh_from_db()
+
             if invoice.status == Invoice.Status.CANCELLED:
                 messages.error(request, "Bekor qilingan chekka to'lov qabul qilinmaydi.")
             elif invoice.status == Invoice.Status.PAID:
                 messages.warning(request, "Bu chek allaqachon to'liq to'langan.")
+            elif amount == 0 and invoice.debt <= 0:
+                # BEPUL DAVOLASH — to'lanadigan pul yo'q.
+                #
+                # Registrator hamma narxni 0 ga tushirgan (shifokorning
+                # qarindoshi). Pul olinmaydi, lekin bandlar «to'landi»
+                # deb belgilanishi SHART: aks holda ular registrator
+                # ro'yxatida osilib qolar, laboratoriya esa bemorni
+                # «to'lamagan» deb qabul qilmasdi.
+                from apps.billing.services import settle_prepaid_items
+
+                settle_prepaid_items(invoice, cashier=request.user)
+                messages.success(
+                    request,
+                    "Bepul rasmiylashtirildi — to'lanadigan summa yo'q.")
             elif amount <= 0:
                 messages.warning(request, "Nol yoki manfiy summa kiritish mumkin emas.")
             elif amount > invoice.debt:
@@ -551,14 +720,55 @@ def registrator_payments(request):
     from apps.clinical.models import ServiceOrder
     
     today = timezone.localdate()
-    
-    # Bugungi navbatdagi bemorlarning cheklari
-    today_visits = Visit.objects.filter(
-        visit_date=today
-    ).select_related('patient', 'doctor').order_by('queue_number')
-    
+
+    # --- QAYSI TASHRIFLAR KO'RSATILADI ---
+    #
+    # HAQIQIY XATO: bu yerda faqat BUGUNGI tashriflar olinardi. Ammo
+    # tekshiruv boshqa kundagi tashrifga tayinlanishi mumkin:
+    #   · statsionar epizodi bemorning oxirgi tashrifiga bog'lanadi,
+    #     u esa kecha yoki undan oldin bo'lgan bo'lishi mumkin;
+    #   · shifokor kechqurun tekshiruv buyurib, bemor ertasiga to'laydi.
+    # Bunday holatda registrator to'lovni UMUMAN KO'RMASDI — pul
+    # yig'ilmay qolar, laboratoriya esa «to'lanmagan» deb kutib turardi.
+    #
+    # Endi: bugungi tashriflar + to'lanmagan oldindan to'lovi bor
+    # ISTALGAN kundagi tashriflar.
+    unpaid_visit_ids = set(
+        InvoiceItem.objects.filter(
+            payment_mode=InvoiceItem.PaymentMode.PREPAID,
+            paid_at__isnull=True,
+            total_price__gt=0,
+        )
+        .exclude(invoice__status=Invoice.Status.CANCELLED)
+        .values_list("invoice__visit_id", flat=True)
+    )
+    unpaid_visit_ids.discard(None)
+
+    visits_qs = (
+        Visit.objects.filter(Q(visit_date=today) | Q(pk__in=unpaid_visit_ids))
+        .select_related('patient', 'doctor')
+        .order_by('-visit_date', 'queue_number')
+    )
+
+    # QIDIRUV — bu sahifada umuman yo'q edi.
+    #
+    # Ro'yxat uzayganda registrator kerakli bemorni ko'z bilan qidirishga
+    # majbur bo'lardi. Hujjat bo'yicha topish esa alohida muhim: bir xil
+    # ismli bemorlar ko'p, hujjat esa yagona ajratuvchi belgi.
+    #
+    # Bemorlar bo'limi bilan BIR XIL funksiya ishlatiladi — JSHSHIR,
+    # pasport va METRIKA, bo'shliqqa sezgir bo'lmagan holda.
+    from apps.patients.selectors import search_patients
+
+    qidiruv = (request.GET.get("q") or "").strip()
+    if qidiruv:
+        from apps.patients.models import Patient
+
+        mos = search_patients(Patient.objects.all(), qidiruv)
+        visits_qs = visits_qs.filter(patient__in=mos)
+
     rows = []
-    for visit in today_visits:
+    for visit in visits_qs:
         invoice = Invoice.objects.filter(visit=visit).first()
         if not invoice:
             # Chek hali yaratilmagan bo'lishi mumkin
@@ -590,18 +800,55 @@ def registrator_payments(request):
             'has_unpaid': prepaid_unpaid > 0,
         })
     
-    # To'lanmagan bemorlar birinchi
-    rows.sort(key=lambda r: (not r['has_unpaid'], r['visit'].queue_number))
+    # To'lanmaganlar birinchi, keyin yangi sana, keyin navbat raqami
+    rows.sort(key=lambda r: (not r['has_unpaid'],
+                             -r['visit'].visit_date.toordinal(),
+                             r['visit'].queue_number))
     
     total_unpaid = sum(r['prepaid_unpaid'] for r in rows)
     unpaid_count = sum(1 for r in rows if r['has_unpaid'])
     
+    # Kechagi va undan oldingi qarzlar — alohida ko'rsatiladi, chunki
+    # ular ko'zdan qochib ketishi eng oson.
+    old_debt_count = sum(1 for r in rows
+                         if r['has_unpaid'] and r['visit'].visit_date != today)
+
+    # TAYINLOVLAR HISOBLAGICHI — bildirishnoma bilan BIR XIL manbadan.
+    #
+    # Yuqoridagi `rows` qidiruv bilan filtrlangan bo'lishi mumkin,
+    # shuning uchun hisoblagich undan olinmaydi: registrator qidirib
+    # turganda ham «jami nechta to'lov kutmoqda» ko'rinib turishi kerak.
+    from apps.billing.selectors import pending_summary
+
+    xulosa = pending_summary()
+
     return render(request, 'billing/registrator_payments.html', {
         'rows': rows,
         'total_unpaid': total_unpaid,
         'unpaid_count': unpaid_count,
+        'old_debt_count': old_debt_count,
         'today': today,
+        'qidiruv': qidiruv,
+        'kutayotgan': xulosa,
     })
+
+
+@role_required(
+    Role.Code.ADMINISTRATOR, Role.Code.RECEPTION, Role.Code.CASHIER,
+    Role.Code.SUPER_ADMIN, Role.Code.DIRECTOR,
+)
+def pending_payments_json(request):
+    """Bildirishnoma uchun: to'lov kutayotgan tayinlovlar soni.
+
+    Registrator dasturning boshqa bo'limida turgan bo'lsa (navbat,
+    klinika bo'limlari), yangi tayinlov kelganini bilmaydi va bemor
+    kassada kutib qoladi. Shuning uchun sahifa vaqti-vaqti bilan shu
+    manzilga murojaat qiladi va yangi tayinlov bo'lsa bildirishnoma
+    chiqaradi.
+    """
+    from apps.billing.selectors import pending_summary
+
+    return JsonResponse(pending_summary())
 
 
 class SuperadminStatisticsView(RoleRequiredMixin, TemplateView):

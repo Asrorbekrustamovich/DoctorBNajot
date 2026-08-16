@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Vipiska yozish — {{ patient.full_name }}{% endblock %}
+{% block title %}Vipiska yozish – {{ patient.full_name }}{% endblock %}
 
 {% block content %}
 <h1 class="h4 mb-1"><i class="bi bi-file-earmark-medical"></i> Vipiska yozish</h1>
@@ -27,7 +27,7 @@
     <div class="card shadow-sm">
       <div class="card-header bg-white fw-bold py-2">Yakuniy xulosa</div>
       <div class="card-body">
-        <form method="post">
+        <form method="post" id="discharge-form">
           {% csrf_token %}
 
           <div class="row g-2 mb-3">
@@ -62,8 +62,28 @@
           <div class="mb-2">
             <label class="form-label small fw-semibold">O'tkazilgan davolash</label>
             <textarea name="treatment_given" rows="4" class="form-control form-control-sm"
-                      placeholder="Infuzion terapiya, antibiotiklar, jarrohlik…">{{ summary.treatment_given|default:'' }}</textarea>
+                      placeholder="Infuzion terapiya, antibiotiklar…">{{ summary.treatment_given|default:'' }}</textarea>
           </div>
+
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">
+              <i class="bi bi-heart-pulse text-danger"></i> Operatsiya bayoni (erkin matn)
+            </label>
+            <textarea name="surgery_text" rows="4" class="form-control form-control-sm"
+                      placeholder="Operatsiya qilingan bo'lsa, bayonnomasini shu yerga yozing yoki shablondan oling…">{% if summary %}{{ summary.surgery_text }}{% else %}{{ default_surgery_text|default:'' }}{% endif %}</textarea>
+            {% if discharge_templates %}
+              <div class="mt-1">
+                <label class="form-label small text-muted">Shablondan olish:</label>
+                <select id="tpl-select" class="form-select form-select-sm">
+                  <option value="">— Tanlang —</option>
+                  {% for t in discharge_templates %}
+                    <option value="{{ t.content }}">{{ t.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            {% endif %}
+          </div>
+
           <div class="mb-2">
             <label class="form-label small fw-semibold">Chiqishdagi holati</label>
             <textarea name="condition_at_discharge" rows="3" class="form-control form-control-sm">{{ summary.condition_at_discharge|default:'' }}</textarea>
@@ -80,9 +100,27 @@
                    placeholder="masalan: 10 kundan keyin oilaviy shifokorga">
           </div>
           <div class="mt-3">
-            <button class="btn btn-success" {% if not is_ready %}disabled{% endif %}>
+            {% comment %}
+              Qulflash — ataylab qilinadigan amal. Tasdiq so'raladi,
+              chunki keyin faqat superadmin qayta ocha oladi.
+            {% endcomment %}
+            <button class="btn btn-success" name="action" value="finalize"
+                    onclick="return confirm('Vipiska shakllantirilib QULFLANADI. Keyin tahrirlash uchun superadmindan ochishni so\'rash kerak bo\'ladi. Davom etilsinmi?');"
+                    {% if not is_ready %}disabled{% endif %}>
               <i class="bi bi-file-earmark-check"></i>
               {% if summary %}Vipiskani yangilash{% else %}Vipiskani shakllantirish{% endif %}
+            </button>
+            {% comment %}
+              TO'XTATIB TURISH — yozganini yo'qotmasdan pauza.
+
+              Kerakli statsionar yozuvi yoki operatsiya hali kiritilmagan
+              bo'lishi mumkin: hamshira ukolni keyin yozadi, jarroh
+              protokolni kechqurun to'ldiradi. Yakuniy tugma vipiskani
+              qulflab qo'yadi — shuning uchun oraliq holat kerak.
+            {% endcomment %}
+            <button class="btn btn-outline-secondary" name="action" value="hold"
+                    {% if not is_ready %}disabled{% endif %}>
+              <i class="bi bi-pause-circle"></i> To'xtatib turish
             </button>
             {% if summary %}
               <a href="{% url 'clinical:discharge_print' episode.pk %}" target="_blank"
@@ -94,39 +132,409 @@
         </form>
       </div>
     </div>
+
+    {% comment %}
+      SHABLON YARATISH.
+
+      Bemor bir necha marta yotgan bo'lsa, oldingi vipiskada tayyor matn
+      bor: o'sha davolash, o'sha tavsiyalar. Uni qaytadan yozish o'rniga
+      shifokor «Oldingi yotishlar» tugmasidan modal ochadi, bir nechta
+      epizodni ko'rib, keraklisini shu maydonga yig'adi va nom berib
+      saqlaydi. Keyingi safar shablonni ro'yxatdan tanlaydi.
+    {% endcomment %}
+    <div class="card shadow-sm mt-3">
+      <div class="card-header bg-white fw-bold py-2 d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-bookmark-plus"></i> Yangi shablon saqlash</span>
+        {% if past_episodes %}
+          <button type="button" class="btn btn-sm btn-outline-dark" id="open-past">
+            <i class="bi bi-clock-history"></i>
+            Oldingi yotishlar
+            <span class="badge bg-dark ms-1">{{ past_episodes|length }}</span>
+          </button>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="save_template" value="1">
+          <div class="mb-2">
+            <input name="template_name" id="tpl-name" class="form-control form-control-sm" placeholder="Shablon nomi (masalan: Appendektomiya standart)">
+          </div>
+          <div class="mb-2">
+            <textarea name="template_content" id="tpl-content" rows="6" class="form-control form-control-sm"
+                      placeholder="Shablonga saqlamoqchi bo'lgan matn… (oldingi yotishlardan ko'chirish mumkin)"></textarea>
+          </div>
+          <button class="btn btn-sm btn-outline-primary"><i class="bi bi-save"></i> Shablonni saqlash</button>
+        </form>
+      </div>
+    </div>
   </div>
 
-  {% comment %}
-    O'ng tomonda — vipiskaga AVTOMATIK tushadigan ma'lumot. Shifokor
-    buni qo'lda ko'chirib yozmasligi kerak, faqat to'liq ekanini
-    ko'rib chiqadi.
-  {% endcomment %}
+  {# ============ O'NG PANEL — PTECHKALI MA'LUMOTLAR ============ #}
   <div class="col-lg-5">
-    <div class="card shadow-sm">
+
+    {% comment %}
+      TASHXISLAR — bemorning BUTUN tarixi, ptechka bilan.
+
+      Bemor bir necha marta yotgan bo'lishi mumkin va surunkali kasallik
+      birinchi yotishda qo'yilgan bo'ladi. Uni vipiskada ko'rsatish kerak,
+      lekin hammasini ko'r-ko'rona qo'shsak hujjat cho'zilib ketadi.
+      Shuning uchun: shu epizodникilar avtomatik belgilangan, eskilari
+      belgilanmagan — shifokor keraklisini o'zi qo'shadi.
+    {% endcomment %}
+    <div class="card shadow-sm mb-3 border-success">
+      <div class="card-header bg-success bg-opacity-10 fw-bold py-2">
+        <i class="bi bi-clipboard2-pulse"></i> Tashxislar
+        <span class="badge bg-success ms-1">{{ all_diagnoses|length }}</span>
+        <button type="button" class="btn btn-sm btn-link float-end p-0"
+                onclick="toggleAll('dx-chk', true)">Hammasini ✓</button>
+      </div>
+      <ul class="list-group list-group-flush small"
+          style="max-height: 240px; overflow-y: auto;">
+        {% for d in all_diagnoses %}
+          <li class="list-group-item py-1 {% if not d.vip_is_own %}bg-light{% endif %}">
+            <div class="form-check">
+              <input class="form-check-input dx-chk" type="checkbox"
+                     name="selected_diagnoses" value="{{ d.pk }}"
+                     form="discharge-form" {% if d.vip_checked %}checked{% endif %}>
+              <label class="form-check-label">
+                {% if d.icd %}<strong>{{ d.icd.code }}</strong> — {{ d.icd.name }}
+                {% else %}{{ d.free_text }}{% endif %}
+                <span class="badge bg-light text-dark">{{ d.get_kind_display }}</span>
+                {% if d.vip_is_own %}
+                  <span class="badge bg-success">shu yotish</span>
+                {% else %}
+                  <span class="badge bg-secondary" title="Oldingi yotishdan">
+                    {{ d.vip_episode_date|date:"d.m.Y" }}
+                  </span>
+                {% endif %}
+              </label>
+            </div>
+          </li>
+        {% empty %}
+          <li class="list-group-item py-1 text-muted">Tashxis kiritilmagan</li>
+        {% endfor %}
+      </ul>
+      <div class="card-footer small text-muted py-1">
+        Kulrang qatorlar — oldingi yotishlardan. Kerak bo'lsa belgilang.
+      </div>
+    </div>
+
+    {# 2. TEKSHIRUVLAR (ptechkali) #}
+    <div class="card shadow-sm mb-3 border-primary">
+      <div class="card-header bg-primary bg-opacity-10 fw-bold py-2">
+        <i class="bi bi-eyedropper" style="color:#6f42c1;"></i> Tekshiruvlar (Lab/UZI)
+        <span class="badge bg-primary ms-1">{{ orders|length }}</span>
+        <button type="button" class="btn btn-sm btn-link float-end p-0" onclick="toggleAll('order-chk', true)">Hammasini ✓</button>
+      </div>
+      <ul class="list-group list-group-flush small" style="max-height: 260px; overflow-y: auto;">
+        {% for o in orders %}
+          <li class="list-group-item py-1 {% if not o.vip_is_own %}bg-light{% endif %}">
+            <div class="form-check">
+              <input class="form-check-input order-chk" type="checkbox" name="selected_orders"
+                     value="{{ o.pk }}" form="discharge-form"
+                     {% if o.vip_checked %}checked{% endif %}>
+              <label class="form-check-label">
+                {{ o.service.name }}
+                <span class="text-muted" style="font-size:11px;">{{ o.created_at|date:"d.m.Y" }}</span>
+                {% if not o.vip_is_own %}
+                  <span class="badge bg-secondary" style="font-size:9px;">oldingi</span>
+                {% endif %}
+              </label>
+            </div>
+            {% comment %}
+              Natijaning VIPISKADAGI matni. Bo'sh qoldirilsa — asl natija
+              to'liq chiqadi. Shifokor keraksiz qismini olib tashlab, faqat
+              muhimini qoldirishi mumkin: uch marta yotgan bemorda hamma
+              ko'rsatkichni qo'shsak vipiska bir necha varaq bo'lib ketadi.
+
+              Asl natijaga TEGILMAYDI — laboratoriya yozgani tibbiy hujjat.
+            {% endcomment %}
+            <textarea name="text_{{ o.pk }}" rows="2"
+                      class="form-control form-control-sm mt-1" form="discharge-form"
+                      placeholder="Vipiskada shu tekshiruv qanday yozilsin? (bo'sh — to'liq natija)"
+                      >{{ o.vip_text }}</textarea>
+            <div class="text-muted" style="font-size:10px">
+              Asl: {{ o.result_text|default:""|truncatechars:90 }}
+            </div>
+          </li>
+        {% empty %}
+          <li class="list-group-item py-1 text-muted">Tekshiruv natijalari topilmadi</li>
+        {% endfor %}
+      </ul>
+      <div class="card-footer small text-muted py-1">
+        Kulrang qatorlar — bemorning oldingi tashriflaridan. Kerak bo'lsa belgilang.
+      </div>
+    </div>
+
+    {# 3. STATSIONAR MUOLAJALAR (ptechkali) #}
+    <div class="card shadow-sm mb-3 border-info">
+      <div class="card-header bg-info bg-opacity-10 fw-bold py-2">
+        <i class="bi bi-hospital text-info"></i> Statsionar muolajalar
+        <span class="badge bg-info text-dark ms-1">{{ all_procedures|length }}</span>
+        <button type="button" class="btn btn-sm btn-link float-end p-0" onclick="toggleAll('proc-chk', true)">Hammasini ✓</button>
+      </div>
+      <ul class="list-group list-group-flush small" style="max-height: 250px; overflow-y: auto;">
+        {% for p in all_procedures %}
+          <li class="list-group-item py-1">
+            <div class="form-check">
+              <input class="form-check-input proc-chk" type="checkbox" name="selected_procedures"
+                     value="{{ p.pk }}" form="discharge-form"
+                     {% if not summary or p.pk|slugify in summary.selected_procedure_ids %}checked{% endif %}>
+              <label class="form-check-label">
+                <span class="badge bg-light text-dark" style="font-size:10px;">{{ p.get_category_display }}</span>
+                {{ p.name }}
+                <span class="text-muted" style="font-size:11px;">{{ p.performed_at|date:"d.m.Y H:i" }}</span>
+                {% if p.notes %}<span class="text-muted" style="font-size:10px;">({{ p.notes }})</span>{% endif %}
+              </label>
+            </div>
+            <textarea name="text_{{ p.pk }}" rows="1"
+                      class="form-control form-control-sm mt-1" form="discharge-form"
+                      placeholder="Vipiskada qanday yozilsin? (bo'sh — asl yozuv)"
+                      >{{ p.vip_text }}</textarea>
+          </li>
+        {% empty %}
+          <li class="list-group-item py-1 text-muted">Muolajalar topilmadi</li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    {# 4. STATSIONAR YOTISHLAR (faqat ma'lumot) #}
+    <div class="card shadow-sm mb-3">
       <div class="card-header bg-light fw-bold py-2">
-        <i class="bi bi-magic"></i> Hujjatga o'zi tushadi
+        <i class="bi bi-bed"></i> Statsionar yotishlar tarixi
       </div>
       <ul class="list-group list-group-flush small">
-        <li class="list-group-item">
-          <b>Tashxislar:</b> {{ diagnoses|length }} ta
-          {% for d in diagnoses %}<div class="text-muted">· {{ d.label }}</div>{% endfor %}
-        </li>
-        <li class="list-group-item">
-          <b>Tekshiruv natijalari:</b> {{ orders|length }} ta
-          {% for o in orders %}<div class="text-muted">· {{ o.service.name }}</div>{% endfor %}
-        </li>
-        <li class="list-group-item"><b>Operatsiyalar:</b> {{ surgeries|length }} ta</li>
-        <li class="list-group-item"><b>Berilgan dorilar:</b> {{ medicines|length }} ta</li>
-        <li class="list-group-item">
-          <b>Kelgandagi holati:</b>
-          {% if episode.complaints %}yozilgan{% else %}
-            <span class="text-warning">yozilmagan</span>{% endif %}
-        </li>
+        {% for s in all_stays %}
+          <li class="list-group-item py-1">
+            <i class="bi bi-calendar3 text-muted"></i>
+            {{ s.admission_date|date:"d.m.Y" }} — {% if s.discharge_date %}{{ s.discharge_date|date:"d.m.Y" }}{% else %}hozircha{% endif %}
+            · {{ s.bed.room.name|default:"—" }}
+            {% if s.status == 'active' %}<span class="badge bg-success">Faol</span>
+            {% elif s.status == 'discharged' %}<span class="badge bg-secondary">Chiqarilgan</span>{% endif %}
+          </li>
+        {% empty %}
+          <li class="list-group-item py-1 text-muted">Statsionar yotish topilmadi</li>
+        {% endfor %}
       </ul>
-      <div class="card-footer small text-muted">
-        Yotgan kunlar, sanalar va bo'lim ham avtomatik qo'shiladi.
+    </div>
+
+    {# 5. BERILGAN DORILAR #}
+    <div class="card shadow-sm mb-3">
+      <div class="card-header bg-light fw-bold py-2">
+        <i class="bi bi-capsule"></i> Berilgan dorilar
+        <span class="badge bg-secondary ms-1">{{ medicines|length }}</span>
+      </div>
+      <ul class="list-group list-group-flush small" style="max-height: 120px; overflow-y: auto;">
+        {% for m in medicines %}
+          <li class="list-group-item py-1">{{ m.batch.medicine.name }} × {{ m.quantity }}</li>
+        {% empty %}
+          <li class="list-group-item py-1 text-muted">Dori berilmagan</li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <div class="card bg-light border-0 mb-3">
+      <div class="card-body py-2 small text-center text-muted">
+        <i class="bi bi-info-circle"></i> Ptechka bilan belgilangan ma'lumotlar Vipiska blankasiga <b>avtomatik</b> tushadi.
+        Belgilanmaganlar <b>chiqarilmaydi</b>. Dublikat bo'lmaydi!
+      </div>
+    </div>
+
+  </div>
+</div>
+
+{% comment %}
+  ============ OLDINGI YOTISHLAR MODALI ============
+
+  Modal <body> ning bevosita bolasi bo'lishi kerak — ichkarida qolsa
+  Bootstrap uni orqa fon ostida chizadi va bosib bo'lmaydi. Shuning
+  uchun pastda, `row` dan tashqarida turibdi.
+
+  Har bir bo'lak yonida «+» tugmasi: bosilganda matn shablon maydoniga
+  qo'shiladi. Modal yopilmaydi — shifokor bir necha epizoddan bir necha
+  bo'lak yig'ishi kerak.
+{% endcomment %}
+{% if past_episodes %}
+<div class="modal fade" id="pastModal" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h5 class="modal-title">
+          <i class="bi bi-clock-history"></i>
+          {{ patient.full_name }} — oldingi yotishlari
+          <span class="badge bg-secondary">{{ past_episodes|length }}</span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        <div class="alert alert-info py-2 small mb-3">
+          <i class="bi bi-info-circle"></i>
+          Kerakli bo'lak yonidagi <b>+</b> tugmasini bosing — matn shablon
+          maydoniga qo'shiladi. Bir necha epizoddan yig'ish mumkin, modal
+          yopilmaydi. Matnni belgilab qo'lda nusxalasangiz ham bo'ladi.
+        </div>
+
+        <div class="accordion" id="pastAcc">
+          {% for pe in past_episodes %}
+            <div class="accordion-item">
+              <h2 class="accordion-header">
+                <button class="accordion-button {% if not forloop.first %}collapsed{% endif %}"
+                        type="button" data-bs-toggle="collapse"
+                        data-bs-target="#pe{{ forloop.counter }}">
+                  <div>
+                    <b>{{ pe.sana|date:"d.m.Y" }}</b>
+                    {% if pe.bolim %} · {{ pe.bolim }}{% endif %}
+                    {% if pe.kravat %} · {{ pe.kravat }}{% endif %}
+                    {% if pe.shifokor %}
+                      · {{ pe.shifokor.get_full_name|default:pe.shifokor.username }}
+                    {% endif %}
+                    <div class="small text-muted">
+                      {{ pe.sabab|default:"sabab yozilmagan"|truncatechars:90 }}
+                      {% if pe.kunlar %} · {{ pe.kunlar }} kun{% endif %}
+                      {% if pe.summary %}
+                        · <span class="badge bg-success">Vipiska bor</span>
+                      {% elif pe.episode %}
+                        · <span class="badge bg-warning text-dark">Vipiska yozilmagan</span>
+                      {% else %}
+                        · <span class="badge bg-secondary">Ko'rik yozuvisiz</span>
+                      {% endif %}
+                    </div>
+                  </div>
+                </button>
+              </h2>
+              <div id="pe{{ forloop.counter }}"
+                   class="accordion-collapse collapse {% if forloop.first %}show{% endif %}"
+                   data-bs-parent="#pastAcc">
+                <div class="accordion-body small">
+
+                  {% if pe.diagnoses %}
+                    <div class="mb-2">
+                      <b>Tashxislar:</b>
+                      {% for d in pe.diagnoses %}
+                        <div>· {{ d.label }} <span class="text-muted">({{ d.get_kind_display }})</span></div>
+                      {% endfor %}
+                    </div>
+                  {% endif %}
+
+                  {% comment %}
+                    Har bir matnli bo'lak — nusxalanadigan blok. Bo'sh
+                    bo'lganlari ko'rsatilmaydi: bo'm-bo'sh sarlavhalar
+                    ro'yxatni cho'zib, keraklisini topishni qiyinlashtiradi.
+                  {% endcomment %}
+                  {% for blok in pe.bloklar %}
+                    {% if blok.1 %}
+                      <div class="border rounded p-2 mb-2 bg-light">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                          <b>{{ blok.0 }}</b>
+                          <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 add-blok"
+                                  data-title="{{ blok.0 }}"
+                                  data-date="{{ pe.sana|date:'d.m.Y' }}">
+                            <i class="bi bi-plus-lg"></i> Shablonga
+                          </button>
+                        </div>
+                        <div class="blok-text" style="white-space:pre-wrap">{{ blok.1 }}</div>
+                      </div>
+                    {% endif %}
+                  {% endfor %}
+
+                  {% if pe.print_pk %}
+                    <a href="{% url 'clinical:discharge_print' pe.print_pk %}"
+                       target="_blank" rel="noopener" class="btn btn-sm btn-outline-dark">
+                      <i class="bi bi-box-arrow-up-right"></i> Vipiskani alohida betda ochish
+                    </a>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="modal-footer py-2">
+        <span class="me-auto small text-muted" id="tpl-counter"></span>
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Yopish</button>
       </div>
     </div>
   </div>
 </div>
+{% endif %}
+
+<script>
+function toggleAll(cls, state) {
+  document.querySelectorAll('.' + cls).forEach(cb => cb.checked = state);
+}
+// Shablonni tanlanganda surgery_text ga qo'yish
+const sel = document.getElementById('tpl-select');
+if (sel) {
+  sel.addEventListener('change', function() {
+    if (this.value) {
+      const ta = document.querySelector('[name="surgery_text"]');
+      if (ta) ta.value = this.value;
+    }
+  });
+}
+
+/* ---------- OLDINGI YOTISHLARDAN SHABLON YIG'ISH ----------
+   Modalni JS bilan ochamiz, `data-bs-toggle` bilan emas: bu forma
+   ichida turgani uchun tugma bosilganda brauzer uni submit qilib
+   yuborishi mumkin edi.
+
+   «Shablonga» bosilganda matn QO'SHILADI (ustiga yozilmaydi) — shifokor
+   bir necha epizoddan bir necha bo'lak yig'adi. Modal ochiq qoladi. */
+/* Delegatsiya: tinglovchi hujjatga qo'yiladi, tugmalarga emas.
+
+   Hozir modal skriptdan oldin turibdi, shuning uchun bittalab bog'lash
+   ham ishlardi — lekin bu TASODIF. Kimdir bloklarni joyini almashtirsa,
+   tugmalar jimgina ishlamay qo'yardi (epizod sahifasida aynan shunday
+   bo'lgan edi). Delegatsiyada tartib ahamiyatsiz. */
+(function () {
+  let qoshilgan = 0;
+
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest) return;
+
+    if (e.target.closest('#open-past')) {
+      e.preventDefault();
+      const el = document.getElementById('pastModal');
+      if (el) bootstrap.Modal.getOrCreateInstance(el).show();
+      return;
+    }
+
+    const btn = e.target.closest('.add-blok');
+    if (!btn) return;
+    e.preventDefault();
+
+    const maydon = document.getElementById('tpl-content');
+    const blok = btn.closest('.border');
+    const matn = blok ? blok.querySelector('.blok-text') : null;
+    if (!maydon || !matn) return;
+
+    const sarlavha = btn.dataset.title || '';
+    const sana = btn.dataset.date || '';
+    const parcha = sarlavha + ' (' + sana + '):\n' + matn.innerText.trim();
+
+    maydon.value = maydon.value.trim()
+      ? maydon.value.trim() + '\n\n' + parcha
+      : parcha;
+
+    qoshilgan += 1;
+    const hisob = document.getElementById('tpl-counter');
+    if (hisob) {
+      hisob.textContent = qoshilgan + ' ta bo\'lak shablonga qo\'shildi';
+    }
+
+    // Ikki marta bosilganini ko'rsatib turamiz
+    btn.classList.remove('btn-outline-primary');
+    btn.classList.add('btn-success');
+    btn.innerHTML = '<i class="bi bi-check-lg"></i> Qo\'shildi';
+    setTimeout(function () {
+      btn.classList.add('btn-outline-primary');
+      btn.classList.remove('btn-success');
+      btn.innerHTML = '<i class="bi bi-plus-lg"></i> Shablonga';
+    }, 1200);
+  });
+})();
+</script>
 {% endblock %}

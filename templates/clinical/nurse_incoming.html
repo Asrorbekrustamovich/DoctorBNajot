@@ -44,7 +44,9 @@
           <th>Sabab / Maqsad</th>
           <th>Tashxis</th>
           <th class="text-center">Status</th>
+          {% if current_status != 'admitted' and current_status != 'discharged' %}
           <th class="text-end pe-3">Amallar</th>
+          {% endif %}
         </tr>
       </thead>
       <tbody>
@@ -58,7 +60,11 @@
             </div>
           </td>
           <td class="small">
-            {{ e.referred_by.get_full_name|default:e.referred_by.username|default:"—" }}
+            {% if e.referred_by %}
+              {{ e.referred_by.get_full_name|default:e.referred_by.username }}
+            {% else %}
+              —
+            {% endif %}
             <div class="text-muted">{{ e.sent_at|date:"d.m H:i" }}</div>
           </td>
           <td class="small">
@@ -76,6 +82,8 @@
           <td class="text-center">
             {% if e.status == 'sent' %}
               <span class="badge bg-warning text-dark"><i class="bi bi-clock"></i> Kutmoqda</span>
+            {% elif e.status == 'admitted' and e.patient_left %}
+              <span class="badge bg-secondary"><i class="bi bi-box-arrow-right"></i> Chiqdi — vipiska kutilmoqda</span>
             {% elif e.status == 'admitted' %}
               <span class="badge bg-info text-white"><i class="bi bi-hospital"></i> Yotqizildi</span>
             {% elif e.status == 'discharged' %}
@@ -86,16 +94,25 @@
               <span class="badge bg-secondary">{{ e.get_status_display }}</span>
             {% endif %}
           </td>
+          {% if current_status != 'admitted' and current_status != 'discharged' %}
           <td class="text-end pe-3 text-nowrap">
-            <a href="{% url 'clinical:episode_detail' e.pk %}" class="btn btn-sm btn-outline-secondary">
-              <i class="bi bi-eye"></i> Ko'rish
-            </a>
             {% if e.status == 'sent' %}
-            <a href="{% url 'clinical:inpatient_dashboard' %}" class="btn btn-sm btn-primary">
-              <i class="bi bi-hospital"></i> Kravat berish
-            </a>
+              {% if e.visit and user.is_superuser or e.visit and "ward_nurse" in user.role_codes or e.visit and "reception" in user.role_codes or e.visit and "administrator" in user.role_codes or e.visit and "super_admin" in user.role_codes %}
+                <button type="button" class="btn btn-sm btn-primary"
+                        hx-get="{% url 'clinical:admit_visit' e.visit.pk %}"
+                        hx-target="#bed-modal-body" hx-swap="innerHTML"
+                        data-bs-toggle="modal" data-bs-target="#bedModal">
+                  <i class="bi bi-hospital"></i> Xona berish
+                </button>
+              {% else %}
+                <a href="{% url 'clinical:inpatient_dashboard' %}"
+                   class="btn btn-sm btn-primary">
+                  <i class="bi bi-hospital"></i> Xona berish
+                </a>
+              {% endif %}
             {% endif %}
           </td>
+          {% endif %}
         </tr>
       {% empty %}
         <tr><td colspan="6" class="text-center text-muted py-4">
@@ -106,4 +123,25 @@
     </table>
   </div>
 </div>
+
+{% comment %}
+  Kravat tanlash oynasi — jadvaldan TASHQARIDA.
+  Modal `<table>` ichida qolsa, brauzer uni jadval tuzilishidan chiqarib
+  tashlaydi va oyna umuman ochilmaydi.
+{% endcomment %}
+{% if user.is_superuser or "ward_nurse" in user.role_codes or "reception" in user.role_codes or "administrator" in user.role_codes or "super_admin" in user.role_codes %}
+<div class="modal fade" id="bedModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h5 class="modal-title"><i class="bi bi-hospital"></i> Xona berish</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="bed-modal-body">
+        <div class="text-center text-muted py-4">Yuklanmoqda…</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
 {% endblock %}

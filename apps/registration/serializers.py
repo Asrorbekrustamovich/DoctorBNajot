@@ -16,7 +16,13 @@ from apps.registration.models import Appointment, Visit
 def _doctors_qs() -> QuerySet[User]:
     return User.objects.filter(
         Q(role__code="doctor") | Q(role__code="chief_doctor"),
-        Q(specialty__icontains="ambulator") | Q(specialty__icontains="amblator"),
+        # Bayroq — asosiy belgi. Matn bo'yicha moslik esa eski
+        # ma'lumotlar uchun zaxira: bayroq qo'yilmagan, lekin
+        # mutaxassisligida «ambulator» yozilgan shifokorlar
+        # ro'yxatdan tushib qolmasin.
+        Q(is_ambulatory=True)
+        | Q(specialty__icontains="ambulator")
+        | Q(specialty__icontains="amblator"),
         is_active=True
     )
 

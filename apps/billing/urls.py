@@ -8,6 +8,8 @@ urlpatterns = [
     path("visit/<uuid:visit_id>/", views.view_invoice, name="view_invoice"),
     path("patient/<uuid:patient_id>/invoices/", views.patient_invoices, name="patient_invoices"),
     path("invoice/<uuid:invoice_id>/pay/", views.pay_invoice, name="pay_invoice"),
+    path("item/<uuid:item_id>/edit-price/", views.edit_item_price,
+         name="edit_item_price"),
     path("invoice/<uuid:invoice_id>/refund/", views.refund_invoice, name="refund_invoice"),
     path("order/<uuid:order_id>/cancel/", views.cancel_service_order, name="cancel_service_order"),
     path("dispense/<uuid:dispense_id>/return/", views.return_medicine, name="return_medicine"),
@@ -18,6 +20,8 @@ urlpatterns = [
 
     # Direktor: hisobot va shifokor qabul narxlari
     path("registrator/", views.registrator_payments, name="registrator_payments"),
+    path("kutayotgan-tolovlar.json", views.pending_payments_json,
+         name="pending_payments_json"),
     path("surgery/<uuid:surgery_id>/edit-price/", views.edit_surgery_price, name="edit_surgery_price"),
     path("surgery/<uuid:surgery_id>/cancel/", views.cancel_surgery, name="cancel_surgery"),
     path("report/", reports.RevenueReportView.as_view(), name="revenue_report"),

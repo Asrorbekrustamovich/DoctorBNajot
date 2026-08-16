@@ -130,18 +130,25 @@
                 {% csrf_token %}
                 <input type="hidden" name="medicine_id" value="{{ medicine.id }}">
                 <div class="modal-body">
+                    {% comment %}
+                      MIQDOR FAQAT ASOSIY BIRLIKDA.
+
+                      Ilgari «qaysi qadoqda kelyapti» tanlanib, u ampulaga
+                      ko'paytirilardi. Blok o'lchami noto'g'ri kiritilsa
+                      butun qoldiq buzilardi, bir dori turli o'ramlarda
+                      kelganda esa hisob chalkashardi. Endi ombordor
+                      nechta ampula kelganini o'zi sanab yozadi.
+                    {% endcomment %}
                     <div class="mb-3">
-                        <label class="form-label">Qaysi qadoqda kelyapti? *</label>
-                        <select class="form-select" name="packaging_id" required>
-                            <option value="base">Asosiy birlik ({{ medicine.unit.name }}) - 1 tadan</option>
-                            {% for pkg in medicine.packages.all %}
-                            <option value="{{ pkg.id }}">{{ pkg.name }} (Ichida: {{ pkg.quantity_in_base_unit|floatformat:0 }} dona)</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Miqdor (Nechta qadoq?) *</label>
+                        <label class="form-label">
+                            Miqdor — nechta
+                            {{ medicine.unit.short_name|default:medicine.unit.name }}? *
+                        </label>
                         <input type="number" step="0.01" class="form-control" name="quantity" required>
+                        <div class="form-text">
+                            Blok yoki pachka emas, aynan
+                            <b>{{ medicine.unit.short_name|default:medicine.unit.name }}</b> soni.
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Sotish narxi (1 {{ medicine.unit.short_name|default:medicine.unit.name }} uchun) *</label>
@@ -318,27 +325,22 @@
                         <textarea class="form-control" name="description" rows="2"></textarea>
                     </div>
                     
-                    <hr>
-                    <h6 class="mb-3 text-primary"><i class="bi bi-box"></i> Qadoqlash strukturasi (Ixtiyoriy)</h6>
-                    <p class="text-muted small mb-2">Masalan, agar asosiy o'lchov "Dona" bo'lsa, bu yerda kattaroq o'ramlarni qo'shishingiz mumkin:</p>
-                    
-                    <div class="row g-2 mb-2">
-                        <div class="col-8">
-                            <input type="text" name="pkg1_name" class="form-control" placeholder="1-O'ram nomi (Masalan: Pochka)">
-                        </div>
-                        <div class="col-4">
-                            <input type="number" name="pkg1_qty" class="form-control" placeholder="Ichi nechta?">
-                        </div>
+                    {% comment %}
+                      QADOQLASH STRUKTURASI OLIB TASHLANDI.
+
+                      «1 blok = 50 ampula» degan iyerarxiya hisobni
+                      chalkashtirardi: hamshiraga nechta ampula borligi
+                      kerak, blokni bo'lib hisoblash emas. Ustiga-ustak
+                      blok o'lchami keyin o'zgartirilsa, eski qoldiqlar
+                      boshqacha ko'rinib qolardi.
+
+                      Endi bitta o'lchov — dorining o'z birligi.
+                    {% endcomment %}
+                    <div class="alert alert-light border small mb-0">
+                        <i class="bi bi-info-circle"></i>
+                        Qoldiq va kirim <b>faqat asosiy birlikda</b> yuritiladi
+                        (masalan «250 ampula»). Blok yoki pachka hisobi yo'q.
                     </div>
-                    <div class="row g-2">
-                        <div class="col-8">
-                            <input type="text" name="pkg2_name" class="form-control" placeholder="2-O'ram nomi (Masalan: Blok)">
-                        </div>
-                        <div class="col-4">
-                            <input type="number" name="pkg2_qty" class="form-control" placeholder="Ichi nechta?">
-                        </div>
-                    </div>
-                    <div class="form-text text-warning mt-1"><i class="bi bi-exclamation-triangle"></i> Miqdor doim <b>eng kichik asosiy o'lchovda</b> (Dona) yozilishi kerak! (Masalan: 1 Blok ichida 10 ta pochka va har pochkada 5 ta dona bo'lsa, Blok uchun "50" yozing)</div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>

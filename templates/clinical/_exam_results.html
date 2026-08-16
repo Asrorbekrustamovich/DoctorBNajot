@@ -18,11 +18,35 @@
     <span><i class="bi bi-clipboard2-pulse"></i> Tekshiruv natijalari</span>
     <span class="badge bg-light text-dark">{{ exam_orders|length }} ta</span>
   </div>
+
+  {% comment %}
+    VIPISKA PTECHKASI — faqat statsionar epizodida (vip_select_url bo'lsa).
+    Ambulator qabul oynasida bu ustun chiqmaydi: u yerda vipiska yo'q.
+  {% endcomment %}
+  {% if vip_select_url %}
+    <div class="card-body py-2 border-bottom bg-light">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div class="small">
+          <i class="bi bi-check2-square text-success"></i>
+          <b>Vipiskaga qo'shiladiganlarini belgilang.</b>
+          Bemorning butun tarixi ko'rsatilgan — shu yotishникilari
+          avtomatik belgilangan, eskilarini o'zingiz tanlaysiz.
+        </div>
+        <div class="text-nowrap">
+          <span class="badge bg-success" id="vip-count">{{ tanlangan_soni }} ta tanlandi</span>
+          <button type="button" class="btn btn-sm btn-link p-0 ms-2" id="vip-all">Hammasi</button>
+          <button type="button" class="btn btn-sm btn-link p-0 ms-1 text-danger" id="vip-none">Hech biri</button>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
   <div class="card-body py-2">
     <div class="table-responsive">
       <table class="table table-sm align-middle mb-0">
         <thead class="table-light">
           <tr>
+            {% if vip_select_url %}<th style="width:70px">Vipiska</th>{% endif %}
             <th style="width:26%">Tekshiruv</th>
             <th style="width:12%">Holati</th>
             <th>Natija</th>
@@ -31,10 +55,25 @@
         </thead>
         <tbody>
         {% for o in exam_orders %}
-          <tr>
+          <tr class="{% if vip_select_url and not o.vip_is_own %}table-light{% endif %}">
+            {% if vip_select_url %}
+              <td class="text-center">
+                <input type="checkbox" class="form-check-input vip-chk"
+                       style="width:1.3em;height:1.3em"
+                       value="{{ o.pk }}"
+                       {% if o.vip_checked %}checked{% endif %}
+                       title="Vipiskaga qo'shish">
+              </td>
+            {% endif %}
             <td>
-              <div class="fw-semibold">{{ o.service.name }}</div>
+              <div class="fw-semibold">
+                {{ o.service.name }}
+                {% if vip_select_url and not o.vip_is_own %}
+                  <span class="badge bg-secondary" style="font-size:9px">oldingi</span>
+                {% endif %}
+              </div>
               <div class="text-muted" style="font-size:.72rem">
+                {% if vip_select_url %}{{ o.created_at|date:"d.m.Y" }} · {% endif %}
                 {% if o.service.category %}{{ o.service.category }}{% endif %}
                 {% if o.performed_by %} · {{ o.performed_by.get_full_name|default:o.performed_by.username }}{% endif %}
               </div>
@@ -72,7 +111,7 @@
                 <span class="text-muted small">Natija hali kiritilmagan</span>
               {% endif %}
             </td>
-            <td class="text-end">
+            <td class="text-end text-nowrap">
               {% if o.has_result %}
                 <a href="{% url 'clinical:service_result_print' o.id %}"
                    target="_blank" rel="noopener"
@@ -83,6 +122,26 @@
                 <button class="btn btn-sm btn-outline-secondary" disabled>
                   <i class="bi bi-printer"></i>
                 </button>
+
+                {% comment %}
+                  BEKOR QILISH — faqat natija YO'Q bo'lsa.
+
+                  Shifokor adashib buyurgan bo'lishi mumkin, bajaruvchi
+                  xodim esa bemorga bu kerak emasligini ko'radi.
+                  Natija kiritilgach tugma umuman chiqmaydi: bajarilgan
+                  tekshiruvni chekdan olib tashlash klinikani bepul
+                  ishlaganga olib keladi.
+                {% endcomment %}
+                {% if o.status != 'cancelled' %}
+                <form method="post" class="d-inline"
+                      action="{% url 'clinical:cancel_exam_order' o.id %}"
+                      onsubmit="return confirm('«{{ o.service.name|escapejs }}» bekor qilinsinmi? Bemorning to\'lov ro\'yxatidan ham chiqadi.');">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-outline-danger" title="Bekor qilish">
+                    <i class="bi bi-x-lg"></i>
+                  </button>
+                </form>
+                {% endif %}
               {% endif %}
             </td>
           </tr>
@@ -90,7 +149,7 @@
         </tbody>
       </table>
     </div>
-    {% if exam_orders|length > 1 %}
+    {% if exam_orders|length > 1 and visit %}
       <div class="text-end mt-2">
         <a href="{% url 'clinical:visit_results_print' visit.pk %}"
            target="_blank" rel="noopener"
@@ -101,4 +160,52 @@
     {% endif %}
   </div>
 </div>
+
+{% if vip_select_url %}
+<script>
+/* Ptechka belgilanishi DARROV serverga saqlanadi.
+
+   «Saqlash» tugmasiga bog'lamadik: shifokor belgilab qo'yib, sahifani
+   yopib ketsa tanlovi yo'qolardi va vipiskada boshqa narsa chiqardi.
+
+   Har safar BUTUN ro'yxat yuboriladi, bitta id emas — shunda
+   «hech biri» ham to'g'ri saqlanadi. */
+(function () {
+  const url = "{{ vip_select_url }}";
+  const hisob = document.getElementById('vip-count');
+  const csrf = document.querySelector('[name=csrfmiddlewaretoken]');
+
+  function chks() { return Array.from(document.querySelectorAll('.vip-chk')); }
+
+  function saqla() {
+    const fd = new FormData();
+    if (csrf) fd.append('csrfmiddlewaretoken', csrf.value);
+    chks().filter(c => c.checked).forEach(c => fd.append('selected_orders', c.value));
+
+    fetch(url, {method: 'POST', body: fd, headers: {'X-Requested-With': 'XMLHttpRequest'}})
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(d => { if (hisob) hisob.textContent = d.count + " ta tanlandi"; })
+      .catch(() => {
+        /* Jim qolish xavfli: shifokor belgiladim deb o'ylab ketadi,
+           lekin vipiskada chiqmaydi. Shuning uchun ochiq aytamiz. */
+        if (hisob) {
+          hisob.className = 'badge bg-danger';
+          hisob.textContent = 'Saqlanmadi — sahifani yangilang';
+        }
+      });
+  }
+
+  chks().forEach(c => c.addEventListener('change', saqla));
+
+  const hammasi = document.getElementById('vip-all');
+  const hechbiri = document.getElementById('vip-none');
+  if (hammasi) hammasi.addEventListener('click', function () {
+    chks().forEach(c => c.checked = true); saqla();
+  });
+  if (hechbiri) hechbiri.addEventListener('click', function () {
+    chks().forEach(c => c.checked = false); saqla();
+  });
+})();
+</script>
+{% endif %}
 {% endif %}

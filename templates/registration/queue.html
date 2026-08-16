@@ -5,7 +5,7 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
-        {% if user.role.code in "doctor,surgeon,nurse,ward_nurse,lab,radiology,chief_doctor" %}
+        {% if "doctor" in user.role_codes or "surgeon" in user.role_codes or "nurse" in user.role_codes or "ward_nurse" in user.role_codes or "lab" in user.role_codes or "radiology" in user.role_codes or "chief_doctor" in user.role_codes %}
         <h1 class="h3"><i class="bi bi-person-lines-fill"></i> Mening bemorlarim (bugun)</h1>
         <p class="text-muted mb-0">Faqat sizga yo'naltirilgan bemorlar ko'rinadi</p>
         {% else %}

@@ -111,7 +111,16 @@ def build_report(start: datetime.date, end: datetime.date) -> dict:
         .order_by("-income")
     )
 
-    # Jarrohlik daromadi (jarroh kesimida) — shifokor ulushiga qo'shiladi
+    # Jarrohlik daromadi (jarroh kesimida).
+    #
+    # ULUSHGA QO'SHILMAYDI. 50/50 bo'linish faqat AMBULATOR QABUL
+    # uchun: shifokor bemorni ko'radi va shu ko'rik puli ikkiga
+    # bo'linadi. Operatsiya esa klinikaning ishi — xonasi, anjomi,
+    # jamoasi, sarf-materiali klinikadan chiqadi. Uni ham ikkiga
+    # bo'lish klinikani zararga olib borardi.
+    #
+    # Operatsiya soni va summasi jadvalda KO'RINADI (ish hajmi
+    # ko'rinib tursin), lekin ulush hisobiga kirmaydi.
     from apps.clinical.models import SurgerySchedule
     surgery_by_doctor = {
         row["surgeon__id"]: row
@@ -133,8 +142,9 @@ def build_report(start: datetime.date, end: datetime.date) -> dict:
         row["surgeries"] = s["surgeries"] if s else 0
         row["surgery_income"] = s["surgery_income"] if s else Decimal(0)
         row["total_income"] = row["income"] + row["surgery_income"]
-        # SHIFOKOR ULUSHI: (qabul + operatsiya) summasining 50% qismi (1/2)
-        row["doctor_share"] = (row["total_income"] / HALF).quantize(Decimal("0.01"))
+        # SHIFOKOR ULUSHI — FAQAT QABULDAN (operatsiya kirmaydi)
+        row["doctor_share"] = (row["income"] / HALF).quantize(Decimal("0.01"))
+        # Klinikaga: qabulning qolgan yarmi + operatsiyaning HAMMASI
         row["clinic_share"] = row["total_income"] - row["doctor_share"]
         seen_ids.add(row["doctor__id"])
 
@@ -151,8 +161,9 @@ def build_report(start: datetime.date, end: datetime.date) -> dict:
             "surgeries": s["surgeries"],
             "surgery_income": total,
             "total_income": total,
-            "doctor_share": (total / HALF).quantize(Decimal("0.01")),
-            "clinic_share": total - (total / HALF).quantize(Decimal("0.01")),
+            # Faqat operatsiya qilgan jarrohda qabul yo'q — ulush ham yo'q
+            "doctor_share": Decimal("0.00"),
+            "clinic_share": total,
         })
     doctors.sort(key=lambda r: r["total_income"], reverse=True)
 
@@ -232,6 +243,12 @@ class RevenueReportView(RoleRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         start, end, period = _period_range(self.request)
         context.update(build_report(start, end))
+        # KLINIKA XARAJATLARI — tushumning yonida turishi kerak.
+        # Faqat kirim ko'rsatilsa, foyda haqidagi tasavvur noto'g'ri
+        # bo'ladi: statsionar dorisi va operatsiya materiali klinikaning
+        # cho'ntagidan chiqadi.
+        from apps.billing.expenses import xarajat_hisoboti
+        context.update(xarajat_hisoboti(start, end))
         context["period"] = period
         return context
 

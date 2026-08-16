@@ -145,20 +145,20 @@
         </div>
         <nav class="dbn-nav">
             <div class="nav-label">Asosiy</div>
-            {% if user.role.code != "accountant" %}
+            {% if "accountant" not in user.role_codes %}
             <a href="{% url 'core:home' %}" class="{% if request.path == '/' %}active{% endif %}"><i class="bi bi-grid-1x2-fill"></i> Boshqaruv paneli</a>
             {% endif %}
-            {% if user.is_superuser or user.role.code == "super_admin" or user.role.code == "administrator" or user.role.code == "reception" or user.role.code == "director" or user.role.code == "chief_doctor" or user.role.code == "cashier" %}
+            {% if user.is_superuser or "super_admin" in user.role_codes or "administrator" in user.role_codes or "reception" in user.role_codes or "director" in user.role_codes or "chief_doctor" in user.role_codes or "cashier" in user.role_codes %}
             <a href="{% url 'patients:list' %}" class="{% if request.resolver_match.namespace == 'patients' %}active{% endif %}"><i class="bi bi-people-fill"></i> Bemorlar</a>
             {% endif %}
-            {% if user.can_view_visits and user.role.code != "accountant" %}
+            {% if user.can_view_visits and "accountant" not in user.role_codes %}
             <a href="{% url 'registration:queue' %}" class="{% if request.resolver_match.namespace == 'registration' and request.resolver_match.url_name != 'board' %}active{% endif %}"><i class="bi bi-list-ol"></i> Navbat</a>
             {% endif %}
-            {% if user.is_superuser or user.role.code == "super_admin" or user.role.code == "administrator" or user.role.code == "reception" or user.role.code == "director" or user.role.code == "tablo" %}
+            {% if user.is_superuser or "super_admin" in user.role_codes or "administrator" in user.role_codes or "reception" in user.role_codes or "director" in user.role_codes or "tablo" in user.role_codes %}
             <a href="{% url 'registration:board' %}" target="_blank" class="{% if request.resolver_match.url_name == 'board' %}active{% endif %}"><i class="bi bi-tv"></i> Navbat tablosi</a>
             {% endif %}
 
-            {% if user.is_superuser or user.role.code == "super_admin" or user.role.code == "doctor" or user.role.code == "chief_doctor" or user.role.code == "radiology" or user.role.code == "lab" or user.role.code in "administrator,reception,director,surgeon,anesthesiologist,nurse,ward_nurse" or user.role.code == "sterilization" %}
+            {% if user.is_superuser or "super_admin" in user.role_codes or "doctor" in user.role_codes or "chief_doctor" in user.role_codes or "radiology" in user.role_codes or "lab" in user.role_codes or "administrator" in user.role_codes or "reception" in user.role_codes or "director" in user.role_codes or "surgeon" in user.role_codes or "anesthesiologist" in user.role_codes or "nurse" in user.role_codes or "ward_nurse" in user.role_codes or "sterilization" in user.role_codes %}
             <div class="nav-label">Klinika</div>
             <div class="dbn-group{% if request.resolver_match.namespace == 'clinical' %} open{% endif %}" x-data="{ open: {% if request.resolver_match.namespace == 'clinical' %}true{% else %}false{% endif %} }" :class="open && 'open'">
                 <div class="grp-toggle" @click="open = !open">
@@ -166,37 +166,50 @@
                     <i class="bi bi-chevron-right chev"></i>
                 </div>
                 <div class="dbn-sub" x-show="open" x-collapse>
-                    {% if user.is_superuser or user.role.code == "doctor" or user.role.code == "chief_doctor" %}
+                    {% if user.is_superuser or "doctor" in user.role_codes or "chief_doctor" in user.role_codes %}
                     <a href="{% url 'clinical:my_templates' %}" class="{% if request.resolver_match.url_name == 'my_templates' %}active{% endif %}"><i class="bi bi-file-earmark-richtext"></i> Shablonlarim</a>
                     {% endif %}
-                    {% if user.is_superuser or user.role.code == "doctor" or user.role.code == "chief_doctor" or user.role.code == "radiology" or user.role.code == "lab" %}
+                    {% if user.is_superuser or "doctor" in user.role_codes or "chief_doctor" in user.role_codes or "radiology" in user.role_codes or "lab" in user.role_codes %}
                     <a href="{% url 'clinical:examiner_dashboard' %}" class="{% if request.resolver_match.url_name == 'examiner_dashboard' %}active{% endif %}"><i class="bi bi-clipboard2-pulse"></i> Mutaxassis Paneli</a>
                     {% endif %}
-                    {% if user.is_superuser or user.role.code in "super_admin,administrator,reception,director,chief_doctor,doctor,surgeon,anesthesiologist,nurse,ward_nurse" %}
+                    {% if user.is_superuser or "super_admin" in user.role_codes or "administrator" in user.role_codes or "reception" in user.role_codes or "director" in user.role_codes or "chief_doctor" in user.role_codes or "doctor" in user.role_codes or "surgeon" in user.role_codes or "anesthesiologist" in user.role_codes or "nurse" in user.role_codes or "ward_nurse" in user.role_codes %}
                     <a href="{% url 'clinical:inpatient_dashboard' %}" class="{% if request.resolver_match.url_name == 'inpatient_dashboard' %}active{% endif %}"><i class="bi bi-hospital"></i> Stasionar</a>
                     {% endif %}
-                    {% if user.is_superuser or user.role.code in "super_admin,administrator,chief_doctor,doctor" %}
+                    {% if user.is_superuser or "super_admin" in user.role_codes or "administrator" in user.role_codes or "chief_doctor" in user.role_codes or "doctor" in user.role_codes %}
                     <a href="{% url 'clinical:episode_search' %}" class="{% if request.resolver_match.url_name == 'episode_search' or request.resolver_match.url_name == 'episode_detail' %}active{% endif %}"><i class="bi bi-file-medical"></i> Statsionarga rasmiylashtirish</a>
                     {% endif %}
-                    {% if user.is_superuser or user.role.code in "super_admin,administrator,nurse,ward_nurse,reception" %}
+                    {% if user.is_superuser or "super_admin" in user.role_codes or "administrator" in user.role_codes or "nurse" in user.role_codes or "ward_nurse" in user.role_codes or "reception" in user.role_codes %}
                     <a href="{% url 'clinical:nurse_incoming' %}" class="{% if request.resolver_match.url_name == 'nurse_incoming' %}active{% endif %}"><i class="bi bi-box-arrow-in-down"></i> Yo'naltirilganlar</a>
                     {% endif %}
-                    {% if user.is_superuser or user.role.code == "administrator" or user.role.code == "super_admin" or user.role.code == "surgery_admin" %}
+                    {% if user.is_superuser or "administrator" in user.role_codes or "super_admin" in user.role_codes or "surgery_admin" in user.role_codes %}
                     <a href="{% url 'clinical:surgery_admin_list' %}" class="{% if request.resolver_match.url_name == 'surgery_admin_list' %}active{% endif %}"><i class="bi bi-list-check"></i> Jarrohlik ro'yxati</a>
                     {% endif %}
-                    {% if user.is_superuser or user.role.code == "surgeon" or user.role.code == "anesthesiologist" or user.role.code == "nurse" or user.role.code == "ward_nurse" or user.role.code == "sterilization" or user.role.code == "surgery_admin" or user.role.code == "administrator" or user.role.code == "super_admin" or user.role.code == "director" or user.role.code == "chief_doctor" or user.role.code == "reception" %}
+                    {% comment %}
+                      Operatsion blok — faqat u yerda ishlaydiganlarga.
+                      Ilgari «hamshira» va «palata hamshirasi» rollari
+                      ham kirardi va bo'lim hamshirasiga keraksiz bo'lim
+                      ko'rinib turardi.
+                    {% endcomment %}
+                    {% if user.can_operating_block or "reception" in user.role_codes %}
                     <a href="{% url 'clinical:operating_rooms_overview' %}" class="{% if request.resolver_match.url_name == 'operating_rooms_overview' %}active{% endif %}"><i class="bi bi-door-open"></i> Operatsion xonalar</a>
                     {% endif %}
-                    {% if user.is_superuser or user.role.code == "super_admin" %}
+                    {% if user.is_superuser or "super_admin" in user.role_codes %}
                     <a href="{% url 'clinical:ambulatory_rooms_settings' %}" class="{% if request.resolver_match.url_name == 'ambulatory_rooms_settings' %}active{% endif %}"><i class="bi bi-door-closed"></i> Ambulator xonalar</a>
+                    <a href="{% url 'clinical:discharge_admin' %}" class="{% if request.resolver_match.url_name == 'discharge_admin' %}active{% endif %}"><i class="bi bi-shield-lock"></i> Vipiskalar boshqaruvi</a>
                     {% endif %}
-                    {% if user.is_superuser or user.role.code == "anesthesiologist" or user.role.code == "super_admin" or user.role.code == "administrator" %}
+                    {% if user.is_superuser or "anesthesiologist" in user.role_codes or "super_admin" in user.role_codes or "administrator" in user.role_codes %}
                     <a href="{% url 'clinical:anesthesia_stock_page' %}" class="{% if request.resolver_match.url_name == 'anesthesia_stock_page' %}active{% endif %}"><i class="bi bi-capsule"></i> Anesteziolog ombori{% if anesthesia_sent_today %} <span class="badge bg-danger rounded-pill">{{ anesthesia_sent_today }}</span>{% endif %}</a>
                     {% endif %}
-                    {% if user.is_superuser or user.role.code == "surgeon" or user.role.code == "anesthesiologist" or user.role.code == "nurse" or user.role.code == "administrator" or user.role.code == "super_admin" or user.role.code == "surgery_admin" %}
+                    {% comment %}
+                      Operatsion zayavkalar — hamshira so'raydi, ombor beradi.
+                    {% endcomment %}
+                    {% if user.can_operating_block or user.can_warehouse or "anesthesiologist" in user.role_codes %}
+                    <a href="{% url 'clinical:supply_requests' %}" class="{% if request.resolver_match.url_name == 'supply_requests' %}active{% endif %}"><i class="bi bi-box-seam"></i> Operatsion zayavkalar</a>
+                    {% endif %}
+                    {% if user.can_operating_block or "doctor" in user.role_codes %}
                     <a href="{% url 'clinical:surgery_dashboard' %}" class="{% if request.resolver_match.url_name == 'surgery_dashboard' %}active{% endif %}"><i class="bi bi-heart-pulse"></i> Jarrohlik bloki</a>
                     {% endif %}
-                    {% if user.is_superuser or user.role.code == "sterilization" %}
+                    {% if user.is_superuser or "sterilization" in user.role_codes %}
                     <a href="{% url 'clinical:sterilization_dashboard' %}" class="{% if request.resolver_match.url_name == 'sterilization_dashboard' %}active{% endif %}"><i class="bi bi-shield-plus"></i> Avtoklav</a>
                     <a href="{% url 'clinical:autoclave_dashboard' %}" class="{% if request.resolver_match.url_name == 'autoclave_dashboard' %}active{% endif %}"><i class="bi bi-droplet-half"></i> Avtoklav Paneli</a>
                     {% endif %}
@@ -204,7 +217,7 @@
             </div>
             {% endif %}
 
-            {% if user.is_superuser or user.role.code == "cashier" or user.role.code == "accountant" or user.role.code == "director" or user.role.code == "administrator" or user.role.code == "super_admin" or user.role.code == "reception" %}
+            {% if user.is_superuser or "cashier" in user.role_codes or "accountant" in user.role_codes or "director" in user.role_codes or "administrator" in user.role_codes or "super_admin" in user.role_codes or "reception" in user.role_codes %}
             <div class="nav-label">Moliya</div>
             <div class="dbn-group{% if request.resolver_match.namespace == 'billing' %} open{% endif %}" x-data="{ open: {% if request.resolver_match.namespace == 'billing' %}true{% else %}false{% endif %} }" :class="open && 'open'">
                 <div class="grp-toggle" @click="open = !open">
@@ -212,31 +225,36 @@
                     <i class="bi bi-chevron-right chev"></i>
                 </div>
                 <div class="dbn-sub" x-show="open" x-collapse>
-                    {% if user.is_superuser or user.role.code == "administrator" or user.role.code == "reception" or user.role.code == "super_admin" %}
+                    {% if user.is_superuser or "administrator" in user.role_codes or "reception" in user.role_codes or "super_admin" in user.role_codes %}
                     <a href="{% url 'billing:registrator_payments' %}" class="{% if request.resolver_match.url_name == 'registrator_payments' %}active{% endif %}"><i class="bi bi-credit-card-2-front"></i> To'lov qabul qilish</a>
                     {% endif %}
-                    {% if user.is_superuser or user.role.code == "cashier" or user.role.code == "accountant" or user.role.code == "director" or user.role.code == "super_admin" %}
+                    {% if user.is_superuser or "cashier" in user.role_codes or "accountant" in user.role_codes or "director" in user.role_codes or "super_admin" in user.role_codes %}
                     <a href="{% url 'billing:dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"><i class="bi bi-cash-coin"></i> Kassa (Hisob)</a>
                     {% endif %}
-                    {% if user.is_superuser or user.role.code == "director" or user.role.code == "administrator" or user.role.code == "super_admin" %}
+                    {% if user.is_superuser or "director" in user.role_codes or "administrator" in user.role_codes or "super_admin" in user.role_codes %}
                     <a href="{% url 'billing:doctor_prices' %}" class="{% if request.resolver_match.url_name == 'doctor_prices' %}active{% endif %}"><i class="bi bi-cash-stack"></i> Qabul narxlari</a>
                     {% endif %}
-                    {% if user.is_superuser or user.role.code == "director" or user.role.code == "super_admin" %}
+                    {% if user.is_superuser or "director" in user.role_codes or "super_admin" in user.role_codes %}
                     <a href="{% url 'billing:superadmin_statistics' %}" class="{% if request.resolver_match.url_name == 'superadmin_statistics' %}active{% endif %}"><i class="bi bi-bar-chart-fill"></i> Umumiy Statistika</a>
                     {% endif %}
-                    {% if user.is_superuser or user.role.code == "director" or user.role.code == "accountant" or user.role.code == "super_admin" %}
+                    {% if user.is_superuser or "director" in user.role_codes or "accountant" in user.role_codes or "super_admin" in user.role_codes %}
                     <a href="{% url 'billing:revenue_report' %}" class="{% if request.resolver_match.url_name == 'revenue_report' %}active{% endif %}"><i class="bi bi-graph-up-arrow"></i> Hisobot</a>
                     {% endif %}
                 </div>
             </div>
             {% endif %}
 
-            {% if user.is_superuser or user.role.code == "warehouse" or user.role.code == "super_admin" %}
+            {% comment %}
+              Qo'shimcha rol ham hisobga olinadi. `user.role.code` faqat
+              asosiy rolni ko'rardi — omborga biriktirilgan hamshiraga
+              bo'lim ko'rinmay qolardi.
+            {% endcomment %}
+            {% if user.can_warehouse %}
             <div class="nav-label">Ombor</div>
             <a href="{% url 'pharmacy:dashboard' %}" class="{% if request.resolver_match.namespace == 'pharmacy' %}active{% endif %}"><i class="bi bi-box-seam"></i> Ombor (Sklad)</a>
             {% endif %}
 
-            {% if user.is_superuser or user.role.code == "super_admin" %}
+            {% if user.is_superuser or "super_admin" in user.role_codes %}
             <div class="nav-label">Sozlamalar</div>
             <div class="dbn-group{% if request.resolver_match.namespace == 'staff' or 'settings' in request.resolver_match.url_name %} open{% endif %}" x-data="{ open: {% if request.resolver_match.namespace == 'staff' or 'settings' in request.resolver_match.url_name %}true{% else %}false{% endif %} }" :class="open && 'open'">
                 <div class="grp-toggle" @click="open = !open">
@@ -422,6 +440,119 @@ window.htmxShouldPause = function () {
   });
 })();
 </script>
+
+{% comment %}
+  ============ TO'LOV BILDIRISHNOMASI ============
+
+  Registrator dasturning boshqa bo'limida turgan bo'lsa (navbat, klinika,
+  statsionar), shifokor tekshiruv tayinlaganini bilmaydi — bemor esa
+  kassada kutib qoladi. Shuning uchun yangi tayinlov kelganda o'ng
+  yuqorida qisqa xabar chiqadi.
+
+  FAQAT to'lov qabul qiladigan rollarga. Shifokorga bu ma'lumot kerak
+  emas va uni bekorga chalg'itadi.
+
+  To'lov sahifasining O'ZIDA chiqmaydi — u yerda ro'yxat ko'rinib turibdi.
+{% endcomment %}
+{% comment %}
+  `in "administrator,reception,cashier"` SATR ICHIDAN qidirardi.
+
+  Bu ikki jihatdan noto'g'ri:
+   · rol kodi satrning bo'lagi bo'lib qolsa, tegishli bo'lmagan xodim
+     ham bildirishnoma olardi (aynan shu sabab «nurse» roli
+     «ward_nurse» ichiga tushib ketgan edi);
+   · qo'shimcha rollar umuman hisobga olinmasdi.
+
+  `role_codes` — asosiy va qo'shimcha rollar to'plami, `in` esa
+  to'plamda ANIQ tenglik bo'yicha qidiradi.
+{% endcomment %}
+{% if user.is_authenticated and user.is_superuser or "administrator" in user.role_codes or "reception" in user.role_codes or "cashier" in user.role_codes %}
+<div id="pay-toasts" class="position-fixed top-0 end-0 p-3"
+     style="z-index: 1090; max-width: 380px"
+     data-url="{% url 'billing:pending_payments_json' %}"
+     data-target="{% url 'billing:registrator_payments' %}"></div>
+
+<script>
+(function () {
+  var quti = document.getElementById('pay-toasts');
+  if (!quti) return;
+
+  // To'lov sahifasining o'zida bildirishnoma keraksiz — ro'yxat ko'rinib turibdi.
+  if (window.location.pathname === quti.dataset.target) return;
+
+  var KECHIKISH = 5000;      // 5 soniya turadi, keyin o'zi yo'qoladi
+  var ORALIQ = 8000;         // har 8 soniyada tekshiriladi
+  var KALIT = 'pay-oxirgi';
+
+  /* OXIRGI HOLAT SAHIFALAR ORASIDA ESLAB QOLINADI.
+   *
+   * HAQIQIY XATO: holat faqat xotirada saqlanardi va har sahifa
+   * ochilganda nolga tushardi. Birinchi so'rov esa ataylab jim —
+   * eski tayinlovlar uchun bezovta qilmaslik kerak. Natijada
+   * registrator sahifadan sahifaga o'tib yursa, bildirishnoma
+   * UMUMAN chiqmasdi: har safar birinchi so'rov bo'lib qolardi.
+   *
+   * Endi holat brauzerda saqlanadi — sahifa almashsa ham baza
+   * saqlanib qoladi va yangi tayinlov darrov seziladi. */
+  var oxirgi = null;
+  try { oxirgi = window.localStorage.getItem(KALIT); } catch (e) { /* yopiq bo'lsa — mayli */ }
+
+  function eslab(qiymat) {
+    oxirgi = qiymat;
+    try { window.localStorage.setItem(KALIT, qiymat); } catch (e) {}
+  }
+
+  function korsat(soni, bemorlar) {
+    var el = document.createElement('div');
+    el.className = 'alert alert-warning alert-dismissible shadow d-flex '
+                 + 'align-items-center gap-2 mb-2';
+    el.setAttribute('role', 'alert');
+    el.innerHTML =
+      '<i class="bi bi-cash-coin fs-4"></i>' +
+      '<div class="flex-grow-1">' +
+        '<b>To\'lov qabul qilish kerak</b>' +
+        '<div class="small">' + soni + ' ta tayinlov to\'lov kutmoqda'
+          + (bemorlar ? ' · ' + bemorlar + ' bemor' : '') + '</div>' +
+        '<a href="' + quti.dataset.target + '" class="small">Ochish →</a>' +
+      '</div>' +
+      '<button type="button" class="btn-close" aria-label="Yopish"></button>';
+
+    // «×» bosilsa DARROV yo'qoladi — 5 soniyani kutmaydi.
+    var yopish = el.querySelector('.btn-close');
+    var soat = setTimeout(function () { el.remove(); }, KECHIKISH);
+    yopish.addEventListener('click', function () {
+      clearTimeout(soat);
+      el.remove();
+    });
+
+    quti.appendChild(el);
+  }
+
+  function tekshir() {
+    fetch(quti.dataset.url, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d) return;
+
+        /* Faqat holat O'ZGARGANDA xabar beramiz — ya'ni yangi tayinlov
+           kelganda. Aks holda har 8 soniyada bir xil xabar chiqib turardi.
+
+           Eng birinchi marta (brauzerda hech narsa saqlanmagan) ham jim
+           qolamiz: eski tayinlovlar uchun ogohlantirish bezovta qiladi. */
+        var oldingi = oxirgi;
+        eslab(d.signature);
+        if (oldingi === null || d.signature === oldingi || !d.count) return;
+
+        korsat(d.count, d.patients);
+      })
+      .catch(function () { /* tarmoq uzilsa jim qolamiz */ });
+  }
+
+  tekshir();
+  setInterval(tekshir, ORALIQ);
+})();
+</script>
+{% endif %}
 
 {% block extra_js %}{% endblock %}
 </body>

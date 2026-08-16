@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Vipiskalar boshqaruvi{% endblock %}
+
+{% block content %}
+<h1 class="h4 mb-1"><i class="bi bi-shield-lock"></i> Vipiskalar boshqaruvi</h1>
+<p class="text-muted small mb-3">
+  Shifokor vipiskani shakllantirgach u qulflanadi va o'zgartirib bo'lmaydi.
+  Xatolik bo'lsa shu yerdan qayta ochib bering.
+  O'chirilgan vipiskani <b>{{ tiklash_kuni }} kun</b> ichida tiklash mumkin.
+</p>
+
+{% if messages %}
+  {% for m in messages %}
+    <div class="alert alert-{{ m.tags }} alert-dismissible fade show">{{ m }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+  {% endfor %}
+{% endif %}
+
+<div class="card shadow-sm border-0">
+  <div class="card-body p-0">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th class="ps-3">Bemor</th>
+          <th>Shakllantirgan</th>
+          <th>Sana</th>
+          <th class="text-center">Holati</th>
+          <th class="text-end pe-3">Amallar</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for s in summaries %}
+        <tr class="{% if s.is_deleted %}table-secondary{% endif %}">
+          <td class="ps-3">
+            <div class="fw-semibold">{{ s.episode.patient.full_name }}</div>
+            <div class="small text-muted">
+              karta {{ s.episode.patient.card_number }}
+              {% if s.bed_days %} · {{ s.bed_days }} kun{% endif %}
+            </div>
+          </td>
+          <td class="small">
+            {% if s.discharged_by %}
+              {{ s.discharged_by.get_full_name|default:s.discharged_by.username }}
+            {% else %}—{% endif %}
+          </td>
+          <td class="small">{{ s.created_at|date:"d.m.Y H:i" }}</td>
+          <td class="text-center">
+            {% if s.is_deleted %}
+              <span class="badge bg-dark"><i class="bi bi-trash"></i> O'chirilgan</span>
+              <div class="small text-muted">{{ s.deleted_at|date:"d.m.Y H:i" }}</div>
+              {% if s.muddat_otdi %}
+                <span class="badge bg-danger">Muddat o'tgan</span>
+              {% endif %}
+            {% elif s.is_locked %}
+              <span class="badge bg-success"><i class="bi bi-lock-fill"></i> Qulflangan</span>
+            {% else %}
+              <span class="badge bg-warning text-dark">
+                <i class="bi bi-unlock"></i> Shifokorga ochiq
+              </span>
+            {% endif %}
+          </td>
+          <td class="text-end pe-3 text-nowrap">
+            {% if s.is_deleted %}
+              {% comment %}
+                Muddat o'tgan bo'lsa tugma UMUMAN ko'rsatilmaydi. Bosilib,
+                keyin «bo'lmaydi» deyishdan ko'ra, yo'qligi ravshanroq.
+              {% endcomment %}
+              {% if s.tiklash_mumkin %}
+                <form method="post" action="{% url 'clinical:discharge_restore' s.pk %}"
+                      class="d-inline">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-success">
+                    <i class="bi bi-arrow-counterclockwise"></i> Vipiskani tiklash
+                  </button>
+                </form>
+              {% else %}
+                <span class="small text-muted">Tiklab bo'lmaydi</span>
+              {% endif %}
+            {% else %}
+              <a href="{% url 'clinical:discharge_print' s.episode.pk %}"
+                 target="_blank" rel="noopener" class="btn btn-sm btn-outline-dark">
+                <i class="bi bi-printer"></i>
+              </a>
+              {% if s.is_locked %}
+                <form method="post" action="{% url 'clinical:discharge_unlock' s.pk %}"
+                      class="d-inline">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-warning text-dark">
+                    <i class="bi bi-unlock"></i> Shifokorga ochish
+                  </button>
+                </form>
+              {% endif %}
+              <form method="post" action="{% url 'clinical:discharge_delete' s.pk %}"
+                    class="d-inline"
+                    onsubmit="return confirm('Vipiska o\'chirilsinmi? {{ tiklash_kuni }} kun ichida tiklash mumkin.');">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-outline-danger">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="text-center text-muted py-4">
+          Hali vipiska shakllantirilmagan.
+        </td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

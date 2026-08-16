@@ -56,6 +56,18 @@
                                 <span class="badge bg-dark fs-6">{{ bed.number }}</span>
                                 {% if bed.is_occupied %}
                                 <span class="badge bg-danger ms-1" title="Hozirda band">Band</span>
+                                {% comment %}
+                                  «Band», lekin faol yotish yo'q — bayroq osilib
+                                  qolgan. Buni ko'rsatib qo'yamiz, aks holda
+                                  administrator kravat nega berilmayotganini
+                                  bilmaydi va bazaga kirishga majbur bo'ladi.
+                                {% endcomment %}
+                                {% if not bed.get_active_stay and not bed.get_active_companion_stays %}
+                                <span class="badge bg-warning text-dark ms-1"
+                                      title="Kravat band ko'rinadi, lekin unda yotgan bemor yo'q">
+                                  <i class="bi bi-exclamation-triangle"></i> Bemorsiz band
+                                </span>
+                                {% endif %}
                                 {% else %}
                                 <span class="badge bg-success ms-1" title="Hozirda bo'sh">Bo'sh</span>
                                 {% endif %}
@@ -77,6 +89,17 @@
                                 <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#staysHistoryModal{{ bed.id }}" title="Bemorlar yotish tarixi">
                                     <i class="bi bi-people"></i>
                                 </button>
+                                {% if bed.is_occupied %}
+                                <!-- Majburan bo'shatish: faqat bemor yotmagan bo'lsa ishlaydi -->
+                                <form method="post" action="{% url 'clinical:release_bed' bed.id %}"
+                                      class="d-inline"
+                                      onsubmit="return confirm('{{ bed.number }} kravatini bo\'shatasizmi? Bu faqat kravat band ko\'rinib, unda bemor bo\'lmagan holat uchun.');">
+                                    {% csrf_token %}
+                                    <button class="btn btn-sm btn-outline-warning" title="Kravatni bo'shatish">
+                                        <i class="bi bi-unlock"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
                                 
                                 <!-- Edit Bed Price Modal -->
                                 <div class="modal fade text-start" id="editBedModal{{ bed.id }}" tabindex="-1" aria-hidden="true">

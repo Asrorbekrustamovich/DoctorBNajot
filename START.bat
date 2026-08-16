@@ -95,8 +95,8 @@ REM 4) Rollar va admin
 echo [4/5] Rollar va admin tayyorlanmoqda...
 %VPY% manage.py seed_roles
 %VPY% manage.py seed_admin
-%VPY% manage.py seed_demo_users
-%VPY% manage.py seed_operation_data
+REM %VPY% manage.py seed_demo_users
+REM %VPY% manage.py seed_operation_data
 %VPY% manage.py seed_services
 
 REM 4.5) Har ishga tushirishda avtomatik zaxira (xavfsizlik uchun)

@@ -84,17 +84,17 @@
                   <select name="surgeon_id" class="form-select" required>
                       <option value="">-- Tanlang --</option>
                       {% for doc in surgeons %}
-                      <option value="{{ doc.id }}">{{ doc.get_full_name }} ({{ doc.specialty }})</option>
+                      <option value="{{ doc.id }}">{{ doc.get_full_name|default:doc.username }}{% if doc.specialty %} — {{ doc.specialty }}{% endif %}</option>
                       {% endfor %}
                   </select>
               </div>
               <div class="row g-2">
                   <div class="col-md-6 mb-3">
-                      <label class="form-label">Operatsion asistent</label>
+                      <label class="form-label">Anestiziska</label>
                       <select name="assistant_id" class="form-select">
                           <option value="">-- Tanlang --</option>
                           {% for u in assistants %}
-                          <option value="{{ u.id }}">{{ u.get_full_name }}</option>
+                          <option value="{{ u.id }}">{{ u.get_full_name }}{% if u.specialty %} — {{ u.specialty }}{% endif %}</option>
                           {% endfor %}
                       </select>
                   </div>
@@ -103,7 +103,7 @@
                       <select name="anesthesiologist_id" class="form-select">
                           <option value="">-- Tanlang --</option>
                           {% for u in anesthesiologists %}
-                          <option value="{{ u.id }}">{{ u.get_full_name }}</option>
+                          <option value="{{ u.id }}">{{ u.get_full_name }}{% if u.specialty %} — {{ u.specialty }}{% endif %}</option>
                           {% endfor %}
                       </select>
                   </div>
@@ -112,7 +112,7 @@
                       <select name="operating_nurse_id" class="form-select">
                           <option value="">-- Tanlang --</option>
                           {% for u in operating_nurses %}
-                          <option value="{{ u.id }}">{{ u.get_full_name }}</option>
+                          <option value="{{ u.id }}">{{ u.get_full_name }}{% if u.specialty %} — {{ u.specialty }}{% endif %}</option>
                           {% endfor %}
                       </select>
                   </div>
@@ -121,7 +121,7 @@
                         <select name="ward_nurse_id" class="form-select">
                             <option value="">-- Tanlang --</option>
                             {% for u in ward_nurses %}
-                            <option value="{{ u.id }}">{{ u.get_full_name }}</option>
+                            <option value="{{ u.id }}">{{ u.get_full_name }}{% if u.specialty %} — {{ u.specialty }}{% endif %}</option>
                             {% endfor %}
                         </select>
                     </div>

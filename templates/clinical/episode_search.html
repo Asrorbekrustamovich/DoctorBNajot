@@ -101,7 +101,8 @@
                 {% empty %}<span class="text-muted">—</span>{% endfor %}
               </td>
               <td>
-                {% if e.status == 'admitted' %}<span class="badge bg-primary">Yotibdi</span>
+                {% if e.status == 'admitted' and e.patient_left %}<span class="badge bg-secondary"><i class="bi bi-box-arrow-right"></i> Chiqdi</span>
+                {% elif e.status == 'admitted' %}<span class="badge bg-primary">Yotibdi</span>
                 {% elif e.status == 'discharged' %}<span class="badge bg-success">Vipiska</span>
                 {% elif e.status == 'sent' %}<span class="badge bg-info text-dark">Qabulxonada</span>
                 {% elif e.status == 'cancelled' %}<span class="badge bg-secondary">Bekor</span>

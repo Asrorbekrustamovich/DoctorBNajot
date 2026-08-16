@@ -75,6 +75,31 @@
     </div>
     {% endif %}{% endfor %}
 
+    {% comment %}
+      KLINIK YOZUVLAR — rasmiy blankda ham bo'lishi SHART.
+
+      Statsionar davolanish varaqasi shikoyat va tashxisdan boshlanadi.
+      Ilgari bu yerda faqat hamshira yozuvlari chiqardi va hujjat
+      tibbiy asossiz ko'rinardi.
+    {% endcomment %}
+    {% if episode_diagnoses or episode_bloklar %}
+    <div style="margin-bottom:12px;">
+        <div style="border-bottom:1px solid #000; font-weight:bold; margin-bottom:4px;">Klinik yozuvlar va tashxis</div>
+        {% if episode_diagnoses %}
+            <div style="margin-bottom:4px;">
+                <b>Tashxislar (MKB-10):</b>
+                {% for d in episode_diagnoses %}
+                    <div>· {{ d.label }} ({{ d.get_kind_display }}, {{ d.get_stage_display }})</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+        {% for nom, matn in episode_bloklar %}
+            <div style="margin-bottom:3px;"><b>{{ nom }}:</b>
+                <span style="white-space:pre-wrap">{{ matn }}</span></div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     <!-- Tayinlangan tekshiruvlar -->
     {% if service_orders %}
     <div style="margin-bottom:12px;">

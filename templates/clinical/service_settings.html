@@ -43,6 +43,25 @@
     </div>
 </div>
 
+{% if unassigned or no_price %}
+<div class="alert alert-warning">
+  <div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle"></i> E'tibor bering</div>
+  {% if unassigned %}
+    <div class="small mb-1">
+      <b>{{ unassigned|length }} ta tekshiruvda mas'ul yo'q</b> —
+      ular hech kimning ro'yxatida chiqmaydi va bemor kutib qoladi:
+      {% for s in unassigned %}<span class="badge bg-danger-subtle text-danger-emphasis">{{ s.name }}</span> {% endfor %}
+    </div>
+  {% endif %}
+  {% if no_price %}
+    <div class="small">
+      <b>{{ no_price|length }} ta tekshiruvda narx 0</b> — kassa ularni bepul deb hisoblaydi:
+      {% for s in no_price %}<span class="badge bg-warning-subtle text-warning-emphasis">{{ s.name }}</span> {% endfor %}
+    </div>
+  {% endif %}
+</div>
+{% endif %}
+
 {% comment %} ------------------------------------------------------------------
    GURUHLAR — standart mas'ul.
    «Radiolog» degan alohida rol yo'q. Har bir tekshiruvni alohida sozlash

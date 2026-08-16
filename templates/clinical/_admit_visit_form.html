@@ -42,15 +42,25 @@
                         <div class="form-text">Bo'sh qoldirsangiz — tanlangan kravatning saqlangan paketli narxi olinadi. Kiritilsa — shu yotish uchun ishlatiladi va kravatga saqlanadi (eski yotishlarga ta'sir qilmaydi).</div>
                     </div>
 
+                    {% comment %}
+                      HUJJATLASHTIRISH HAMSHIRASI — TANLANMAYDI.
+
+                      Hujjatni bemorni qabul qilgan odam yuritadi, ya'ni
+                      aynan shu yotqizishni rasmiylashtirayotgan qabulxona
+                      hamshirasi. Ro'yxatdan tanlatish ikki tomondan xato
+                      edi: boshqasi tanlanib qolishi mumkin, bo'sh
+                      qoldirilsa hujjat egasiz qolib, keyin kim yozganini
+                      aniqlab bo'lmasdi.
+                    {% endcomment %}
                     <div class="mb-3">
                         <label class="form-label fw-bold">Hujjatlashtirish hamshirasi</label>
-                        <select name="doc_nurse" class="form-select">
-                            <option value="">-- Tanlang --</option>
-                            {% for nurse in nurses %}
-                            <option value="{{ nurse.id }}">{{ nurse.get_full_name|default:nurse.username }}</option>
-                            {% endfor %}
-                        </select>
-                        <div class="form-text">Nima berildi/qilindi hisobotini (+/-) yuritadi.</div>
+                        <input type="text" class="form-control bg-light" readonly
+                               value="{{ request.user.get_full_name|default:request.user.username }}">
+                        <div class="form-text">
+                            <i class="bi bi-lock"></i>
+                            Qabul qilayotgan hamshira — o'zgartirib bo'lmaydi.
+                            Nima berildi/qilindi hisobotini (+/-) shu odam yuritadi.
+                        </div>
                     </div>
 
                     <div class="mb-3">

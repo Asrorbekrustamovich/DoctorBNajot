@@ -60,27 +60,19 @@ class Medicine(BaseModel):
         return sum(batch.quantity_available for batch in qs)
         
     def format_quantity(self, quantity):
-        """Kiritilgan asosiy miqdorni (masalan: 54) o'ramlarga bo'lib matnga aylantiradi (Masalan: 1 Blok, 4 Dona)."""
+        """Miqdorni FAQAT ASOSIY BIRLIKDA yozadi: «54 ampula».
+
+        Ilgari bu miqdorni o'ramlarga bo'lib yozardi — «1 blok, 4 dona».
+        Amalda bu chalkashtirar edi: hamshira nechta ampula borligini
+        bilishi kerak, blokni hisoblab o'tirmasligi kerak. Ustiga-ustak
+        blok o'lchami o'zgarsa eski yozuvlar boshqacha ko'rinib qolardi.
+
+        Endi bitta o'lchov — dorining o'z birligi.
+        """
+        birlik = self.unit.short_name or self.unit.name
         if quantity is None or quantity <= 0:
-            return f"0 {self.unit.short_name or self.unit.name}"
-            
-        packages = list(self.packages.all().order_by('-quantity_in_base_unit'))
-        if not packages:
-            return f"{quantity:g} {self.unit.short_name or self.unit.name}"
-            
-        result = []
-        remaining = quantity
-        
-        for pkg in packages:
-            count = int(remaining // pkg.quantity_in_base_unit)
-            if count > 0:
-                result.append(f"{count} {pkg.name}")
-                remaining = remaining % pkg.quantity_in_base_unit
-                
-        if remaining > 0:
-            result.append(f"{remaining:g} {self.unit.short_name or self.unit.name}")
-            
-        return ", ".join(result)
+            return f"0 {birlik}"
+        return f"{quantity:g} {birlik}"
         
     @property
     def formatted_total_available(self):

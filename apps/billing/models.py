@@ -37,6 +37,22 @@ class Invoice(Auditable, LockableMixin, BaseModel):
     )
     paid_at = models.DateTimeField("To'langan vaqt", null=True, blank=True)
 
+    # REGISTRATOR TO'G'RILAGAN NARXLAR.
+    #
+    # HAQIQIY XATO: tuzatilgan narx faqat chek BANDIGA yozilardi. Chek
+    # esa har bir tekshiruv qo'shilganda butunlay qayta tuziladi —
+    # bandlar o'chib, katalog narxidan yangidan yaratiladi. Natijada
+    # tuzatish yo'qolib ketardi: 50 000 lik qabul 100 000 ga tuzatilib
+    # to'langach, analiz qo'shilishi bilan qabul yana 50 000 bo'lib
+    # qolar va 90 000 lik qarz 40 000 bo'lib ko'rinardi.
+    #
+    # Shuning uchun tuzatish CHEKNING O'ZIDA saqlanadi: `{manba_id: narx}`.
+    # Kalit — bandning `reference_id` si (qabul uchun tashrif ID'si,
+    # tekshiruv uchun buyurtma ID'si).
+    price_overrides = models.JSONField(
+        "To'g'rilangan narxlar", default=dict, blank=True,
+    )
+
     class Meta:
         verbose_name = "Hisob (Chek)"
         verbose_name_plural = "Hisoblar (Cheklar)"

@@ -38,12 +38,14 @@ class UserAdmin(DjangoUserAdmin):
     search_fields = ("username", "first_name", "last_name", "middle_name", "phone", "email")
     ordering = ("last_name", "first_name")
     autocomplete_fields = ()
+    filter_horizontal = ("extra_roles",)
     readonly_fields = ("last_login", "date_joined", "deleted_at")
     fieldsets = (
         (None, {"fields": ("username", "password")}),
         ("Shaxsiy ma'lumot", {"fields": ("last_name", "first_name", "middle_name",
                                           "phone", "email", "avatar")}),
-        ("Rol va huquqlar", {"fields": ("role", "is_active", "is_staff", "is_superuser")}),
+        ("Rol va huquqlar", {"fields": ("role", "extra_roles", "is_active",
+                                         "is_staff", "is_superuser")}),
         ("Muhim sanalar", {"fields": ("last_login", "date_joined", "deleted_at"),
                             "classes": ("collapse",)}),
     )

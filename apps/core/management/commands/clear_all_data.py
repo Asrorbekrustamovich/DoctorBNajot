@@ -73,9 +73,26 @@ class Command(BaseCommand):
             for nom, n in bor.items():
                 self.stdout.write(f"    · {nom:<38} {n:>8}")
 
-        if jami == 0:
+        # OSILIB QOLGAN HOLATLARNI ALOHIDA SANAYMIZ.
+        #
+        # Yozuvlar soni nolga teng bo'lsa ham baza «toza» bo'lmasligi mumkin:
+        # kravat «band» bo'lib qolgan, anjom «ishlatilgan» holatida turgan
+        # bo'lishi mumkin. Ilgari buyruq shu yerda to'xtab qolardi va aynan
+        # tuzatish kerak bo'lgan holatda hech nima qilmasdi.
+        osilgan = self._stuck(M)
+
+        if jami == 0 and not osilgan:
             self.stdout.write(self.style.SUCCESS("\n  Baza allaqachon toza — o'chiradigan narsa yo'q.\n"))
             return
+
+        if osilgan:
+            self.stdout.write(self.style.WARNING("\n  TUZATILADI (yozuv o'chmaydi, holat tiklanadi)"))
+            for nom, n in osilgan.items():
+                self.stdout.write(f"    · {nom:<38} {n:>8}")
+
+        if jami == 0:
+            self.stdout.write(self.style.SUCCESS(
+                "\n  Bemor ma'lumoti yo'q — faqat osilib qolgan holat tuzatiladi.\n"))
 
         self.stdout.write(self.style.ERROR(f"\n  JAMI: {jami} ta yozuv o'chiriladi"))
         self.stdout.write(self.style.SUCCESS(
@@ -144,11 +161,17 @@ class Command(BaseCommand):
         from apps.audit.models import AuditLog
         from apps.billing.models import DoctorShare, Invoice, InvoiceItem, Refund
         from apps.clinical.models import (
+            Bed,
             AnesthesiaRequest, AnesthesiaRequestItem, AnesthesiaStock,
             AnesthesiaStockPackage, Consultation, InpatientStay, NurseUsageItem,
             ProcedureRecord, RoomLeftover, ServiceOrder, StayChecklistItem,
             SurgeryReport, SurgerySchedule, SurgeryVitals, SurgicalItem,
             SurgicalItemHistory,
+            # Statsionar epizodi va vipiska (keyinroq qo'shilgan modellar).
+            # Bularsiz «tozalash» yarim ish bo'lardi: bemor o'chib ketardi-yu,
+            # uning epizodi bazada qolib, keyingi safar chalkashlik berardi.
+            AdmissionEpisode, DischargeSummary, EpisodeDiagnosis,
+            ServiceResultRow,
         )
         from apps.patients.models import Patient
         from apps.pharmacy.models import (
@@ -168,6 +191,10 @@ class Command(BaseCommand):
                 "Yozilishlar": c(M["Appointment"]),
                 "Shifokor xulosalari": c(M["Consultation"]),
                 "Tayinlangan tekshiruvlar": c(M["ServiceOrder"]),
+                "Tekshiruv natijalari": c(M["ServiceResultRow"]),
+                "Statsionar epizodlari": c(M["AdmissionEpisode"]),
+                "Epizod tashxislari": c(M["EpisodeDiagnosis"]),
+                "Vipiskalar": c(M["DischargeSummary"]),
             },
             "STATSIONAR": {
                 "Yotishlar": c(M["InpatientStay"]),
@@ -254,6 +281,13 @@ class Command(BaseCommand):
         out["Ombor mahsulotlari"] = self._wipe(M["AnesthesiaStock"])
 
     def _wipe_patients(self, M, out):
+        # TARTIB MUHIM: epizod bemorga PROTECT bilan bog'langan, shuning
+        # uchun u bemordan OLDIN o'chirilishi shart. Vipiska va tashxislar
+        # esa epizodga bog'langan — ular ham undan oldin.
+        out["Vipiskalar"] = self._wipe(M["DischargeSummary"])
+        out["Epizod tashxislari"] = self._wipe(M["EpisodeDiagnosis"])
+        out["Statsionar epizodlari"] = self._wipe(M["AdmissionEpisode"])
+        out["Tekshiruv natijalari"] = self._wipe(M["ServiceResultRow"])
         out["Tayinlangan tekshiruvlar"] = self._wipe(M["ServiceOrder"])
         out["Shifokor xulosalari"] = self._wipe(M["Consultation"])
         out["Yozilishlar"] = self._wipe(M["Appointment"])
@@ -268,6 +302,16 @@ class Command(BaseCommand):
         if n:
             out["Anjomlar «Tayyor» ga qaytarildi"] = n
 
+        # KRAVATLAR BO'SHATILADI.
+        #
+        # `Bed.is_occupied` — yotishlardan ALOHIDA saqlanadigan bayroq. U faqat
+        # bemorga javob berilganda o'chadi. Yotishlarni to'g'ridan-to'g'ri
+        # o'chirsak, bayroq «band» bo'lib qolib ketadi va statsionar butunlay
+        # to'silib qoladi: bemor yo'q, lekin kravat ham berilmaydi.
+        n = M["Bed"].all_objects.filter(is_occupied=True).update(is_occupied=False)
+        if n:
+            out["Kravatlar bo'shatildi"] = n
+
         if not keep_audit:
             out["Audit yozuvlari"] = M["AuditLog"].objects.all().delete()[0]
 
@@ -276,6 +320,22 @@ class Command(BaseCommand):
         out["Navbat hisoblagichlari"] = Sequence.objects.filter(
             name__startswith="visit_queue:"
         ).delete()[0]
+
+    @staticmethod
+    def _stuck(M) -> dict[str, int]:
+        """Yozuv emas, HOLAT bo'lib osilib qolgan narsalar."""
+        natija: dict[str, int] = {}
+
+        n = M["Bed"].all_objects.filter(is_occupied=True).count()
+        if n:
+            natija["«Band» bo'lib qolgan kravatlar"] = n
+
+        n = M["SurgicalItem"].objects.exclude(
+            status=M["SurgicalItem"].Status.READY).count()
+        if n:
+            natija["«Tayyor» emas anjomlar"] = n
+
+        return natija
 
     # ------------------------------------------------------------------
     @staticmethod

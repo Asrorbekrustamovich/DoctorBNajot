@@ -10,7 +10,7 @@
     </h1>
     <div>
         {% if stay.is_locked %}
-            {% if user.is_superuser or user.role.code == 'super_admin' %}
+            {% if user.is_superuser or 'super_admin' in user.role_codes %}
             <form method="post" action="{% url 'clinical:document_lock' 'inpatient_stay' stay.id %}" class="d-inline" onsubmit="return confirm('Qulf ochilsinmi?');">
                 {% csrf_token %}<input type="hidden" name="action" value="unlock">
                 <button class="btn btn-outline-danger"><i class="bi bi-unlock"></i> Ochish</button>
@@ -74,13 +74,57 @@
     </div>
 </div>
 
+{% comment %}
+  KLINIK YOZUVLAR — shifokorning dastlabki ko'rigi va tashxislari.
+
+  Ilgari bu sahifada faqat hamshira yozuvlari bor edi (checklist,
+  ukollar, dorilar). Shikoyatlar, anamnez, klinik tashxis va MKB-10
+  kodlari epizodda saqlanadi va bu yerga umuman chiqmasdi — holbuki
+  statsionar hujjati aynan shulardan boshlanadi.
+{% endcomment %}
+{% if episode_bloklar or episode_diagnoses %}
+<div class="card shadow-sm mb-3 border-success">
+  <div class="card-header bg-success bg-opacity-10 fw-bold d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-clipboard2-pulse"></i> Klinik yozuvlar (shifokor ko'rigi)</span>
+    {% if episode %}
+      <a href="{% url 'clinical:episode_detail' episode.pk %}"
+         class="btn btn-sm btn-outline-success d-print-none">Epizodni ochish</a>
+    {% endif %}
+  </div>
+  <div class="card-body">
+    {% if episode_diagnoses %}
+      <div class="mb-3">
+        <div class="fw-semibold small text-muted">TASHXISLAR (MKB-10)</div>
+        {% for d in episode_diagnoses %}
+          <div class="{% if d.kind == 'main' %}fw-bold{% endif %}">
+            · {{ d.label }}
+            <span class="text-muted small">({{ d.get_kind_display }}, {{ d.get_stage_display }})</span>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <div class="row g-2">
+      {% for nom, matn in episode_bloklar %}
+        <div class="col-md-6">
+          <div class="border rounded p-2 h-100 bg-light">
+            <div class="fw-semibold small text-muted">{{ nom|upper }}</div>
+            <div style="white-space:pre-wrap">{{ matn }}</div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <div class="row g-3">
     <!-- Shifokor tayinlagan tekshiruvlar va operatsiyalar -->
     <div class="col-lg-7">
         <div class="card shadow-sm mb-3">
             <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                 <span><i class="bi bi-clipboard2-check"></i> Tayinlangan tekshiruvlar va xizmatlar</span>
-                {% if user.is_superuser or user.role.code == "doctor" or user.role.code == "chief_doctor" or user.role.code == "surgeon" or user.role.code == "surgery_admin" or user.role.code == "director" %}
+                {% if user.is_superuser or "doctor" in user.role_codes or "chief_doctor" in user.role_codes or "surgeon" in user.role_codes or "surgery_admin" in user.role_codes or "director" in user.role_codes %}
                 <button type="button" class="btn btn-sm btn-danger d-print-none" data-bs-toggle="modal" data-bs-target="#surgeryModalStay">
                     <i class="bi bi-heart-pulse"></i> Operatsiya tayinlash
                 </button>
@@ -220,7 +264,7 @@
                                         <span class="me-3">Jarroh: <b>{{ surgery.surgeon.get_full_name|default:"—" }}</b></span>
                                         <span class="me-3">Anesteziolog: <b>{{ surgery.anesthesiologist.get_full_name|default:"—" }}</b></span>
                                         <span class="me-3">Hamshira: <b>{{ surgery.operating_nurse.get_full_name|default:"—" }}</b></span>
-                                        <span class="me-3">Asistent: <b>{{ surgery.assistant.get_full_name|default:"—" }}</b></span>
+                                        <span class="me-3">Anestiziska: <b>{{ surgery.assistant.get_full_name|default:"—" }}</b></span>
                                     </div>
                                     {% if surgery.report %}
                                     {% if surgery.report.arrival_condition %}<div class="col-md-6 mb-1"><strong class="text-dark">Ahvoli:</strong> {{ surgery.report.arrival_condition }}</div>{% endif %}
@@ -313,8 +357,12 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="col-8"><input name="notes" class="form-control form-control-sm" placeholder="Izoh (doza, natija...)"></div>
-                    <div class="col-4"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-plus-lg"></i> Kiritish</button></div>
+                    <div class="col-12"><input name="notes" class="form-control form-control-sm" placeholder="Izoh (doza, natija...)"></div>
+                    <div class="col-12 mt-2 d-flex gap-2 align-items-center">
+                        <label class="small text-muted mb-0 text-nowrap">Qilingan vaqti:</label>
+                        <input type="datetime-local" name="performed_at" class="form-control form-control-sm" required value="{% now 'Y-m-d\TH:i' %}">
+                        <button class="btn btn-sm btn-primary w-100 ms-auto">Qo'shish</button>
+                    </div>
                 </form>
             </div>
             {% endif %}
@@ -333,11 +381,11 @@
                 <!-- Operatsiyadan keyingi tavsiyalar — FAQAT biriktirilgan hamshira yozadi -->
 {% for surg in stay.visit.surgeries.all %}{% if surg.status == "completed" %}
 {% with can_write_postop=stay.doc_nurse %}
-{% if user.is_superuser or user.role.code == "super_admin" or user == stay.doc_nurse or surg.postop_recommendations %}
+{% if user.is_superuser or "super_admin" in user.role_codes or user == stay.doc_nurse or surg.postop_recommendations %}
 <div class="card shadow-sm mb-3">
     <div class="card-header bg-success bg-opacity-10"><i class="bi bi-clipboard2-heart"></i> Operatsiyadan keyingi tavsiyalar — {{ surg.surgery_type.name }} ({{ surg.finished_at|date:"d.m.Y H:i" }})</div>
     <div class="card-body">
-        {% if user.is_superuser or user.role.code == "super_admin" or user == stay.doc_nurse %}
+        {% if user.is_superuser or "super_admin" in user.role_codes or user == stay.doc_nurse %}
         <!-- Biriktirilgan hamshira (yoki superadmin) — tahrirlaydi -->
         <form method="post" action="{% url 'clinical:surgery_postop_recommendations' surg.id %}">
             {% csrf_token %}
@@ -573,6 +621,16 @@
         });
     }
 })();
+</script>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script>
+    flatpickr("input[name=performed_at]", {
+        enableTime: true,
+        dateFormat: "Y-m-d\\TH:i",
+        time_24hr: true
+    });
 </script>
 
 {% endblock %}

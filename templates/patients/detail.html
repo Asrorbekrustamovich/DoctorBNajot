@@ -221,7 +221,7 @@
                                   </div>
                                 </div>
                                 {% else %}
-                                {% if user.is_superuser or user.role.code in "administrator,super_admin" %}
+                                {% if user.is_superuser or "administrator" in user.role_codes or "super_admin" in user.role_codes %}
                                 <button type="button" class="btn btn-sm btn-outline-danger ms-1" data-bs-toggle="modal" data-bs-target="#surgeryModal{{ visit.pk }}">
                                     <i class="bi bi-heart-pulse"></i> Operatsiyaga yozish
                                 </button>

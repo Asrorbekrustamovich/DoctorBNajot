@@ -47,9 +47,12 @@ class Command(BaseCommand):
         from apps.audit.models import AuditLog
         from apps.billing.models import Invoice, InvoiceItem, Refund
         from apps.clinical.models import (
-            AnesthesiaRequest, AnesthesiaRequestItem, Consultation, InpatientStay,
-            NurseUsageItem, ProcedureRecord, ServiceOrder, StayChecklistItem,
-            SurgeryReport, SurgerySchedule, SurgicalItemHistory, SurgeryVitals,
+            AdmissionEpisode, AnesthesiaRequest, AnesthesiaRequestItem,
+            Consultation, DischargeSummary, EpisodeDiagnosis, InpatientStay,
+            NurseUsageItem, ProcedureRecord, RoomLeftover, ServiceOrder,
+            StayChecklistItem, SurgeryReport, SurgerySchedule,
+            SurgerySupplyItem, SurgerySupplyRequest, SurgicalItemHistory,
+            SurgeryVitals,
         )
         from apps.patients.models import Patient
         from apps.pharmacy.models import MedicineDispense
@@ -69,6 +72,16 @@ class Command(BaseCommand):
             "Operatsiya bayonnomalari": SurgeryReport.all_objects.count(),
             "Protokol yozuvlari": SurgeryVitals.all_objects.count(),
             "Anesteziolog zayavkalari": AnesthesiaRequest.all_objects.count(),
+            # BULAR RO'YXATDAN TUSHIB QOLGAN EDI.
+            #
+            # Statsionar epizodi, tashxislari va vipiska bemorga oid eng
+            # muhim yozuvlar. Ular o'chirilmagani uchun «tozalash» dan
+            # keyin ham bemorning statsionar tarixi va vipiskasi bazada
+            # qolib ketardi.
+            "Statsionar epizodlari": AdmissionEpisode.all_objects.count(),
+            "Epizod tashxislari": EpisodeDiagnosis.all_objects.count(),
+            "Vipiskalar": DischargeSummary.all_objects.count(),
+            "Operatsion zayavkalar": SurgerySupplyRequest.all_objects.count(),
             "Hamshira anjomlari": NurseUsageItem.all_objects.count(),
             "Berilgan dorilar": MedicineDispense.all_objects.count(),
             "Cheklar": Invoice.all_objects.count(),
@@ -136,7 +149,18 @@ class Command(BaseCommand):
             deleted["Pul qaytarishlar"] = self._wipe(Refund)
             deleted["Cheklar"] = self._wipe(Invoice)
 
+            # Statsionar epizodi (vipiska bilan birga)
+            #
+            # Epizod yotishga bog'langan — undan OLDIN o'chiriladi,
+            # aks holda `PROTECT`/`SET_NULL` sabab yotish qolib ketardi.
+            deleted["Vipiskalar"] = self._wipe(DischargeSummary)
+            deleted["Epizod tashxislari"] = self._wipe(EpisodeDiagnosis)
+            deleted["Statsionar epizodlari"] = self._wipe(AdmissionEpisode)
+
             # Operatsiya
+            deleted["Operatsion zayavka qatorlari"] = self._wipe(SurgerySupplyItem)
+            deleted["Operatsion zayavkalar"] = self._wipe(SurgerySupplyRequest)
+            deleted["Xonadagi qoldiqlar"] = self._wipe(RoomLeftover)
             deleted["Protokol yozuvlari"] = self._wipe(SurgeryVitals)
             deleted["Hamshira anjomlari"] = self._wipe(NurseUsageItem)
             deleted["Zayavka qatorlari"] = self._wipe(AnesthesiaRequestItem)
@@ -170,6 +194,9 @@ class Command(BaseCommand):
                     "clinical.surgeryschedule", "clinical.surgeryreport",
                     "clinical.surgeryvitals", "clinical.nurseusageitem",
                     "clinical.anesthesiarequest", "clinical.anesthesiarequestitem",
+                    "clinical.admissionepisode", "clinical.episodediagnosis",
+                    "clinical.dischargesummary",
+                    "clinical.surgerysupplyrequest", "clinical.surgerysupplyitem",
                     "billing.invoice", "billing.invoiceitem", "billing.refund",
                     "pharmacy.medicinedispense",
                 ]

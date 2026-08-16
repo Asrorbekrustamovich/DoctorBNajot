@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Statsionar tarixi - Doctor B Najot{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3"><i class="bi bi-archive"></i> Statsionar tarixi (Chiqarilgan bemorlar)</h1>
+    <a href="{% url 'clinical:inpatient_dashboard' %}" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Faol palatalarga qaytish
+    </a>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Bemor</th>
+                        <th>Kravat (Xona)</th>
+                        <th>Yotqizilgan vaqti</th>
+                        <th>Chiqarilgan vaqti</th>
+                        <th>Shifokor</th>
+                        <th>Amallar</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stay in stays %}
+                    <tr>
+                        <td>
+                            <div class="fw-bold">{{ stay.visit.patient.full_name }}</div>
+                            <div class="small text-muted">{{ stay.visit.patient.phone_number }}</div>
+                        </td>
+                        <td>{{ stay.bed.number }} ({{ stay.bed.room.name }})</td>
+                        <td>{{ stay.admission_date|date:"d.m.Y H:i" }}</td>
+                        <td>
+                            {% if stay.end_date %}
+                                {{ stay.end_date|date:"d.m.Y H:i" }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>{{ stay.assigned_doctor.get_full_name|default:stay.assigned_doctor.username }}</td>
+                        <td>
+                            <a href="{% url 'clinical:stay_documentation' stay.id %}" class="btn btn-sm btn-info text-white">
+                                <i class="bi bi-file-earmark-medical"></i> Hujjatlarni ko'rish
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">Tarixda bemorlar yo'q</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

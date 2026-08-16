@@ -120,19 +120,89 @@
                 </form>
             </div>
             <div class="modal-footer bg-light d-flex justify-content-between flex-wrap gap-2">
-                <div>
+                <div class="d-flex gap-2">
                     <button class="btn btn-outline-secondary" onclick="printReport()">
                         <i class="bi bi-printer"></i> Chop etish
                     </button>
+
+                    {% comment %}
+                      STATSIONARGA YO'NALTIRISH.
+
+                      Qaror aynan shu yerda — ko'rik paytida qabul qilinadi.
+
+                      SAHIFA YANGILANMAYDI: ilgari forma yuborilib butun
+                      sahifa qayta yuklanardi va shifokor yozib o'tirgan
+                      xulosasi yo'qolib ketardi.
+
+                      Yuborilgach tugma kulrang bo'lib qoladi — ikkinchi
+                      marta bosib bo'lmaydi. Yonida bekor qilish chiqadi;
+                      bekor qilingandan keyingina qayta yuborish mumkin.
+                    {% endcomment %}
+                    <div id="referBox" class="d-inline-flex align-items-center gap-2"
+                         data-url="{% url 'clinical:refer_to_inpatient' visit.pk %}"
+                         data-sent="{% if open_episode %}1{% else %}0{% endif %}"
+                         data-cancel-url="{% if open_episode %}{% url 'clinical:cancel_inpatient_referral' open_episode.pk %}{% endif %}"
+                         data-admitted="{% if open_episode.status == 'admitted' %}1{% else %}0{% endif %}">
+
+                        {% comment %}
+                          MAQSAD SHU YERDA TANLANADI.
+
+                          Ilgari tugma bosilishi bilan epizod ochilardi va
+                          maqsad ko'rsatilmagani uchun keyin qo'lda
+                          to'g'rilanardi — natijada bemor kartasida
+                          «Operatsiya uchun» deb turardi, holbuki buni
+                          hech kim tanlamagan.
+                        {% endcomment %}
+                        <select id="referPurpose" class="form-select form-select-sm"
+                                style="width:auto"
+                                {% if open_episode %}disabled{% endif %}>
+                          <option value="treatment">Davolash uchun (operatsiyasiz)</option>
+                          <option value="surgery"
+                            {% if open_episode.purpose == 'surgery' %}selected{% endif %}>
+                            Operatsiya uchun</option>
+                        </select>
+
+                        <button type="button" id="referBtn"
+                                class="btn {% if open_episode %}btn-secondary{% else %}btn-outline-primary{% endif %}"
+                                {% if open_episode %}disabled{% endif %}>
+                            <i class="bi bi-hospital"></i>
+                            {% if open_episode %}Statsionarga yuborildi{% else %}Statsionarga yo'naltirish{% endif %}
+                        </button>
+
+                        <button type="button" id="referCancelBtn"
+                                class="btn btn-sm btn-outline-danger {% if not open_episode or open_episode.status == 'admitted' %}d-none{% endif %}">
+                            <i class="bi bi-x-lg"></i> Bekor qilish
+                        </button>
+
+                        <span id="referMsg" class="small text-muted"></span>
+                    </div>
                 </div>
+                {% comment %}
+                  NATIJASI KELMAGAN TEKSHIRUV BO'LSA — YAKUNLASH YOPIQ.
+
+                  Shifokor tekshiruv buyurgan bo'lsa, javobini ko'rmasdan
+                  qabulni yopishi mantiqsiz: tashxis nimaga asoslanadi?
+                  Bundan tashqari yopilgan qabulga natija kelsa, uni hech
+                  kim ko'rmay qoladi va bemor javobini olmasdan ketadi.
+
+                  Server ham shu qoidani tekshiradi — bu yerdagisi faqat
+                  tugmani bosib, keyin xato ko'rishning oldini oladi.
+                {% endcomment %}
                 <div>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Yopish</button>
                     <button type="button" class="btn btn-warning text-dark me-2" onclick="submitConsultation('in_progress')">
                         <i class="bi bi-save"></i> Saqlab turish
                     </button>
-                    <button type="button" class="btn btn-success" onclick="submitConsultation('completed')">
-                        <i class="bi bi-check-all"></i> Saqlash va Yakunlash
-                    </button>
+                    {% if pending_exams %}
+                        <button type="button" class="btn btn-success" disabled
+                                title="Tekshiruv javobi chiqmagan">
+                            <i class="bi bi-hourglass-split"></i> Javob kutilmoqda
+                        </button>
+                    {% else %}
+                        <button type="button" class="btn btn-success" onclick="submitConsultation('completed')">
+                            <i class="bi bi-check-all"></i> Saqlash va Yakunlash
+                        </button>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -525,5 +595,101 @@ function referDoctorAjax(url) {
         location.reload(); // Reload page so modal closes and patient is gone from this queue
     }).catch(function (e) { alert(e.message); });
 }
+
+
+/* =====================================================================
+   STATSIONARGA YO'NALTIRISH — sahifani yangilamasdan.
+
+   Ilgari bu oddiy <form> edi: bosilishi bilan sahifa qayta yuklanib,
+   shifokor yozib o'tirgan xulosasi ko'z oldida yo'q bo'lardi. Endi
+   fetch orqali yuboriladi, matn joyida qoladi.
+
+   Yuborilgach tugma kulrang va bosilmaydigan bo'ladi — ikki marta
+   yuborib qo'yish mumkin emas. Bekor qilingandan keyingina yana
+   ochiladi.
+
+   Delegatsiya: modal skriptdan keyin qo'shilishi mumkin.
+   ===================================================================== */
+(function () {
+    function box() { return document.getElementById('referBox'); }
+
+    function holat(yuborildi, cancelUrl, xabar) {
+        var b = box(); if (!b) return;
+        var btn = document.getElementById('referBtn');
+        var bek = document.getElementById('referCancelBtn');
+        var msg = document.getElementById('referMsg');
+
+        b.dataset.sent = yuborildi ? '1' : '0';
+        if (cancelUrl !== undefined) b.dataset.cancelUrl = cancelUrl || '';
+
+        if (yuborildi) {
+            btn.disabled = true;
+            btn.classList.remove('btn-outline-primary');
+            btn.classList.add('btn-secondary');
+            btn.innerHTML = '<i class="bi bi-hospital"></i> Statsionarga yuborildi';
+            bek.classList.remove('d-none');
+        } else {
+            btn.disabled = false;
+            btn.classList.remove('btn-secondary');
+            btn.classList.add('btn-outline-primary');
+            btn.innerHTML = '<i class="bi bi-hospital"></i> Statsionarga yo\'naltirish';
+            bek.classList.add('d-none');
+        }
+        if (msg) msg.textContent = xabar || '';
+    }
+
+    function yubor(url, tugma, keyin, qoshimcha) {
+        tugma.disabled = true;
+        var body = new URLSearchParams();
+        body.append('csrfmiddlewaretoken', _csrf());
+        Object.keys(qoshimcha || {}).forEach(function (k) {
+            body.append(k, qoshimcha[k]);
+        });
+        return fetch(url, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': _csrf(), 'X-Requested-With': 'XMLHttpRequest' },
+            body: body
+        }).then(function (r) {
+            return r.json().catch(function () { return {}; }).then(function (j) {
+                if (!r.ok || j.ok === false) {
+                    throw new Error(j.error || 'Xatolik yuz berdi (' + r.status + ')');
+                }
+                return j;
+            });
+        }).then(keyin).catch(function (e) {
+            alert(e.message);
+            tugma.disabled = false;
+        });
+    }
+
+    document.addEventListener('click', function (ev) {
+        var btn = ev.target.closest('#referBtn');
+        if (btn) {
+            var b = box();
+            if (!b || b.dataset.sent === '1') return;
+            if (!confirm("Bemor statsionarga yo'naltirilsinmi? Qabulxona hamshirasi kravat beradi.")) return;
+            var maqsadEl = document.getElementById('referPurpose');
+            var maqsad = maqsadEl ? maqsadEl.value : 'treatment';
+            yubor(b.dataset.url, btn, function (res) {
+                if (maqsadEl) maqsadEl.disabled = true;
+                holat(true, res.cancel_url, res.message);
+            }, { purpose: maqsad });
+            return;
+        }
+
+        var bek = ev.target.closest('#referCancelBtn');
+        if (bek) {
+            var b2 = box();
+            if (!b2 || !b2.dataset.cancelUrl) return;
+            if (!confirm("Statsionarga yo'naltirish bekor qilinsinmi?")) return;
+            yubor(b2.dataset.cancelUrl, bek, function (res) {
+                bek.disabled = false;
+                var maqsadEl = document.getElementById('referPurpose');
+                if (maqsadEl) maqsadEl.disabled = false;
+                holat(false, '', res.message);
+            });
+        }
+    });
+})();
 
 </script>

@@ -34,6 +34,10 @@ class PatientWriteSerializer(serializers.Serializer):
     phone = serializers.CharField(max_length=16, required=False, allow_blank=True, default="")
     passport = serializers.CharField(max_length=9, required=False, allow_blank=True, allow_null=True, default=None)
     jshshir = serializers.CharField(max_length=14, required=False, allow_blank=True, allow_null=True, default=None)
+    # Metrika — bolalarda yagona hujjat. API'da umuman yo'q edi, ya'ni
+    # tashqi tizimdan bolani hujjati bilan yaratib bo'lmasdi.
+    birth_certificate = serializers.CharField(
+        max_length=20, required=False, allow_blank=True, allow_null=True, default=None)
     address = serializers.CharField(max_length=255, required=False, allow_blank=True, default="")
     relative_name = serializers.CharField(max_length=200, required=False, allow_blank=True, default="")
     relative_phone = serializers.CharField(max_length=16, required=False, allow_blank=True, default="")

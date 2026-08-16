@@ -48,7 +48,7 @@
                         Kechiktirish
                     </button>
                     {% endif %}
-                    {% if user.role.code != 'administrator' and user.role.code != 'reception' %}
+                    {% if "administrator" not in user.role_codes and "reception" not in user.role_codes %}
                         {% if visit.status == 'accepted' or visit.status == 'waiting' %}
                             <button type="button" class="btn btn-sm btn-success"
                                 hx-get="{% url 'clinical:consultation_modal' visit.pk %}"

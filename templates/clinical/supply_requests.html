@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Operatsion zayavkalar — Doctor B Najot{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+  <h1 class="h3 mb-1"><i class="bi bi-box-seam"></i> Operatsion blok zayavkalari</h1>
+  <p class="text-muted small mb-0">
+    Operatsion hamshiralar anesteziolog omboridan so'ragan sarf-materiallar
+    (shprits, bint, doka). Psixotrop dorilar bu yerda emas — ularni
+    anesteziologning o'zi zayavka qiladi.
+  </p>
+</div>
+
+{% if messages %}
+  {% for m in messages %}
+    <div class="alert alert-{{ m.tags }} alert-dismissible fade show">{{ m }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+  {% endfor %}
+{% endif %}
+
+<div class="mb-3 d-flex gap-2 flex-wrap">
+  <a href="{% url 'clinical:supply_requests' %}"
+     class="btn btn-sm {% if not current_status %}btn-primary{% else %}btn-outline-secondary{% endif %}">Barchasi</a>
+  {% for val, label in statuses %}
+    <a href="{% url 'clinical:supply_requests' %}?status={{ val }}"
+       class="btn btn-sm {% if current_status == val %}btn-primary{% else %}btn-outline-secondary{% endif %}">{{ label }}</a>
+  {% endfor %}
+</div>
+
+{% for z in requests %}
+<div class="card shadow-sm mb-3">
+  <div class="card-header d-flex align-items-center py-2">
+    <div>
+      <span class="fw-bold">{{ z.surgery.visit.patient.full_name }}</span>
+      <span class="text-muted small ms-2">
+        {{ z.surgery.surgery_type.name|default:"Operatsiya" }}
+        · {{ z.surgery.scheduled_time|date:"d.m.Y H:i" }}
+      </span>
+    </div>
+    <span class="badge ms-auto
+      {% if z.status == 'issued' %}bg-success
+      {% elif z.status == 'sent' %}bg-warning text-dark
+      {% elif z.status == 'rejected' %}bg-danger
+      {% else %}bg-secondary{% endif %}">{{ z.get_status_display }}</span>
+  </div>
+  <div class="card-body py-2">
+    <div class="small text-muted mb-2">
+      So'radi: <b>{{ z.requested_by.get_full_name|default:"—" }}</b>
+      {% if z.sent_at %} · {{ z.sent_at|date:"d.m.Y H:i" }}{% endif %}
+      {% if z.issued_by %} · Berdi: <b>{{ z.issued_by.get_full_name }}</b>{% endif %}
+    </div>
+
+    <form method="post" action="{% url 'clinical:supply_request_issue' z.pk %}">
+      {% csrf_token %}
+      <table class="table table-sm mb-2">
+        <thead><tr>
+          <th>Mahsulot</th>
+          <th class="text-center" style="width:120px">So'raldi</th>
+          <th class="text-center" style="width:160px">Beriladigan</th>
+        </tr></thead>
+        <tbody>
+        {% for it in z.items.all %}
+          <tr>
+            <td>{{ it.stock.name }}{% if it.note %}<div class="text-muted small">{{ it.note }}</div>{% endif %}</td>
+            <td class="text-center">{{ it.quantity|floatformat:"-2" }} {{ it.stock.unit }}</td>
+            <td class="text-center">
+              {% if z.status == 'sent' and can_issue %}
+                {% comment %}
+                  Har qator alohida: omborda so'ralganning hammasi
+                  bo'lmasligi mumkin. «To'liq berildi» deb yozib qo'yish
+                  haqiqatni yashiradi.
+                {% endcomment %}
+                <input type="number" name="issued_{{ it.pk }}"
+                       class="form-control form-control-sm text-center"
+                       value="{{ it.quantity|floatformat:'-2' }}" min="0" step="0.01">
+              {% elif z.status == 'issued' %}
+                <span class="fw-bold {% if it.issued_quantity < it.quantity %}text-danger{% else %}text-success{% endif %}">
+                  {{ it.issued_quantity|floatformat:"-2" }}
+                </span>
+              {% else %}—{% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="3" class="text-muted text-center py-2">Zayavka bo'sh</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+
+      {% if z.status == 'sent' and can_issue %}
+        <button class="btn btn-sm btn-success">
+          <i class="bi bi-check-lg"></i> Berildi
+        </button>
+      {% endif %}
+    </form>
+
+    {% if z.status == 'sent' and can_issue %}
+      <form method="post" action="{% url 'clinical:supply_request_reject' z.pk %}"
+            class="d-flex gap-2 mt-2">
+        {% csrf_token %}
+        <input name="reason" class="form-control form-control-sm"
+               placeholder="Rad etish sababi (masalan: omborda yo'q)">
+        <button class="btn btn-sm btn-outline-danger text-nowrap">
+          <i class="bi bi-x-lg"></i> Rad etish
+        </button>
+      </form>
+    {% elif z.status == 'rejected' and z.notes %}
+      <div class="alert alert-danger py-2 mb-0 small">{{ z.notes }}</div>
+    {% endif %}
+  </div>
+</div>
+{% empty %}
+<div class="card shadow-sm">
+  <div class="card-body text-center text-muted py-5">Zayavka yo'q.</div>
+</div>
+{% endfor %}
+{% endblock %}

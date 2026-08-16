@@ -31,8 +31,15 @@
         </div>
       </div>
       <div class="text-end">
+        {% comment %}
+          «Yotibdi» faqat bemor CHINDAN palatada bo'lsa. Statsionardan
+          javob berilganda kravat bo'shaydi, lekin epizod vipiska
+          yozilmaguncha «yotqizilgan» holatida qoladi — ro'yxatda esa
+          bemor allaqachon uyiga ketgan bo'lardi.
+        {% endcomment %}
         {% if episode.status == 'draft' %}<span class="badge bg-warning text-dark fs-6">Rasmiylashtirilmoqda</span>
         {% elif episode.status == 'sent' %}<span class="badge bg-info text-dark fs-6">Qabulxonaga yuborildi</span>
+        {% elif episode.status == 'admitted' and episode.patient_left %}<span class="badge bg-secondary fs-6"><i class="bi bi-box-arrow-right"></i> Chiqdi — vipiska kutilmoqda</span>
         {% elif episode.status == 'admitted' %}<span class="badge bg-primary fs-6">Yotibdi</span>
         {% elif episode.status == 'discharged' %}<span class="badge bg-success fs-6">Vipiska berildi</span>
         {% else %}<span class="badge bg-secondary fs-6">Bekor qilindi</span>{% endif %}
@@ -43,9 +50,7 @@
           {% else %}
             <span class="badge bg-danger-subtle text-danger-emphasis">Ko'riksiz</span>
           {% endif %}
-          {% if episode.needs_anesthesiologist %}
-            <span class="badge bg-purple" style="background:#6f42c1">Anesteziolog kerak</span>
-          {% endif %}
+
         </div>
       </div>
     </div>
@@ -107,15 +112,14 @@
                 <input name="department" class="form-control form-control-sm"
                        value="{{ episode.department }}" placeholder="masalan: Nevrologiya">
               </div>
-              <div class="col-md-6">
-                <label class="form-label small fw-semibold">Palata</label>
-                <select name="room" class="form-select form-select-sm">
-                  <option value="">— tanlanmagan —</option>
-                  {% for r in rooms %}
-                    <option value="{{ r.id }}" {% if episode.room_id == r.id %}selected{% endif %}>{{ r.name }}</option>
-                  {% endfor %}
-                </select>
-              </div>
+              {% comment %}
+                PALATA MAYDONI OLIB TASHLANDI.
+
+                Palatani shifokor emas, qabulxona hamshirasi beradi — kravat
+                bo'shligini u ko'rib turadi. Bu yerda tanlash ikki xil
+                haqiqat yaratardi: shifokor bir palatani yozadi, hamshira
+                boshqasiga yotqizadi.
+              {% endcomment %}
               <div class="col-12">
                 <div class="form-check">
                   <input class="form-check-input" type="checkbox" name="with_primary_exam"
@@ -170,24 +174,137 @@
       </div>
     </div>
 
-    {% comment %} TEKSHIRUVLAR — ambulator qabuldagi bilan bir xil piker {% endcomment %}
-    {% if visit %}
-      <div class="card shadow-sm mb-3 border-primary">
-        <div class="card-header bg-primary text-white fw-bold py-2">
-          <i class="bi bi-ui-checks-grid"></i> Tekshiruvlar tayinlash
+    {% comment %}
+      «Tekshiruvlar tayinlash» pikeri OLIB TASHLANDI.
+
+      Statsionar epizodi sahifasida kerak bo'ladigan narsa — bemorning
+      tayyor natijalarini ko'rib, qaysilari vipiskaga kirishini
+      belgilash. Yangi tekshiruv buyurish ambulator qabul oynasidan
+      qilinadi.
+    {% endcomment %}
+    {% csrf_token %}
+    {% include "clinical/_exam_results.html" %}
+
+    {% comment %}
+      ============ STATSIONAR HISOBOTLARI ============
+
+      Bemor ilgari yotgan epizodlar RO'YXAT bo'lib chiqadi — ptechkasiz.
+      Ptechka bu yerda noto'g'ri bo'lardi: eski vipiskaning butun matni
+      yangi hujjatga ko'chib o'tmaydi, undan faqat parcha olinadi.
+
+      Oqim: «Ko'rish» → modalda hisobot → kerakli bo'lakni nusxalash →
+      shablon maydoniga tushadi → nom berib saqlanadi.
+    {% endcomment %}
+    <div class="card shadow-sm mb-3 border-dark">
+      <div class="card-header bg-dark text-white fw-bold py-2 d-flex
+                  justify-content-between align-items-center">
+        <span><i class="bi bi-journal-medical"></i> Statsionar hisobotlari</span>
+        <span class="badge bg-light text-dark">{{ past_episodes|length }} ta</span>
+      </div>
+
+      {% if past_episodes %}
+        <div class="list-group list-group-flush" style="max-height:260px;overflow-y:auto">
+          {% for pe in past_episodes %}
+            <div class="list-group-item py-2 d-flex justify-content-between align-items-center">
+              <div class="small">
+                {% if pe.joriy %}
+                  <span class="badge bg-primary">Shu yotish</span>
+                {% endif %}
+                <b>{{ pe.sana|date:"d.m.Y" }}</b>
+                {% if pe.bolim %} · {{ pe.bolim }}{% endif %}
+                {% if pe.kravat %} · {{ pe.kravat }}{% endif %}
+                {% if pe.shifokor %}
+                  · {{ pe.shifokor.get_full_name|default:pe.shifokor.username }}
+                {% endif %}
+                <div class="text-muted">
+                  {{ pe.sabab|default:"sabab yozilmagan"|truncatechars:70 }}
+                  {% if pe.kunlar %} · {{ pe.kunlar }} kun{% endif %}
+                  {% if pe.summary %}
+                    · <span class="badge bg-success">Vipiska bor</span>
+                  {% elif pe.episode %}
+                    · <span class="badge bg-warning text-dark">Vipiska yo'q</span>
+                  {% else %}
+                    · <span class="badge bg-secondary">Ko'rik yozuvisiz</span>
+                  {% endif %}
+                </div>
+              </div>
+              <button type="button" class="btn btn-sm btn-outline-dark text-nowrap open-report"
+                      data-target="#rep{{ forloop.counter }}">
+                <i class="bi bi-eye"></i> Ko'rish
+              </button>
+            </div>
+          {% endfor %}
         </div>
-        <div class="card-body py-2">
-          {% csrf_token %}
-          {% include "clinical/_exam_picker.html" %}
+      {% else %}
+        {% comment %}
+          Bemor HOZIR yotgan bo'lsa, hisobot hali tugamagan — ro'yxat
+          bo'sh bo'lishi normal. «Yotmagan» deyish esa noto'g'ri edi.
+        {% endcomment %}
+        <div class="card-body py-3 text-center text-muted small">
+          {% if episode.status == 'admitted' and not episode.patient_left %}
+            Bemor hozir yotibdi — hisobot javob berilgandan keyin to'liq bo'ladi.
+          {% else %}
+            Statsionar hisoboti yo'q.
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+
+    {% comment %} SHABLON YIG'ISH — modaldan nusxalanган matn shu yerga tushadi {% endcomment %}
+    <div class="card shadow-sm mb-3">
+      <div class="card-header bg-white fw-bold py-2">
+        <i class="bi bi-bookmark-plus"></i> Hisobotlardan shablon yig'ish
+      </div>
+      <div class="card-body">
+        {% comment %}
+          FORMA EMAS, oddiy bloklar. Ilgari bu `<form method="post">` edi
+          va saqlagach sahifa qayta yuklanardi — yuqorida to'ldirilgan,
+          hali saqlanmagan ko'rik matnlari yo'qolib ketardi.
+          Endi saqlash AJAX orqali, sahifa joyida qoladi.
+        {% endcomment %}
+        <div id="tpl-box"
+             data-save-url="{% url 'clinical:episode_save_template' episode.pk %}"
+             data-del-url="{% url 'clinical:episode_delete_template' episode.pk '00000000-0000-0000-0000-000000000000' %}">
+          <div class="mb-2">
+            <input id="tpl-name" class="form-control form-control-sm"
+                   placeholder="Shablon nomi (masalan: Appendektomiyadan keyingi tavsiyalar)">
+          </div>
+          <div class="mb-2">
+            <textarea id="tpl-content" rows="7" class="form-control form-control-sm"
+                      placeholder="Hisobotlardan «Ko'chirish» bosilganda matn shu yerga qo'shiladi. Qo'lda ham yozish va tahrirlash mumkin."></textarea>
+          </div>
+          <div class="d-flex justify-content-between align-items-center">
+            <button type="button" class="btn btn-sm btn-outline-primary" id="tpl-save">
+              <i class="bi bi-save"></i> Shablonni saqlash
+            </button>
+            <span class="small" id="tpl-msg"></span>
+            <button type="button" class="btn btn-sm btn-link text-danger" id="tpl-clear">Tozalash</button>
+          </div>
+        </div>
+
+        <hr class="my-2">
+        <div class="small text-muted mb-1">
+          <i class="bi bi-info-circle"></i>
+          Saqlangan shablonlaringiz. Avval matn qo'ymoqchi bo'lgan maydonni
+          bosing (masalan «Shikoyatlar»), so'ng shablon nomini bosing —
+          matn o'sha yerga qo'yiladi.
+        </div>
+        <div class="d-flex flex-wrap gap-1" id="tpl-list">
+          {% for t in my_templates %}
+            <span class="badge bg-light text-dark border tpl-chip d-inline-flex align-items-center gap-1"
+                  data-id="{{ t.pk }}">
+              <button type="button" class="btn btn-sm btn-link p-0 text-decoration-none tpl-use"
+                      title="Matnni tanlangan maydonga qo'yish">{{ t.name }}</button>
+              <button type="button" class="btn-close btn-close-sm tpl-del"
+                      style="font-size:.55rem" title="O'chirish"></button>
+              <textarea class="tpl-body d-none">{{ t.content }}</textarea>
+            </span>
+          {% empty %}
+            <span class="small text-muted" id="tpl-empty">Hali shablon saqlanmagan.</span>
+          {% endfor %}
         </div>
       </div>
-      {% include "clinical/_exam_results.html" %}
-    {% else %}
-      <div class="alert alert-warning py-2 small">
-        Bu bemorda ambulator qabul yozuvi yo'q — tekshiruv tayinlash uchun
-        avval registraturada qabulga yozdiring.
-      </div>
-    {% endif %}
+    </div>
 
   </div>
 
@@ -287,22 +404,7 @@
     <div class="card shadow-sm mb-3">
       <div class="card-header bg-white fw-bold py-2"><i class="bi bi-send"></i> Amallar</div>
       <div class="card-body">
-        {% if episode.status == 'draft' %}
-          <div class="mt-2">
-            <span class="badge bg-light text-dark">{{ episode.get_purpose_display }}</span>
-            <button type="submit" form="exam-form" name="action_send" value="1" class="btn btn-success w-100 mb-2 mt-2">
-              <i class="bi bi-hospital"></i> Qabulxona hamshirasiga yuborish
-            </button>
-            <div class="form-text mb-3">
-              Hamshira bemorni ko'radi va kravat beradi. Kravatni shifokor tanlamaydi.
-            </div>
-          </div>
-        {% elif episode.status == 'sent' %}
-          <div class="alert alert-info py-2 small mb-3">
-            <i class="bi bi-check2-circle"></i> Qabulxonaga yuborilgan
-            ({{ episode.sent_at|date:"d.m.Y H:i" }}). Hamshira kravat berishini kuting.
-          </div>
-        {% endif %}
+        {%comment%}Qabulxona hamshirasi mustaqil ishlaydi — yuborish tugmasi olib tashlandi{%endcomment%}
 
         {% comment %} VIPISKA — davolash yakunlanganda {% endcomment %}
         <a href="{% url 'clinical:episode_discharge' episode.pk %}"
@@ -386,5 +488,281 @@
     }, 250);
   });
 })();
+
+/* ---------- STATSIONAR HISOBOTLARIDAN SHABLON YIG'ISH ----------
+
+   HODISA DELEGATSIYASI ishlatiladi — tugmalarga bittalab emas, hujjatga
+   bitta tinglovchi qo'yiladi.
+
+   HAQIQIY XATO: ilgari `querySelectorAll('.copy-blok')` bilan bog'lanardi,
+   lekin bu skript sahifada MODALLARDAN OLDIN turadi. Skript ishga
+   tushganda modal HTML'i hali o'qilmagan bo'ladi, ro'yxat bo'sh qaytadi
+   va «Ko'chirish» tugmalari umuman ishlamaydi. Delegatsiyada tartib
+   ahamiyatsiz.
+
+   Modallar `data-bs-toggle` bilan emas, JS bilan ochiladi: ular sahifada
+   forma ichida turgani uchun tugma bosilganda brauzer formani submit
+   qilib yuborishi mumkin edi.
+
+   «Ko'chirish» bosilganda matn shablon maydoniga QO'SHILADI — ustiga
+   yozilmaydi va modal yopilmaydi. Shifokor bir necha hisobotdan bir
+   necha bo'lak yig'ishi kerak. */
+document.addEventListener('click', function (e) {
+  var ochish = e.target.closest ? e.target.closest('.open-report') : null;
+  if (ochish) {
+    e.preventDefault();
+    var el = document.querySelector(ochish.dataset.target);
+    if (el) bootstrap.Modal.getOrCreateInstance(el).show();
+    return;
+  }
+
+  var btn = e.target.closest ? e.target.closest('.copy-blok') : null;
+  if (!btn) {
+    if (e.target.closest && e.target.closest('#tpl-clear')) {
+      var m = document.getElementById('tpl-content');
+      if (m) m.value = '';
+    }
+    return;
+  }
+
+  e.preventDefault();
+  var maydon = document.getElementById('tpl-content');
+  var blok = btn.closest('.rep-blok');
+  var matn = blok ? blok.querySelector('.blok-text') : null;
+  if (!maydon || !matn) return;
+
+  var parcha = btn.dataset.title + ' (' + btn.dataset.date + '):\n'
+             + matn.innerText.trim();
+  maydon.value = maydon.value.trim()
+    ? maydon.value.trim() + '\n\n' + parcha
+    : parcha;
+
+  var asl = btn.innerHTML;
+  btn.classList.add('btn-success');
+  btn.classList.remove('btn-outline-primary');
+  btn.innerHTML = '<i class="bi bi-check-lg"></i> Qo\'shildi';
+  setTimeout(function () {
+    btn.innerHTML = asl;
+    btn.classList.remove('btn-success');
+    btn.classList.add('btn-outline-primary');
+  }, 1200);
+});
+
+/* ---------- SHABLONNI SAQLASH VA ISHLATISH ----------
+
+   SAQLASH AJAX orqali — sahifa YANGILANMAYDI. Ilgari bu oddiy forma
+   edi: shablon saqlangach sahifa qayta yuklanardi va yuqorida
+   to'ldirilgan, hali saqlanmagan ko'rik matnlari yo'qolib ketardi.
+
+   ISHLATISH: shifokor avval matn qo'ymoqchi bo'lgan maydonni bosadi
+   (kursorni qo'yadi), keyin shablon nomini bosadi. Oxirgi tegilgan
+   maydonni eslab turamiz, chunki shablonga bosilgan zahoti fokus
+   maydondan ketadi. */
+(function () {
+  var quti = document.getElementById('tpl-box');
+  if (!quti) return;
+
+  // Oxirgi tegilgan matn maydoni — shablon shu yerga qo'yiladi.
+  var oxirgi = null;
+  document.addEventListener('focusin', function (e) {
+    var el = e.target;
+    if (el && (el.tagName === 'TEXTAREA'
+               || (el.tagName === 'INPUT' && el.type === 'text'))
+        && el.id !== 'tpl-name') {
+      oxirgi = el;
+    }
+  });
+
+  function csrf() {
+    var el = document.querySelector('[name=csrfmiddlewaretoken]');
+    return el ? el.value : '';
+  }
+
+  function xabar(matn, xato) {
+    var m = document.getElementById('tpl-msg');
+    if (!m) return;
+    m.textContent = matn;
+    m.className = 'small ' + (xato ? 'text-danger' : 'text-success');
+    setTimeout(function () { m.textContent = ''; }, 3000);
+  }
+
+  function chipYasa(id, nom, matn) {
+    var s = document.createElement('span');
+    s.className = 'badge bg-light text-dark border tpl-chip '
+                + 'd-inline-flex align-items-center gap-1';
+    s.dataset.id = id;
+    var use = document.createElement('button');
+    use.type = 'button';
+    use.className = 'btn btn-sm btn-link p-0 text-decoration-none tpl-use';
+    use.textContent = nom;
+    var del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'btn-close btn-close-sm tpl-del';
+    del.style.fontSize = '.55rem';
+    var body = document.createElement('textarea');
+    body.className = 'tpl-body d-none';
+    body.value = matn;
+    s.appendChild(use); s.appendChild(del); s.appendChild(body);
+    return s;
+  }
+
+  // --- SAQLASH
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest) return;
+
+    if (e.target.closest('#tpl-save')) {
+      e.preventDefault();
+      var nom = document.getElementById('tpl-name');
+      var matn = document.getElementById('tpl-content');
+      if (!nom.value.trim() || !matn.value.trim()) {
+        xabar('Nom va matn kiritilishi shart.', true);
+        return;
+      }
+      var fd = new FormData();
+      fd.append('csrfmiddlewaretoken', csrf());
+      fd.append('template_name', nom.value.trim());
+      fd.append('template_content', matn.value.trim());
+
+      fetch(quti.dataset.saveUrl, {
+        method: 'POST', body: fd,
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
+      }).then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (!d.ok) { xabar(d.error || 'Saqlanmadi.', true); return; }
+          var bosh = document.getElementById('tpl-empty');
+          if (bosh) bosh.remove();
+          document.getElementById('tpl-list')
+                  .appendChild(chipYasa(d.id, d.name, d.content));
+          nom.value = '';
+          xabar('Shablon saqlandi.');
+        })
+        .catch(function () { xabar('Saqlanmadi — internetni tekshiring.', true); });
+      return;
+    }
+
+    // --- ISHLATISH
+    var use = e.target.closest('.tpl-use');
+    if (use) {
+      e.preventDefault();
+      var chip = use.closest('.tpl-chip');
+      var body = chip ? chip.querySelector('.tpl-body') : null;
+      if (!body) return;
+      var nishon = oxirgi || document.getElementById('tpl-content');
+      if (!nishon) return;
+      nishon.value = nishon.value.trim()
+        ? nishon.value.trim() + '\n' + body.value
+        : body.value;
+      nishon.focus();
+      xabar('Shablon qo\'yildi.');
+      return;
+    }
+
+    // --- O'CHIRISH
+    var del = e.target.closest('.tpl-del');
+    if (del) {
+      e.preventDefault();
+      var c = del.closest('.tpl-chip');
+      if (!c) return;
+      var fd2 = new FormData();
+      fd2.append('csrfmiddlewaretoken', csrf());
+      fetch(quti.dataset.delUrl.replace(
+              '00000000-0000-0000-0000-000000000000', c.dataset.id), {
+        method: 'POST', body: fd2,
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
+      }).then(function (r) {
+        if (r.ok) { c.remove(); xabar('Shablon o\'chirildi.'); }
+        else { xabar('O\'chirilmadi.', true); }
+      }).catch(function () { xabar('O\'chirilmadi.', true); });
+    }
+  });
+})();
 </script>
+
+{% comment %}
+  Hisobot modallari — sahifaning eng oxirida, hamma `form` va `row` dan
+  TASHQARIDA. Ichkarida qolsa Bootstrap ularni orqa fon ostida chizadi
+  va tugmalarini bosib bo'lmaydi.
+{% endcomment %}
+{% for pe in past_episodes %}
+<div class="modal fade" id="rep{{ forloop.counter }}" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h5 class="modal-title">
+          <i class="bi bi-journal-medical"></i>
+          {{ pe.sana|date:"d.m.Y" }} — statsionar hisoboti
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body small">
+
+        <table class="table table-sm mb-3">
+          <tr><th style="width:150px">Bo'lim / kravat</th>
+              <td>{{ pe.bolim|default:"—" }}{% if pe.kravat %} · {{ pe.kravat }}{% endif %}</td></tr>
+          <tr><th>Shifokor</th>
+              <td>{% if pe.shifokor %}{{ pe.shifokor.get_full_name|default:pe.shifokor.username }}{% else %}—{% endif %}</td></tr>
+          {% if pe.maqsad %}<tr><th>Maqsad</th><td>{{ pe.maqsad }}</td></tr>{% endif %}
+          {% if pe.stay %}
+            <tr><th>Yotqizilgan</th><td>{{ pe.stay.admission_date|date:"d.m.Y H:i" }}</td></tr>
+            <tr><th>Chiqarilgan</th>
+                <td>{% if pe.stay.discharge_date %}{{ pe.stay.discharge_date|date:"d.m.Y H:i" }}{% else %}hozircha yotibdi{% endif %}</td></tr>
+          {% endif %}
+          {% if pe.kunlar %}<tr><th>Yotgan kunlar</th><td><b>{{ pe.kunlar }} kun</b></td></tr>{% endif %}
+          {% if pe.summary %}
+            <tr><th>Natija</th><td>{{ pe.summary.get_outcome_display }}</td></tr>
+          {% endif %}
+        </table>
+
+        {% if not pe.bloklar and not pe.diagnoses %}
+          <div class="alert alert-secondary py-2 small mb-0">
+            Bu yotishda ko'rik yozuvi va vipiska yo'q — nusxalanadigan matn
+            topilmadi. Faqat yuqoridagi ma'lumotlar mavjud.
+          </div>
+        {% endif %}
+
+        {% if pe.diagnoses %}
+          <div class="rep-blok border rounded p-2 mb-2 bg-light">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <b>Tashxislar</b>
+              <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 copy-blok"
+                      data-title="Tashxislar"
+                      data-date="{{ pe.sana|date:'d.m.Y' }}">
+                <i class="bi bi-clipboard-plus"></i> Ko'chirish
+              </button>
+            </div>
+            <div class="blok-text">{% for d in pe.diagnoses %}{{ d.label }} ({{ d.get_kind_display }})
+{% endfor %}</div>
+          </div>
+        {% endif %}
+
+        {% for blok in pe.bloklar %}
+          {% if blok.1 %}
+            <div class="rep-blok border rounded p-2 mb-2 bg-light">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <b>{{ blok.0 }}</b>
+                <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 copy-blok"
+                        data-title="{{ blok.0 }}"
+                        data-date="{{ pe.sana|date:'d.m.Y' }}">
+                  <i class="bi bi-clipboard-plus"></i> Ko'chirish
+                </button>
+              </div>
+              <div class="blok-text" style="white-space:pre-wrap">{{ blok.1 }}</div>
+            </div>
+          {% endif %}
+        {% endfor %}
+
+      </div>
+      <div class="modal-footer py-2">
+        {% if pe.print_pk %}
+          <a href="{% url 'clinical:discharge_print' pe.print_pk %}"
+             target="_blank" rel="noopener" class="btn btn-sm btn-outline-dark me-auto">
+            <i class="bi bi-box-arrow-up-right"></i> Vipiskani alohida betda ochish
+          </a>
+        {% endif %}
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Yopish</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
 {% endblock %}

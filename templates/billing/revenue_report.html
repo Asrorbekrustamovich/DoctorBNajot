@@ -88,12 +88,17 @@
     </div>
     <div class="col-lg-6">
         <div class="card shadow-sm h-100">
-            <div class="card-header">Shifokorlar jadvali (ulush: jami tushumning 50% qismi)</div>
+            <div class="card-header">
+                Shifokorlar jadvali
+                <span class="text-muted fw-normal small">
+                  — ulush faqat QABUL summasidan (50%). Operatsiya klinikaniki.
+                </span>
+              </div>
             <div class="card-body p-0">
                 <table class="table table-sm table-hover mb-0">
                     <thead><tr>
                         <th class="ps-3">Shifokor</th><th>Qabul</th><th>Operatsiya</th>
-                        <th class="text-end">Jami</th><th class="text-end">Ulushi (50%)</th><th class="text-end pe-3">Klinika</th>
+                        <th class="text-end">Jami</th><th class="text-end">Ulushi (qabuldan 50%)</th><th class="text-end pe-3">Klinika</th>
                     </tr></thead>
                     <tbody>
                         {% for d in doctors %}
@@ -130,6 +135,117 @@
             <div class="h4 mb-0 text-primary">{{ treatment_total|floatformat:0 }} so'm</div>
             <div class="small text-muted">Qabullar, xizmatlar, dorilar, operatsiyalar</div>
         </div></div>
+    </div>
+</div>
+
+{% comment %}
+  KLINIKA XARAJATLARI.
+
+  Tushumning yonida turishi kerak: statsionar dorisi va operatsiya
+  materiali klinikaning cho'ntagidan chiqadi. Ilgari bu raqamlar
+  hech qayerda jamlanmagan edi.
+
+  Dori xarajati KELISH narxi bo'yicha — sotish narxi bilan hisoblansak,
+  klinika o'ziga o'zi sotgan bo'lib chiqadi.
+{% endcomment %}
+<div class="row g-3 mb-3">
+    <div class="col-md-4">
+        <div class="card shadow-sm border-danger h-100"><div class="card-body">
+            <div class="text-muted small"><i class="bi bi-capsule"></i> Statsionar DORI xarajati</div>
+            <div class="h4 mb-0 text-danger">{{ dori.jami|floatformat:0 }} so'm</div>
+            <div class="small text-muted">Yotgan bemorlarga berilgan dorilar (kelish narxi)</div>
+        </div></div>
+    </div>
+    <div class="col-md-4">
+        <div class="card shadow-sm border-danger h-100"><div class="card-body">
+            <div class="text-muted small"><i class="bi bi-scissors"></i> OPERATSIYA xarajati</div>
+            <div class="h4 mb-0 text-danger">{{ operatsiya.jami|floatformat:0 }} so'm</div>
+            <div class="small text-muted">
+                Anesteziolog {{ operatsiya.anest|floatformat:0 }} ·
+                hamshira {{ operatsiya.hamshira|floatformat:0 }}
+            </div>
+        </div></div>
+    </div>
+    <div class="col-md-4">
+        <div class="card shadow-sm border-dark h-100"><div class="card-body">
+            <div class="text-muted small"><i class="bi bi-cash-stack"></i> JAMI XARAJAT</div>
+            <div class="h4 mb-0">{{ jami_xarajat|floatformat:0 }} so'm</div>
+            <div class="small text-muted">Dori + operatsiya materiallari</div>
+        </div></div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header">
+                <i class="bi bi-capsule"></i> Statsionarda sarflangan dorilar
+                <span class="badge bg-danger ms-1">{{ dori.qatorlar|length }}</span>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm table-hover mb-0">
+                    <thead><tr>
+                        <th class="ps-3">Dori</th>
+                        <th class="text-end">Soni</th>
+                        <th class="text-end pe-3">Xarajat</th>
+                    </tr></thead>
+                    <tbody>
+                        {% for d in dori.qatorlar %}
+                        <tr>
+                            <td class="ps-3">{{ d.nom }}</td>
+                            <td class="text-end">{{ d.soni|floatformat:"-2" }}</td>
+                            <td class="text-end pe-3 fw-bold">{{ d.summa|floatformat:0 }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="3" class="text-center text-muted py-3">
+                            Bu davrda statsionarda dori berilmagan
+                        </td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header">
+                <i class="bi bi-scissors"></i> Operatsiyalar xarajati
+                <span class="badge bg-danger ms-1">{{ operatsiya.qatorlar|length }}</span>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm table-hover mb-0">
+                    <thead><tr>
+                        <th class="ps-3">Bemor / operatsiya</th>
+                        <th class="text-end">Narxi</th>
+                        <th class="text-end pe-3">Xarajat</th>
+                    </tr></thead>
+                    <tbody>
+                        {% for o in operatsiya.qatorlar %}
+                        <tr>
+                            <td class="ps-3">
+                                {{ o.bemor }}
+                                <div class="text-muted small">
+                                    {{ o.turi }} · {{ o.sana|date:"d.m.Y" }}
+                                </div>
+                            </td>
+                            <td class="text-end">{{ o.narxi|floatformat:0 }}</td>
+                            <td class="text-end pe-3 fw-bold text-danger">
+                                {{ o.jami|floatformat:0 }}
+                                <div class="text-muted fw-normal" style="font-size:11px">
+                                    anest. {{ o.anest|floatformat:0 }} ·
+                                    hamsh. {{ o.hamshira|floatformat:0 }}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="3" class="text-center text-muted py-3">
+                            Bu davrda operatsiya xarajati yo'q
+                        </td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 </div>
 

@@ -28,6 +28,21 @@
                         </label>
                     </div>
                     {% endif %}
+                    {% comment %}
+                      HUJJAT QOIDASI — foydalanuvchi oldindan bilishi kerak.
+
+                      Uchtasidan bittasi yetarli. Bolada JSHSHIR ham,
+                      pasport ham bo'lmaydi — metrikaning o'zi to'liq
+                      hujjat hisoblanadi.
+                    {% endcomment %}
+                    <div class="alert alert-light border small py-2 mb-3">
+                        <i class="bi bi-info-circle"></i>
+                        <b>Hujjat:</b> JSHSHIR, pasport yoki metrikadan
+                        <b>kamida bittasi</b> kiritilsin. Bolalarda
+                        <b>metrikaning o'zi yetarli</b> — JSHSHIR va pasport
+                        talab qilinmaydi.
+                    </div>
+
                     <div class="row g-3">
                         {% for field in form %}
                         <div class="{% if field.name == 'address' or field.name == 'notes' %}col-12{% else %}col-md-6{% endif %}">

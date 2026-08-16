@@ -30,7 +30,13 @@ class VisitForm(forms.Form):
         super().__init__(*args, **kwargs)
         self.fields["doctor"].queryset = User.objects.filter(  # type: ignore[attr-defined]
             Q(role__code="doctor") | Q(role__code="chief_doctor"),
-            Q(specialty__icontains="ambulator") | Q(specialty__icontains="amblator"),
+            # Bayroq — asosiy belgi. Matn bo'yicha moslik esa eski
+        # ma'lumotlar uchun zaxira: bayroq qo'yilmagan, lekin
+        # mutaxassisligida «ambulator» yozilgan shifokorlar
+        # ro'yxatdan tushib qolmasin.
+        Q(is_ambulatory=True)
+        | Q(specialty__icontains="ambulator")
+        | Q(specialty__icontains="amblator"),
             is_active=True
         ).order_by("last_name")
         
@@ -40,4 +46,21 @@ class VisitForm(forms.Form):
             return f"{obj.get_full_name() or obj.username} ({spec})"
             
         self.fields["doctor"].label_from_instance = format_doctor_label
-        self.fields["patient"].label_from_instance = lambda obj: f"{obj.last_name} {obj.first_name} {f' | JSHSHIR: {obj.jshshir}' if obj.jshshir else ''} {f' | Seria: {obj.passport}' if obj.passport else ''}"
+        # RO'YXAT YORLIG'IGA METRIKA HAM QO'SHILADI.
+        #
+        # Registratordagi tezkor qidiruv shu matn ustidan ishlaydi. Metrika
+        # bo'lmagani uchun bolani topib bo'lmasdi: ularda pasport yo'q,
+        # metrika esa yagona hujjat.
+        def yorliq(obj):
+            qism = [f"{obj.last_name} {obj.first_name}".strip()]
+            if obj.jshshir:
+                qism.append(f"JSHSHIR: {obj.jshshir}")
+            if obj.passport:
+                qism.append(f"Seria: {obj.passport}")
+            if obj.birth_certificate:
+                qism.append(f"Metrika: {obj.birth_certificate}")
+            if obj.card_number:
+                qism.append(obj.card_number)
+            return " | ".join(qism)
+
+        self.fields["patient"].label_from_instance = yorliq

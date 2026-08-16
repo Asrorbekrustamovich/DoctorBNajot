@@ -9,7 +9,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h3 class="mb-0">
             {# Orqaga qaytish #}
-            {% if user.role.code == 'administrator' or user.role.code == 'reception' %}
+            {% if 'administrator' in user.role_codes or 'reception' in user.role_codes %}
             <a href="{% url 'billing:registrator_payments' %}" class="text-decoration-none text-dark" title="To'lovlarga qaytish"><i class="bi bi-arrow-left"></i></a>
             {% elif can_edit %}
             <a href="{% url 'billing:dashboard' %}" class="text-decoration-none text-dark" title="Kassaga qaytish"><i class="bi bi-arrow-left"></i></a>
@@ -21,7 +21,7 @@
         <div class="d-flex gap-2 align-items-center">
             {% if invoice.is_locked %}
             <span class="badge bg-dark fs-6"><i class="bi bi-lock-fill"></i> Qulflangan (o'zgarmas)</span>
-                {% if user.is_superuser or user.role.code == 'super_admin' %}
+                {% if user.is_superuser or 'super_admin' in user.role_codes %}
                 <form method="post" action="{% url 'clinical:document_lock' 'invoice' invoice.id %}" class="d-inline"
                       onsubmit="return confirm('Chek qulfi ochilsinmi? (faqat superadmin)');">
                     {% csrf_token %}
@@ -114,6 +114,61 @@
                                         {% if item.reference_id %}
                                             {% if item.item_type == 'service' %}
                                                 {% if "Shifokor" not in item.name %}
+                                                    {% comment %}
+                                                      TEKSHIRUV NARXINI TAHRIRLASH.
+
+                                                      Ilgari bu yerda faqat «bekor qilish» bor edi. Ammo
+                                                      narx eskirgan yoki bemorga chegirma berilgan bo'lishi
+                                                      mumkin — bunda tekshiruvni butunlay bekor qilish emas,
+                                                      narxini to'g'rilash kerak.
+                                                    {% endcomment %}
+                                                    {% if not item.paid_at %}
+                                                    <button type="button" class="btn btn-sm btn-outline-primary"
+                                                            data-bs-toggle="modal" data-bs-target="#editItemModal{{ item.id }}"
+                                                            title="Narxni tahrirlash">
+                                                        <i class="bi bi-pencil"></i>
+                                                    </button>
+
+                                                    <div class="modal fade text-start" id="editItemModal{{ item.id }}" tabindex="-1" aria-hidden="true">
+                                                        <div class="modal-dialog">
+                                                            <div class="modal-content">
+                                                                <div class="modal-header bg-primary text-white">
+                                                                    <h5 class="modal-title">Narxni tahrirlash</h5>
+                                                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                                                </div>
+                                                                <form method="post" action="{% url 'billing:edit_item_price' item.id %}">
+                                                                    {% csrf_token %}
+                                                                    <div class="modal-body">
+                                                                        <div class="fw-semibold mb-2">{{ item.name }}</div>
+                                                                        <div class="mb-3">
+                                                                            <label class="form-label">Yangi narx (so'm):</label>
+                                                                            <input type="number" min="0" step="1000" name="price"
+                                                                                   class="form-control"
+                                                                                   value="{{ item.total_price|stringformat:'.0f' }}" required>
+                                                                            <div class="form-text">
+                                                                                <b>0</b> qo'yilsa — bepul (qarzdorlikda qolmaydi).
+                                                                            </div>
+                                                                        </div>
+                                                                        <div class="alert alert-warning small mb-3">
+                                                                            Bu o'zgarish faqat shu bemorning chekiga tegadi —
+                                                                            katalogdagi narx o'zgarmaydi.
+                                                                        </div>
+                                                                        <div class="mb-3">
+                                                                            <label class="form-label text-danger fw-bold">O'zgartirish sababi (majburiy)</label>
+                                                                            <input type="text" name="audit_reason" class="form-control border-danger"
+                                                                                   required placeholder="Masalan: bazadagi narx eskirgan">
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="modal-footer">
+                                                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Yopish</button>
+                                                                        <button type="submit" class="btn btn-primary">Saqlash</button>
+                                                                    </div>
+                                                                </form>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    {% endif %}
+
                                                     <form method="post" action="{% url 'billing:cancel_service_order' item.reference_id %}" style="display:inline;" onsubmit="return confirm('Rostdan ham ushbu xizmatni bekor qilasizmi? Pul miqdori chekdan ayiriladi.');">
                                                         {% csrf_token %}
                                                         <input type="hidden" name="reason" value="Kassir / Admin tomonidan bekor qilindi">

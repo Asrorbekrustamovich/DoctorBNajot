@@ -219,14 +219,19 @@ class EpisodeContentTests(EpisodeBase):
         r = self.client.get(reverse("clinical:icd_search"), {"q": "appendis"})
         self.assertEqual(r.json()["results"][0]["code"], "K35.8")
 
-    def test_tekshiruv_pikeri_epizodda_bor(self):
-        """«+Analiz» statsionar rasmiylashtirishda ham bo'lishi kerak."""
+    def test_tekshiruv_pikeri_epizoddan_olib_tashlangan(self):
+        """Statsionar epizodida tekshiruv TAYINLANMAYDI.
+
+        Ilgari bu yerda «+Analiz» pikeri turardi va sahifani chalkash
+        qilardi: shifokorga kerak bo'lgani — tayyor natijalarni ko'rib,
+        qaysilari vipiskaga kirishini belgilash. Yangi tekshiruv
+        ambulator qabul oynasidan buyuriladi.
+        """
         cat = ServiceCategory.objects.create(name="Laboratoriya", button_label="+Analiz")
         ServiceCatalog.objects.create(name="Umumiy qon tahlili", price=40000, category=cat)
         r = self.client.get(reverse("clinical:episode_detail", args=[self.ep.pk]))
-        self.assertContains(r, "examPicker")
-        self.assertContains(r, "+Analiz")
-        self.assertContains(r, "Umumiy qon tahlili")
+        self.assertNotContains(r, "examPicker")
+        self.assertNotContains(r, "Tekshiruvlar tayinlash")
 
 
 # ------------------------------------------------------- yuborish va rollar
@@ -345,7 +350,9 @@ class DischargeTests(EpisodeBase):
         self.client.force_login(self.doctor)
 
     def _write(self, **extra):
-        data = {"outcome": "recovered", "work_capacity": "sick_leave",
+        # `action=finalize` — qulflash faqat ataylab so'ralganda bo'ladi.
+        data = {"action": "finalize",
+                "outcome": "recovered", "work_capacity": "sick_leave",
                 "treatment_given": "Appendektomiya, antibiotiklar",
                 "condition_at_discharge": "Qoniqarli",
                 "recommendations": "2 hafta og'ir yuk ko'tarmaslik",
@@ -404,12 +411,42 @@ class DischargeTests(EpisodeBase):
         self.assertEqual(r.status_code, 302)
 
     def test_qayta_yozilsa_ikkilanmaydi(self):
+        """Ikkinchi yozuv YARATILMAYDI va o'zgarish ham o'tmaydi.
+
+        Vipiska shakllantirilgach QULFLANADI — bemor qo'liga beriladigan
+        rasmiy hujjat jimgina o'zgarmasligi kerak. Qulf superadmin
+        tomonidan ochiladi (pastdagi test).
+        """
         from apps.clinical.models import DischargeSummary
+
         self._write()
         self._write(outcome="improved")
+
         self.assertEqual(DischargeSummary.objects.filter(episode=self.ep).count(), 1)
         self.ep.refresh_from_db()
-        self.assertEqual(self.ep.discharge.outcome, DischargeSummary.Outcome.IMPROVED)
+        self.assertEqual(
+            self.ep.discharge.outcome, DischargeSummary.Outcome.RECOVERED,
+            "Qulflangan vipiska o'zgartirildi.")
+
+    def test_superadmin_ochgach_ozgartirish_otadi(self):
+        """Teskari nazorat: qulf ochilsa tahrir ishlashi kerak."""
+        from apps.clinical.models import DischargeSummary
+
+        self._write()
+        s = DischargeSummary.objects.get(episode=self.ep)
+
+        super_admin = User.objects.create_user(
+            username="dt_super", password="x", is_superuser=True,
+            role=Role.objects.get_or_create(
+                code=Role.Code.SUPER_ADMIN, defaults={"name": "Super"})[0])
+        self.client.force_login(super_admin)
+        self.client.post(reverse("clinical:discharge_unlock", args=[s.pk]))
+
+        self.client.force_login(self.doctor)
+        self._write(outcome="improved")
+
+        s.refresh_from_db()
+        self.assertEqual(s.outcome, DischargeSummary.Outcome.IMPROVED)
 
     def test_hamshira_vipiska_yoza_olmaydi(self):
         """Ruxsat bo'lmasa ham 302 qaytadi (rad etish sahifasiga).

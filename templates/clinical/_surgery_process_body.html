@@ -20,7 +20,7 @@
     <div class="card-body">
         <div class="row g-3 small">
             <div class="col"><span class="text-muted d-block">Jarroh</span><strong>{{ surgery.surgeon.get_full_name|default:"—" }}</strong></div>
-            <div class="col"><span class="text-muted d-block">Asistent</span><strong>{{ surgery.assistant.get_full_name|default:"—" }}</strong></div>
+            <div class="col"><span class="text-muted d-block">Anestiziska</span><strong>{{ surgery.assistant.get_full_name|default:"—" }}</strong></div>
             <div class="col"><span class="text-muted d-block">Anesteziolog</span><strong>{{ surgery.anesthesiologist.get_full_name|default:"—" }}</strong></div>
             <div class="col"><span class="text-muted d-block">Operatsion hamshira</span><strong>{{ surgery.operating_nurse.get_full_name|default:"—" }}</strong></div>
             <div class="col"><span class="text-muted d-block">Bo'lim hamshirasi</span><strong>{{ surgery.ward_nurse.get_full_name|default:"—" }}</strong></div>
@@ -111,6 +111,30 @@
                     </div>
                     <div class="mb-2">
                         <label class="form-label small fw-bold">Steril belyo va anjomlar (operatsiya turiga mos)</label>
+
+                        {% comment %}
+                          OPERATSIYA USULI VA TALAB QILINADIGAN ANJOMLAR.
+
+                          Usul modelda bor edi, lekin ekranda ham, tekshiruvda
+                          ham ishlatilmasdi — jarroh endoskopik operatsiyaga
+                          ochiq nabor tanlab, boshlab yuborishi mumkin edi.
+                        {% endcomment %}
+                        {% if surgery.surgery_type.kind == 'endoscopic' %}
+                          <div class="alert alert-info py-1 px-2 small mb-2">
+                            <i class="bi bi-camera-video"></i>
+                            <b>Endoskopik operatsiya.</b> Kamida bitta
+                            <b>endoskopik anjom</b> (rastvorda tozalangan) va belyo
+                            tanlang. Avtoklav endoskopik anjomni buzadi.
+                          </div>
+                        {% else %}
+                          <div class="alert alert-secondary py-1 px-2 small mb-2">
+                            <i class="bi bi-scissors"></i>
+                            <b>Ochiq operatsiya.</b> Kamida bitta
+                            <b>jarrohlik nabori</b> va belyo (yoki boshqa steril
+                            anjom) tanlang.
+                          </div>
+                        {% endif %}
+
                         <div class="border rounded p-2" style="max-height:220px; overflow-y:auto;">
                             {% for item in ready_items %}
                             <div class="form-check">
@@ -137,13 +161,26 @@
                                     {% else %}<span class="badge bg-warning text-dark ms-1">Operatsiyada</span>{% endif %}
                                 </td>
                                 <td class="text-end">
+                                    {% comment %}
+                                      FORMA ICHIDA FORMA BO'LMAYDI.
+
+                                      Bu tugmalar tayyorlash formasi ICHIDA
+                                      turibdi. Ilgari ular o'z <form> iga
+                                      o'ralgan edi — brauzer ichma-ich
+                                      formani butunlay tashlab yuboradi va
+                                      tugma bosilganda tashqi forma
+                                      («Tayyorlashni saqlash») yuborilardi:
+                                      ishlatildi belgisi hech qachon
+                                      saqlanmasdi.
+
+                                      Yechim — HTML `form` atributi: tugma
+                                      pastdagi alohida formaga tegishli.
+                                    {% endcomment %}
                                     {% if can_nurse %}
-                                    <form method="post" action="{% url 'clinical:surgery_item_mark' it.id %}" class="d-inline">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="surgery_id" value="{{ surgery.id }}">
-                                        <button name="action" value="used" class="btn btn-sm btn-outline-danger py-0">Ishlatildi</button>
-                                        <button name="action" value="unused" class="btn btn-sm btn-outline-success py-0">Ishlatilmadi</button>
-                                    </form>
+                                    <button form="markForm{{ it.id }}" name="action" value="used"
+                                            class="btn btn-sm btn-outline-danger py-0">Ishlatildi</button>
+                                    <button form="markForm{{ it.id }}" name="action" value="unused"
+                                            class="btn btn-sm btn-outline-success py-0">Ishlatilmadi</button>
                                     {% endif %}
                                 </td>
                             </tr>
@@ -157,6 +194,136 @@
                     </div>
                     <button class="btn btn-sm btn-primary"><i class="bi bi-check-lg"></i> Tayyorlashni saqlash</button>
                 </form>{% endif %}
+
+                {% comment %}
+                  Asbob belgilash formalari — tayyorlash formasidan
+                  TASHQARIDA. Yuqoridagi tugmalar `form=` atributi orqali
+                  shularga ulanadi.
+                {% endcomment %}
+                {% if can_nurse %}
+                  {% for it in attached_items %}
+                  <form method="post" id="markForm{{ it.id }}" class="d-none"
+                        action="{% url 'clinical:surgery_item_mark' it.id %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="surgery_id" value="{{ surgery.id }}">
+                  </form>
+                  {% endfor %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ====== OPERATSION HAMSHIRA -> ANESTEZIOLOG OMBORI ZAYAVKASI ====== -->
+    {% comment %}
+      Ombor bitta — anesteziologniki, lekin bo'linish aniq:
+      psixotrop dorilarni anesteziolog so'raydi (yuqoridagi karta),
+      oddiy sarf-materialni (shprits, bint, doka) operatsion hamshira.
+      Ilgari hamshirada so'rashning yo'li yo'q edi.
+    {% endcomment %}
+    <div class="col-lg-6">
+        <div class="card h-100 border-success">
+            <div class="card-header bg-success bg-opacity-10 d-flex align-items-center">
+                <span><i class="bi bi-box-seam"></i> Operatsion hamshira zayavkasi (sarf-material)</span>
+                {% if supply_request %}
+                <span class="badge ms-auto
+                    {% if supply_request.status == 'issued' %}bg-success
+                    {% elif supply_request.status == 'sent' %}bg-warning text-dark
+                    {% elif supply_request.status == 'rejected' %}bg-danger
+                    {% else %}bg-secondary{% endif %}">
+                    {{ supply_request.get_status_display }}
+                </span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if not supply_request or supply_request.is_editable %}
+                {% if can_nurse %}
+                <form method="post" action="{% url 'clinical:supply_request_add_item' surgery.id %}" class="row g-2 mb-3">
+                    {% csrf_token %}
+                    <div class="col-7">
+                        {% comment %}
+                          Faqat psixotrop BO'LMAGANLAR: psixotropni
+                          hamshira so'ramaydi, u qat'iy hisobda va
+                          anesteziolog zayavkasidan o'tadi.
+                        {% endcomment %}
+                        <select name="stock_id" class="form-select form-select-sm" required>
+                            <option value="">-- Ombordan tanlang --</option>
+                            {% for m in non_psychotropic_stocks %}
+                            <option value="{{ m.id }}">{{ m.name }} (qoldiq: {{ m.quantity|floatformat:0 }} {{ m.unit }})</option>
+                            {% empty %}
+                            <option value="" disabled>— omborda sarf-material yo'q —</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-3">
+                        <input type="number" name="quantity" class="form-control form-control-sm"
+                               value="1" min="0.01" step="0.01" placeholder="Soni">
+                    </div>
+                    <div class="col-2">
+                        <button class="btn btn-sm btn-outline-success w-100"><i class="bi bi-plus-lg"></i></button>
+                    </div>
+                </form>
+                {% endif %}
+                {% endif %}
+
+                <table class="table table-sm mb-2">
+                    <thead><tr>
+                        <th>Mahsulot</th>
+                        <th class="text-center">So'raldi</th>
+                        <th class="text-center">Berildi</th>
+                        <th></th>
+                    </tr></thead>
+                    <tbody>
+                        {% for it in supply_items %}
+                        <tr>
+                            <td>{{ it.stock.name }}{% if it.note %}<div class="text-muted small">{{ it.note }}</div>{% endif %}</td>
+                            <td class="text-center">{{ it.quantity|floatformat:"-2" }}</td>
+                            <td class="text-center">
+                                {% if supply_request.status == 'issued' %}
+                                    <span class="fw-bold {% if it.issued_quantity < it.quantity %}text-danger{% else %}text-success{% endif %}">
+                                        {{ it.issued_quantity|floatformat:"-2" }}
+                                    </span>
+                                {% else %}—{% endif %}
+                            </td>
+                            <td class="text-end">
+                                {% if supply_request.is_editable and can_nurse %}
+                                <form method="post" action="{% url 'clinical:supply_request_remove_item' it.id %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <button class="btn btn-sm btn-link text-danger p-0" title="O'chirish">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="4" class="text-center text-muted py-3">Zayavka bo'sh</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                {% if supply_request and supply_request.is_editable and can_nurse %}
+                <form method="post" action="{% url 'clinical:supply_request_send' surgery.id %}">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-success w-100">
+                        <i class="bi bi-send"></i> Omborga yuborish
+                    </button>
+                </form>
+                {% elif supply_request.status == 'sent' %}
+                <div class="alert alert-warning py-2 mb-0 small">
+                    <i class="bi bi-hourglass-split"></i> Ombor javobini kutmoqda
+                    {% if supply_request.sent_at %} · {{ supply_request.sent_at|date:"d.m.Y H:i" }}{% endif %}
+                </div>
+                {% elif supply_request.status == 'issued' %}
+                <div class="alert alert-success py-2 mb-0 small">
+                    <i class="bi bi-check-circle"></i>
+                    {{ supply_request.issued_by.get_full_name|default:"Ombor" }} berdi
+                    {% if supply_request.issued_at %} · {{ supply_request.issued_at|date:"d.m.Y H:i" }}{% endif %}
+                </div>
+                {% elif supply_request.status == 'rejected' %}
+                <div class="alert alert-danger py-2 mb-0 small">
+                    <i class="bi bi-x-circle"></i> Rad etildi{% if supply_request.notes %}: {{ supply_request.notes }}{% endif %}
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -165,7 +332,7 @@
     <div class="col-lg-6">
         <div class="card h-100">
             <div class="card-header bg-primary bg-opacity-10 d-flex align-items-center">
-                <span><i class="bi bi-box-seam"></i> Anesteziolog materiallari (zayavka)</span>
+                <span><i class="bi bi-capsule"></i> Anesteziolog zayavkasi (psixotrop dorilar)</span>
                 {% if anesthesia_request %}
                 <span class="badge {% if anesthesia_request.status == 'sent' %}bg-success{% else %}bg-warning text-dark{% endif %} ms-auto">
                     {{ anesthesia_request.get_status_display }}
@@ -178,10 +345,24 @@
                 {% if can_anesth %}<form method="post" action="{% url 'clinical:anesthesia_request_add_item' surgery.id %}" class="row g-2 mb-3">
                     {% csrf_token %}
                     <div class="col-7">
+                        {% comment %}
+                          FAQAT PSIXOTROPLAR.
+
+                          Anesteziolog ombori — qat'iy hisobdagi psixotrop
+                          dorilar uchun. Ilgari bu ro'yxatga oddiy sarf
+                          materiallar ham chiqardi va server ularni rad
+                          etardi: hamshira tanlaydi, «psixotrop emas» degan
+                          xato chiqadi. Ro'yxatning o'zi tanlab qo'ysin.
+
+                          Oddiy materialni operatsion hamshira asosiy
+                          ombordan zayavka qiladi (pastdagi karta).
+                        {% endcomment %}
                         <select name="stock_id" class="form-select form-select-sm" required>
-                            <option value="">-- Ombordan tanlang --</option>
-                            {% for s in stock_items %}
+                            <option value="">-- Psixotrop dorini tanlang --</option>
+                            {% for s in psychotropic_stocks %}
                             <option value="{{ s.id }}">{{ s.name }} (qoldiq: {{ s.quantity|floatformat:0 }} {{ s.unit }} · {{ s.selling_price|floatformat:0 }} so'm)</option>
+                            {% empty %}
+                            <option value="" disabled>— psixotrop dori kiritilmagan —</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -277,11 +458,26 @@
                     <div class="col-7">
                         <select name="stock_id" class="form-select form-select-sm" required>
                             <option value="">-- Zayavkadan tanlang --</option>
-                            {% if anesthesia_request %}
+                            
+                            <!-- Anesteziolog zayavkasi (Psixotroplar va dorilar) -->
+                            {% if anesthesia_request and anesthesia_request.items.all %}
+                                <optgroup label="Anesteziolog zayavkasi (Dorilar)">
                                 {% for req_item in anesthesia_request.items.all %}
                                 <option value="{{ req_item.stock.id }}">{{ req_item.stock.name }} (Olib kelingan: {{ req_item.quantity|floatformat:0 }} {{ req_item.stock.unit }})</option>
                                 {% endfor %}
-                            {% else %}
+                                </optgroup>
+                            {% endif %}
+                            
+                            <!-- Hamshira zayavkasi (Sarf-materiallar) -->
+                            {% if supply_request and supply_request.items.all %}
+                                <optgroup label="Hamshira zayavkasi (Materiallar)">
+                                {% for req_item in supply_request.items.all %}
+                                <option value="{{ req_item.stock.id }}">{{ req_item.stock.name }} (Olib kelingan: {{ req_item.quantity|floatformat:0 }} {{ req_item.stock.unit }})</option>
+                                {% endfor %}
+                                </optgroup>
+                            {% endif %}
+                            
+                            {% if not anesthesia_request and not supply_request %}
                                 <option value="" disabled>Oldin Zayavka yuboring</option>
                             {% endif %}
                         </select>
@@ -342,7 +538,7 @@
                 {% endif %}
                 <div class="ms-auto d-flex gap-2">
                     {% if surgery.stage != 'operating' and surgery.stage != 'finished' %}
-                    {% if can_surgeon %}<form method="post" action="{% url 'clinical:surgery_start_operation' surgery.id %}">
+                    {% if can_surgeon or can_anesth %}<form method="post" action="{% url 'clinical:surgery_start_operation' surgery.id %}">
                         {% csrf_token %}
                         <button class="btn btn-sm btn-danger"><i class="bi bi-play-fill"></i> Operatsiyani boshlash</button>
                     </form>{% endif %}

@@ -10,6 +10,26 @@
         <p class="text-muted mb-0">Ambulator ko'rik va tekshiruvlar uchun oldindan to'lov</p>
     </div>
     <div class="d-flex gap-3">
+        {% comment %}
+          TAYINLOVLAR HISOBLAGICHI.
+
+          Shifokor tekshiruv yoki qabul tayinlaganda shu son o'sadi,
+          registrator to'lovni qabul qilgach kamayadi. Boshqa
+          sahifalardagi bildirishnoma ham AYNAN shu sondan oziqlanadi —
+          ikkisi hech qachon farq qilmasligi uchun.
+        {% endcomment %}
+        <div class="card border-0 shadow-sm px-3 py-2 text-center
+                    {% if kutayotgan.count %}bg-warning-subtle{% endif %}">
+            <div class="fs-4 fw-bold {% if kutayotgan.count %}text-warning-emphasis{% else %}text-success{% endif %}">
+                {{ kutayotgan.count }}
+            </div>
+            <div class="text-muted small">
+                To'lov kutayotgan tayinlov
+                {% if kutayotgan.patients %}
+                    <div>({{ kutayotgan.patients }} bemor)</div>
+                {% endif %}
+            </div>
+        </div>
         <div class="card border-0 shadow-sm px-3 py-2 text-center">
             <div class="fs-4 fw-bold text-danger">{{ unpaid_count }}</div>
             <div class="text-muted small">To'lanmagan</div>
@@ -20,6 +40,30 @@
         </div>
     </div>
 </div>
+
+{% comment %}
+  QIDIRUV — hujjat bo'yicha ham.
+
+  Ro'yxat uzayganda kerakli bemorni ko'z bilan topish qiyin. Bir xil
+  ismli bemorlar ko'p bo'ladi, hujjat esa yagona ajratuvchi belgi.
+  Metrika alohida muhim: bolalarda pasport bo'lmaydi.
+{% endcomment %}
+<form method="get" class="mb-3">
+  <div class="input-group">
+    <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+    <input type="search" name="q" value="{{ qidiruv }}" class="form-control"
+           placeholder="Ism, familiya, karta, telefon, JSHSHIR, pasport yoki metrika">
+    <button class="btn btn-primary">Qidirish</button>
+    {% if qidiruv %}
+      <a href="{% url 'billing:registrator_payments' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-x-lg"></i> Tozalash
+      </a>
+    {% endif %}
+  </div>
+  {% if qidiruv %}
+    <div class="form-text">«{{ qidiruv }}» bo'yicha {{ rows|length }} ta natija.</div>
+  {% endif %}
+</form>
 
 {% if rows %}
 <div class="card shadow-sm border-0">
@@ -102,26 +146,50 @@
                     </div>
                     <div class="border rounded p-3 mb-3 bg-light">
                         <h6 class="fw-bold mb-2">To'lanishi kerak bo'lgan xizmatlar:</h6>
+
+                        {% comment %}
+                          NARXNI SHU YERDA TO'G'RILASH MUMKIN.
+
+                          Ikki holat uchun kerak:
+                            · katalogdagi narx eskirib qolgan bo'lishi mumkin;
+                            · bemor shifokorning qarindoshi bo'lib, bepul
+                              yoki chegirma bilan davolanishi mumkin.
+
+                          Bu faqat SHU BEMORNING chekini o'zgartiradi —
+                          katalogdagi asosiy narxga tegmaydi, aks holda
+                          bittaga qilingan chegirma hammaga tarqalardi.
+                        {% endcomment %}
                         {% for item in row.prepaid_items %}
                         {% if not item.paid_at %}
-                        <div class="d-flex justify-content-between mb-1">
-                            <span>{{ item.name }}</span>
-                            <strong>{{ item.total_price|intcomma }} so'm</strong>
+                        <div class="d-flex justify-content-between align-items-center mb-2 gap-2">
+                            <span class="small">{{ item.name }}</span>
+                            <div class="input-group input-group-sm" style="max-width:170px">
+                                <input type="number" class="form-control text-end js-item-price"
+                                       name="item_price_{{ item.id }}"
+                                       value="{{ item.total_price|stringformat:'.0f' }}"
+                                       min="0" step="1000">
+                                <span class="input-group-text">so'm</span>
+                            </div>
                         </div>
                         {% endif %}
                         {% endfor %}
+                        <div class="form-text mb-1">
+                            <i class="bi bi-pencil"></i>
+                            Narxni to'g'rilash mumkin. <b>0</b> qo'yilsa — bepul
+                            (qarzdorlikda qolmaydi). Katalog narxi o'zgarmaydi.
+                        </div>
                         <hr class="my-2">
                         <div class="d-flex justify-content-between">
                             <strong class="text-danger">Jami qarzdorlik:</strong>
-                            <strong class="text-danger fs-5">{{ row.prepaid_unpaid|intcomma }} so'm</strong>
+                            <strong class="text-danger fs-5 js-pay-total">{{ row.prepaid_unpaid|stringformat:'.0f' }}</strong>
                         </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">To'lanayotgan summa</label>
                         <div class="input-group">
-                            <input type="number" class="form-control form-control-lg" name="amount" 
-                                   value="{{ row.prepaid_unpaid|stringformat:'.0f' }}" 
-                                   min="1" max="{{ row.invoice.debt|stringformat:'.0f' }}" step="1" required>
+                            <input type="number" class="form-control form-control-lg js-pay-amount" name="amount"
+                                   value="{{ row.prepaid_unpaid|stringformat:'.0f' }}"
+                                   min="0" step="1" required>
                             <span class="input-group-text">so'm</span>
                         </div>
                         <div class="form-text">Qisman to'lov qilish mumkin.</div>
@@ -146,4 +214,33 @@
     <h4 class="mt-3 text-muted">Bugun hali bemorlar yo'q</h4>
 </div>
 {% endif %}
+
+<script>
+/* NARX TO'G'RILANGANDA JAMI SUMMA O'ZI YANGILANADI.
+ *
+ * Aks holda registrator narxni 0 ga tushiradi-yu, «to'lanayotgan summa»
+ * eski qiymatda qolib, ortiqcha pul olinib ketardi.
+ *
+ * Delegatsiya: modallar siklda chiziladi va bu skript ulardan keyin
+ * tursa ham, kelajakda joyi almashsa bittalab bog'lash jimgina
+ * ishlamay qo'yardi. */
+document.addEventListener('input', function (e) {
+  if (!e.target.classList || !e.target.classList.contains('js-item-price')) return;
+
+  var modal = e.target.closest('.modal');
+  if (!modal) return;
+
+  var jami = 0;
+  modal.querySelectorAll('.js-item-price').forEach(function (inp) {
+    var v = parseFloat(inp.value || '0');
+    if (!isNaN(v) && v > 0) jami += v;
+  });
+
+  var korsat = modal.querySelector('.js-pay-total');
+  if (korsat) korsat.textContent = jami.toLocaleString('ru-RU') + " so'm";
+
+  var summa = modal.querySelector('.js-pay-amount');
+  if (summa) summa.value = jami;
+});
+</script>
 {% endblock %}

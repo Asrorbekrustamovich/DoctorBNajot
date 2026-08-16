@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from apps.accounts.models import Role
 from apps.accounts.permissions import RoleRequiredMixin, role_required
-from .models import MeasurementUnit, Medicine, MedicineBatch, MedicinePackaging
+from .models import MeasurementUnit, Medicine, MedicineBatch
 
 # Ombor (sklad) boshqaruvi uchun rollar
 STOCK_ROLES = (Role.Code.WAREHOUSE, Role.Code.ADMINISTRATOR, Role.Code.SUPER_ADMIN)
@@ -65,23 +65,12 @@ def add_medicine(request):
             unit = get_object_or_404(MeasurementUnit, id=unit_id)
             medicine = Medicine.objects.create(name=name, unit=unit, description=description)
             
-            # Qo'shimcha qadoqlarni qo'shish
-            pkg1_name = request.POST.get("pkg1_name")
-            pkg1_qty = request.POST.get("pkg1_qty")
-            if pkg1_name and pkg1_qty:
-                try:
-                    MedicinePackaging.objects.create(medicine=medicine, name=pkg1_name, quantity_in_base_unit=float(pkg1_qty))
-                except ValueError:
-                    pass
-                    
-            pkg2_name = request.POST.get("pkg2_name")
-            pkg2_qty = request.POST.get("pkg2_qty")
-            if pkg2_name and pkg2_qty:
-                try:
-                    MedicinePackaging.objects.create(medicine=medicine, name=pkg2_name, quantity_in_base_unit=float(pkg2_qty))
-                except ValueError:
-                    pass
-                    
+            # QADOQ IYERARXIYASI YARATILMAYDI.
+            #
+            # «1 blok = 50 ampula» hisobni chalkashtirardi va blok
+            # o'lchami keyin o'zgartirilsa eski qoldiqlar boshqacha
+            # ko'rinib qolardi. Qoldiq faqat asosiy birlikda yuritiladi.
+
             messages.success(request, f"Yangi dori katalogga qo'shildi: {name}")
     return redirect("pharmacy:dashboard")
 
@@ -94,20 +83,19 @@ def receive_medicine(request):
         quantity_str = request.POST.get("quantity")
         purchase_price = request.POST.get("purchase_price", 0)
         selling_price = request.POST.get("selling_price")
-        packaging_id = request.POST.get("packaging_id", "base")
-        
         if medicine_id and quantity_str and selling_price:
             medicine = get_object_or_404(Medicine, id=medicine_id)
             try:
+                # MIQDOR FAQAT ASOSIY BIRLIKDA kiritiladi.
+                #
+                # Ilgari «nechta blok» tanlanib, u ampulaga ko'paytirilardi.
+                # Bu ikki xatoga yo'l ochardi: blok o'lchami noto'g'ri
+                # kiritilsa butun qoldiq buzilardi, va bir xil dori turli
+                # o'ramlarda kelganda hisob chalkashardi. Endi ombordor
+                # nechta ampula kelganini o'zi sanab yozadi.
                 quantity = float(quantity_str)
-                # Agar biron o'ram tanlangan bo'lsa, uni asosiy o'lchovga o'tkazamiz
-                if packaging_id != "base":
-                    pkg = get_object_or_404(MedicinePackaging, id=packaging_id)
-                    base_quantity = quantity * float(pkg.quantity_in_base_unit)
-                    received_msg = f"{quantity} {pkg.name} ({base_quantity} {medicine.unit.short_name or medicine.unit.name})"
-                else:
-                    base_quantity = quantity
-                    received_msg = f"{quantity} {medicine.unit.short_name or medicine.unit.name}"
+                base_quantity = quantity
+                received_msg = f"{quantity:g} {medicine.unit.short_name or medicine.unit.name}"
                 
                 MedicineBatch.objects.create(
                     medicine=medicine,

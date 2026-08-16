@@ -375,7 +375,7 @@ class ServiceOrder(Auditable, BaseModel):
     @property
     def has_result(self) -> bool:
         """Natija yozilganmi — matn yoki ko'rsatkichlar bo'lsa."""
-        return bool(self.result_text.strip()) or self.result_rows.exists()
+        return bool(self.result_text.strip()) or len(self.result_rows.all()) > 0
 
     @property
     def is_paid(self) -> bool:
@@ -1270,6 +1270,86 @@ class SurgeryVitals(Auditable, BaseModel):
         return f"{self.surgery} — {vaqt} BP:{self.blood_pressure} P:{self.pulse}"
 
 
+class SurgerySupplyRequest(Auditable, BaseModel):
+    """Operatsion hamshiraning ANESTEZIOLOG OMBORIGA zayavkasi.
+
+    Nega alohida
+    ------------
+    Ombor bitta — anesteziologniki, lekin so'rovchi va mahsulot turi
+    boshqa:
+
+      · anesteziolog PSIXOTROP dorilarni so'raydi (qat'iy hisob);
+      · operatsion hamshira oddiy sarf-materialni (shprits, bint, doka).
+
+    Ilgari hamshirada so'rashning umuman yo'li yo'q edi: u anesteziolog
+    zayavkasidan yozardi, server esa «psixotrop emas» deb rad etardi.
+    """
+
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Tayyorlanmoqda"
+        SENT = "sent", "Omborga yuborildi"
+        ISSUED = "issued", "Ombor berdi"
+        REJECTED = "rejected", "Rad etildi"
+
+    surgery = models.OneToOneField(
+        SurgerySchedule, on_delete=models.CASCADE,
+        related_name="supply_request", verbose_name="Operatsiya",
+    )
+    status = models.CharField("Holati", max_length=20,
+                              choices=Status.choices, default=Status.DRAFT)
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="surgery_supply_requests", verbose_name="So'ragan hamshira",
+    )
+    sent_at = models.DateTimeField("Yuborilgan vaqt", null=True, blank=True)
+    issued_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="surgery_supplies_issued", verbose_name="Ombordan bergan",
+    )
+    issued_at = models.DateTimeField("Berilgan vaqt", null=True, blank=True)
+    notes = models.TextField("Izoh", blank=True)
+
+    class Meta:
+        verbose_name = "Operatsion hamshira zayavkasi"
+        verbose_name_plural = "Operatsion hamshira zayavkalari"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Ombor zayavkasi: {self.surgery} ({self.get_status_display()})"
+
+    @property
+    def is_editable(self) -> bool:
+        """Yuborilgach o'zgartirib bo'lmaydi — ombor shu ro'yxatga qaraydi."""
+        return self.status == self.Status.DRAFT
+
+
+class SurgerySupplyItem(Auditable, BaseModel):
+    """Zayavka qatori: qaysi material, qancha so'ralgan va berilgan."""
+
+    request = models.ForeignKey(
+        SurgerySupplyRequest, on_delete=models.CASCADE, related_name="items",
+        verbose_name="Zayavka",
+    )
+    stock = models.ForeignKey(
+        "AnesthesiaStock", on_delete=models.PROTECT,
+        related_name="surgery_supply_items",
+        verbose_name="Anesteziolog omboridagi material",
+    )
+    quantity = models.DecimalField("So'ralgan soni", max_digits=12,
+                                   decimal_places=2, default=1)
+    issued_quantity = models.DecimalField("Berilgan soni", max_digits=12,
+                                          decimal_places=2, default=0)
+    note = models.CharField("Izoh", max_length=200, blank=True)
+
+    class Meta:
+        verbose_name = "Zayavka qatori"
+        verbose_name_plural = "Zayavka qatorlari"
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return f"{self.stock.name} × {self.quantity}"
+
+
 class NurseUsageItem(Auditable, BaseModel):
     """Operatsion hamshira ishlatgan anjom/material va uning xarajati."""
 
@@ -1490,6 +1570,21 @@ class AdmissionEpisode(Auditable, LockableMixin, BaseModel):
     sent_at = models.DateTimeField("Qabulxonaga yuborilgan", null=True, blank=True)
     cancel_reason = models.CharField("Bekor qilish sababi", max_length=255, blank=True)
 
+    # VIPISKAGA QO'SHILADIGAN TEKSHIRUVLAR.
+    #
+    # Shifokor bemorning tekshiruv tarixini ko'rib turib, qaysilari
+    # vipiskaga kirishini shu yerda belgilaydi — vipiska yozilishini
+    # kutmasdan, bemor hali yotgan paytda.
+    #
+    # NULL va bo'sh ro'yxat BOSHQA-BOSHQA ma'noni bildiradi:
+    #   None  — shifokor hali tanlamagan → shu epizodникilar avtomatik
+    #   []    — shifokor ataylab hammasini olib tashlagan → hech biri
+    # Ikkalasini bir xil qilsak, «hammasini bekor qilish» ishlamay,
+    # belgilar o'z-o'zidan qaytib kelaverardi.
+    selected_order_ids = models.JSONField(
+        "Vipiskaga tanlangan tekshiruvlar", null=True, blank=True, default=None,
+    )
+
     class Meta:
         verbose_name = "Statsionar epizodi"
         verbose_name_plural = "Statsionar epizodlari"
@@ -1507,6 +1602,35 @@ class AdmissionEpisode(Auditable, LockableMixin, BaseModel):
     @property
     def is_open(self) -> bool:
         return self.status in (self.Status.DRAFT, self.Status.SENT, self.Status.ADMITTED)
+
+    @property
+    def patient_left(self) -> bool:
+        """Bemor palatadan chiqib bo'lganmi.
+
+        Statsionardan javob berish (kravatni bo'shatish) va vipiska
+        yozish — IKKI ALOHIDA amal. Shifokor javob berganda yotish
+        yopiladi, lekin epizod «yotibdi» holatida qolaveradi: vipiska
+        hali yozilmagan.
+
+        Natijada ro'yxatda bemor «Yotibdi» deb turaverardi — kravati
+        bo'shatilgan, o'zi uyiga ketgan bo'lsa ham.
+        """
+        return bool(
+            self.stay_id
+            and self.stay
+            and self.stay.status == InpatientStay.Status.DISCHARGED
+        )
+
+    @property
+    def display_status(self) -> str:
+        """Ro'yxatlarda ko'rsatiladigan HAQIQIY holat.
+
+        `get_status_display()` faqat epizod maydonini o'qiydi va
+        yotishdan xabari yo'q.
+        """
+        if self.status == self.Status.ADMITTED and self.patient_left:
+            return "Chiqdi — vipiska kutilmoqda"
+        return self.get_status_display()
 
     @property
     def main_diagnosis(self):
@@ -1625,6 +1749,30 @@ class DischargeSummary(Auditable, LockableMixin, BaseModel):
     condition_at_discharge = models.TextField("Chiqishdagi holati", blank=True)
     recommendations = models.TextField("Tavsiyalar", blank=True)
     follow_up = models.CharField("Nazorat ko'rigi", max_length=255, blank=True)
+    surgery_text = models.TextField("Operatsiya bayoni", blank=True)
+    selected_order_ids = models.JSONField("Tanlangan tekshiruvlar", default=list, blank=True)
+    selected_procedure_ids = models.JSONField("Tanlangan muolajalar", default=list, blank=True)
+    # OPERATSIYALAR — vipiskaga qaysi biri kirishini shifokor belgilaydi.
+    # Bemor bir yotishda ikki marta operatsiya bo'lishi mumkin, ikkalasi
+    # ham hujjatga kerak bo'lmasligi mumkin.
+    selected_surgery_ids = models.JSONField(
+        "Tanlangan operatsiyalar", default=list, blank=True)
+
+    # Bemor bir necha marta yotgan bo'lishi mumkin. Surunkali kasallik
+    # oldingi yotishda qo'yilgan bo'lsa ham vipiskada ko'rsatilishi kerak,
+    # lekin HAMMASINI qo'shsak hujjat cho'zilib ketadi. Shuning uchun
+    # shifokor ptechka bilan tanlaydi va tanlovi shu yerda saqlanadi.
+    selected_diagnosis_ids = models.JSONField(
+        "Tanlangan tashxislar", default=list, blank=True)
+
+    # Tanlangan hisobot/tekshiruvning VIPISKADAGI matni.
+    #
+    # Kalit — element id'si, qiymat — shifokor qisqartirgan matn. Asl
+    # hisobot O'ZGARMAYDI: laboratoriya yozgan natija tibbiy hujjat va
+    # unga tegib bo'lmaydi. Bu yerda faqat vipiskaga tushadigan nusxa
+    # saqlanadi.
+    item_texts = models.JSONField(
+        "Vipiskadagi matnlar (element bo'yicha)", default=dict, blank=True)
 
     class Meta:
         verbose_name = "Vipiska"
@@ -1647,3 +1795,21 @@ class DischargeSummary(Auditable, LockableMixin, BaseModel):
         if not start or not end:
             return 0
         return max(1, (end.date() - start.date()).days)
+
+
+class DischargeTemplate(Auditable, BaseModel):
+    """Shifokorning vipiska uchun qayta ishlatiladigan shabloni."""
+    doctor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="Shifokor",
+        on_delete=models.CASCADE, related_name="discharge_templates",
+    )
+    name = models.CharField("Shablon nomi", max_length=255)
+    content = models.TextField("Shablon matni")
+
+    class Meta:
+        verbose_name = "Vipiska shabloni"
+        verbose_name_plural = "Vipiska shablonlari"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.name} ({self.doctor.get_full_name()})"

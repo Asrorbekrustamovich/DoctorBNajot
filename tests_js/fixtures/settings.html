@@ -1,0 +1,1045 @@
+
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="google" content="notranslate">
+    <title>Xizmatlar sozlamalari - Doctor B Najot</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="/static/css/textarea_expand.css" rel="stylesheet">
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.14.1/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+    <style>
+        :root {
+            --brand: #1a7f6b;
+            --brand-2: #2aa88f;
+            --sidebar-bg: #0f2e2a;
+            --sidebar-ink: #a9c7c0;
+            --ink: #16233a;
+            --muted: #6b7a90;
+            --line: #e8edf2;
+            --bg: #f4f6f9;
+            --sidebar-w: 258px;
+        }
+        * { scrollbar-width: thin; }
+        body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--ink); margin: 0; }
+        a { text-decoration: none; }
+
+        .dbn-sidebar {
+            position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+            background: var(--sidebar-bg); display: flex; flex-direction: column;
+            z-index: 1040; transition: transform .25s ease;
+        }
+        .dbn-brand {
+            display: flex; align-items: center; gap: .6rem;
+            padding: 1.15rem 1.25rem; color: #fff; font-weight: 800; font-size: 1.1rem;
+            letter-spacing: -.3px; border-bottom: 1px solid rgba(255,255,255,.07);
+        }
+        .dbn-brand .logo {
+            width: 36px; height: 36px; border-radius: 10px;
+            background: linear-gradient(135deg, var(--brand-2), #3fc8ac);
+            display: inline-flex; align-items: center; justify-content: center;
+            color: #062b25; font-size: 1.15rem; flex-shrink: 0;
+        }
+        .dbn-nav { padding: .7rem .7rem 1.2rem; overflow-y: auto; flex: 1; }
+        .dbn-nav::-webkit-scrollbar { width: 6px; }
+        .dbn-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 3px; }
+        .dbn-nav .nav-label {
+            font-size: .67rem; text-transform: uppercase; letter-spacing: .8px;
+            color: #5f8079; padding: .95rem .8rem .3rem; font-weight: 700;
+        }
+        .dbn-nav a {
+            display: flex; align-items: center; gap: .7rem;
+            padding: .6rem .8rem; margin: .1rem 0; border-radius: 9px;
+            color: var(--sidebar-ink); font-weight: 500; font-size: .9rem;
+            transition: background .15s, color .15s;
+        }
+        .dbn-nav a i { font-size: 1.05rem; width: 20px; text-align: center; flex-shrink: 0; }
+        .dbn-nav a:hover { background: rgba(255,255,255,.06); color: #fff; }
+        .dbn-nav a.active {
+            background: linear-gradient(90deg, var(--brand), var(--brand-2));
+            color: #fff; box-shadow: 0 6px 16px rgba(26,127,107,.3);
+        }
+        .dbn-sidebar-foot { padding: .85rem 1rem; border-top: 1px solid rgba(255,255,255,.07); font-size: .72rem; color: #5f8079; }
+
+        .dbn-main { margin-left: var(--sidebar-w); min-height: 100vh; }
+        .dbn-topbar {
+            height: 62px; background: #fff; border-bottom: 1px solid var(--line);
+            display: flex; align-items: center; gap: 1rem;
+            padding: 0 1.5rem; position: sticky; top: 0; z-index: 1030;
+        }
+        .dbn-topbar .burger { border: 0; background: transparent; font-size: 1.35rem; color: var(--muted); display: none; }
+        .dbn-page-name { font-weight: 700; font-size: 1.02rem; }
+        .dbn-user { display: flex; align-items: center; gap: .6rem; cursor: pointer; padding: .3rem .5rem; border-radius: 10px; }
+        .dbn-user:hover { background: var(--bg); }
+        .dbn-avatar {
+            width: 38px; height: 38px; border-radius: 50%;
+            background: linear-gradient(135deg, var(--brand), var(--brand-2));
+            color: #fff; display: inline-flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: .95rem; flex-shrink: 0;
+        }
+        .dbn-content { padding: 1.6rem 1.5rem; }
+
+        .card { border: 0; border-radius: 14px; box-shadow: 0 1px 3px rgba(16,35,58,.06); }
+        .card-header { background: #fff; border-bottom: 1px solid var(--line); font-weight: 700; border-radius: 14px 14px 0 0 !important; }
+        .btn-primary { background: var(--brand); border-color: var(--brand); font-weight: 600; border-radius: 9px; }
+        .btn-primary:hover, .btn-primary:focus { background: #14675a; border-color: #14675a; }
+        .btn-outline-primary { color: var(--brand); border-color: var(--brand); border-radius: 9px; font-weight: 600; }
+        .btn-outline-primary:hover { background: var(--brand); border-color: var(--brand); }
+        .form-control, .form-select { border-radius: 9px; border-color: #dde5ec; padding: .55rem .8rem; }
+        .form-control:focus, .form-select:focus { border-color: var(--brand); box-shadow: 0 0 0 .2rem rgba(26,127,107,.15); }
+        .table thead th { font-size: .76rem; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); border-bottom-width: 1px; }
+        .badge { font-weight: 600; border-radius: 7px; padding: .4em .65em; }
+        .stat-card { transition: transform .15s ease; }
+        .stat-card:hover { transform: translateY(-3px); }
+        .stat-icon { width: 52px; height: 52px; border-radius: 13px; display: inline-flex; align-items: center; justify-content: center; font-size: 1.4rem; }
+        .page-title { font-weight: 800; letter-spacing: -.4px; }
+
+        /* ---- Accordion (ichma-ich menyu) ---- */
+        .dbn-group { margin: .1rem 0; }
+        .grp-toggle {
+            display: flex; align-items: center; gap: .7rem; cursor: pointer;
+            padding: .6rem .8rem; border-radius: 9px;
+            color: var(--sidebar-ink); font-weight: 500; font-size: .9rem;
+            transition: background .15s, color .15s; user-select: none;
+        }
+        .grp-toggle i.lead-ic { font-size: 1.05rem; width: 20px; text-align: center; flex-shrink: 0; }
+        .grp-toggle:hover { background: rgba(255,255,255,.06); color: #fff; }
+        .grp-toggle .chev { margin-left: auto; font-size: .8rem; transition: transform .2s ease; }
+        .dbn-group.open > .grp-toggle .chev { transform: rotate(90deg); }
+        .dbn-group.open > .grp-toggle { color: #fff; }
+        .dbn-sub { overflow: hidden; margin: .1rem 0 .25rem; }
+        .dbn-sub a {
+            font-size: .855rem; padding: .5rem .8rem .5rem 2.6rem; position: relative;
+        }
+        .dbn-sub a::before {
+            content: ""; position: absolute; left: 1.5rem; top: 50%;
+            width: 5px; height: 5px; border-radius: 50%;
+            background: #446b63; transform: translateY(-50%);
+        }
+        .dbn-sub a.active::before { background: #fff; }
+
+        .dbn-backdrop { display: none; }
+        @media (max-width: 991px) {
+            .dbn-sidebar { transform: translateX(-100%); }
+            .dbn-sidebar.open { transform: translateX(0); }
+            .dbn-main { margin-left: 0; }
+            .dbn-topbar .burger { display: inline-block; }
+            .dbn-backdrop.show { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 1035; }
+        }
+    </style>
+    
+</head>
+<body hx-headers='{"X-CSRFToken": "TlPheWlSUVL9H6PshIaey3mnzRv5hzHLKkzKEVviFtb4Rwj7YeTkMZqacf1ndQse"}'>
+
+<div x-data="{ open: false }">
+    <aside class="dbn-sidebar" :class="open && 'open'">
+        <div class="dbn-brand">
+            <span class="logo"><i class="bi bi-heart-pulse-fill"></i></span>
+            Doctor B Najot
+        </div>
+        <nav class="dbn-nav">
+            <div class="nav-label">Asosiy</div>
+            
+            <a href="/" class=""><i class="bi bi-grid-1x2-fill"></i> Boshqaruv paneli</a>
+            
+            
+            <a href="/patients/" class=""><i class="bi bi-people-fill"></i> Bemorlar</a>
+            
+            
+            <a href="/registration/queue/" class=""><i class="bi bi-list-ol"></i> Navbat</a>
+            
+            
+            <a href="/registration/board/" target="_blank" class=""><i class="bi bi-tv"></i> Navbat tablosi</a>
+            
+
+            
+            <div class="nav-label">Klinika</div>
+            <div class="dbn-group open" x-data="{ open: true }" :class="open && 'open'">
+                <div class="grp-toggle" @click="open = !open">
+                    <i class="bi bi-heart-pulse-fill lead-ic"></i> Klinika
+                    <i class="bi bi-chevron-right chev"></i>
+                </div>
+                <div class="dbn-sub" x-show="open" x-collapse>
+                    
+                    <a href="/clinical/templates/" class=""><i class="bi bi-file-earmark-richtext"></i> Shablonlarim</a>
+                    
+                    
+                    <a href="/clinical/examiner/dashboard/" class=""><i class="bi bi-clipboard2-pulse"></i> Mutaxassis Paneli</a>
+                    
+                    
+                    <a href="/clinical/inpatient/" class=""><i class="bi bi-hospital"></i> Stasionar</a>
+                    
+                    
+                    <a href="/clinical/episode/" class=""><i class="bi bi-file-medical"></i> Statsionarga rasmiylashtirish</a>
+                    
+                    
+                    <a href="/clinical/nurse/incoming/" class=""><i class="bi bi-box-arrow-in-down"></i> Yo'naltirilganlar</a>
+                    
+                    
+                    <a href="/clinical/surgery/admin-list/" class=""><i class="bi bi-list-check"></i> Jarrohlik ro'yxati</a>
+                    
+                    
+                    
+                    <a href="/clinical/operating-rooms/" class=""><i class="bi bi-door-open"></i> Operatsion xonalar</a>
+                    
+                    
+                    <a href="/clinical/ambulatory-rooms/" class=""><i class="bi bi-door-closed"></i> Ambulator xonalar</a>
+                    <a href="/clinical/vipiskalar/" class=""><i class="bi bi-shield-lock"></i> Vipiskalar boshqaruvi</a>
+                    
+                    
+                    <a href="/clinical/anesthesia-stock/" class=""><i class="bi bi-capsule"></i> Anesteziolog ombori</a>
+                    
+                    
+                    
+                    <a href="/clinical/supply-requests/" class=""><i class="bi bi-box-seam"></i> Operatsion zayavkalar</a>
+                    
+                    
+                    <a href="/clinical/surgery/" class=""><i class="bi bi-heart-pulse"></i> Jarrohlik bloki</a>
+                    
+                    
+                    <a href="/clinical/sterilization/" class=""><i class="bi bi-shield-plus"></i> Avtoklav</a>
+                    <a href="/clinical/autoclave/" class=""><i class="bi bi-droplet-half"></i> Avtoklav Paneli</a>
+                    
+                </div>
+            </div>
+            
+
+            
+            <div class="nav-label">Moliya</div>
+            <div class="dbn-group" x-data="{ open: false }" :class="open && 'open'">
+                <div class="grp-toggle" @click="open = !open">
+                    <i class="bi bi-cash-coin lead-ic"></i> Moliya
+                    <i class="bi bi-chevron-right chev"></i>
+                </div>
+                <div class="dbn-sub" x-show="open" x-collapse>
+                    
+                    <a href="/billing/registrator/" class=""><i class="bi bi-credit-card-2-front"></i> To'lov qabul qilish</a>
+                    
+                    
+                    <a href="/billing/" class=""><i class="bi bi-cash-coin"></i> Kassa (Hisob)</a>
+                    
+                    
+                    <a href="/billing/prices/" class=""><i class="bi bi-cash-stack"></i> Qabul narxlari</a>
+                    
+                    
+                    <a href="/billing/statistics/" class=""><i class="bi bi-bar-chart-fill"></i> Umumiy Statistika</a>
+                    
+                    
+                    <a href="/billing/report/" class=""><i class="bi bi-graph-up-arrow"></i> Hisobot</a>
+                    
+                </div>
+            </div>
+            
+
+            
+            
+            <div class="nav-label">Ombor</div>
+            <a href="/pharmacy/" class=""><i class="bi bi-box-seam"></i> Ombor (Sklad)</a>
+            
+
+            
+            <div class="nav-label">Sozlamalar</div>
+            <div class="dbn-group open" x-data="{ open: true }" :class="open && 'open'">
+                <div class="grp-toggle" @click="open = !open">
+                    <i class="bi bi-gear-fill lead-ic"></i> Sozlamalar
+                    <i class="bi bi-chevron-right chev"></i>
+                </div>
+                <div class="dbn-sub" x-show="open" x-collapse>
+                    <a href="/staff/" class=""><i class="bi bi-people"></i> Xodimlar boshqaruvi</a>
+                    <a href="/staff/services/" class=""><i class="bi bi-grid-3x3-gap"></i> Xizmatlar katalogi</a>
+                    <a href="/clinical/inpatient/settings/" class=""><i class="bi bi-hospital"></i> Palatalar boshqaruvi</a>
+                    <a href="/clinical/service/settings/" class="active"><i class="bi bi-clipboard2-pulse"></i> Xizmatlar boshqaruvi</a>
+                    <a href="/clinical/surgery/settings/" class=""><i class="bi bi-heart-pulse"></i> Jarrohlik boshqaruvi</a>
+                    <a href="/clinical/autoclave/settings/" class=""><i class="bi bi-shield-check"></i> Avtoklav boshqaruvi</a>
+                </div>
+            </div>
+            
+
+            
+        </nav>
+        <div class="dbn-sidebar-foot">© Doctor B Najot klinikasi</div>
+    </aside>
+    <div class="dbn-backdrop" :class="open && 'show'" @click="open = false"></div>
+
+    <div class="dbn-main">
+        <header class="dbn-topbar">
+            <button class="burger" @click="open = !open"><i class="bi bi-list"></i></button>
+            <div class="dbn-page-name"></div>
+            <div class="ms-auto dropdown">
+                <div class="dbn-user" data-bs-toggle="dropdown">
+                    <span class="dbn-avatar">F</span>
+                    <div class="d-none d-sm-block lh-1">
+                        <div class="fw-semibold" style="font-size:.9rem">fixture_super</div>
+                        <small class="text-muted" style="font-size:.75rem">Super admin</small>
+                    </div>
+                    <i class="bi bi-chevron-down text-muted small"></i>
+                </div>
+                <ul class="dropdown-menu dropdown-menu-end shadow border-0" style="border-radius:12px">
+                    <li><a class="dropdown-item" href="/audit/my/"><i class="bi bi-clock-history"></i> Mening ishlarim</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    
+                    <li>
+                        <form method="post" action="/accounts/logout/">
+                            <input type="hidden" name="csrfmiddlewaretoken" value="TlPheWlSUVL9H6PshIaey3mnzRv5hzHLKkzKEVviFtb4Rwj7YeTkMZqacf1ndQse">
+                            <button type="submit" class="dropdown-item text-danger">
+                                <i class="bi bi-box-arrow-right"></i> Chiqish
+                            </button>
+                        </form>
+                    </li>
+                </ul>
+            </div>
+        </header>
+        <main class="dbn-content">
+
+            
+            
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3"><i class="bi bi-gear"></i> Xizmatlar katalogi, narxlar va mas'ullar</h1>
+</div>
+
+
+
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-primary text-white"><i class="bi bi-plus-lg"></i> Yangi xizmat qo'shish</div>
+    <div class="card-body">
+        <form method="post" action="/clinical/service/add/" class="row g-2 align-items-end">
+            <input type="hidden" name="csrfmiddlewaretoken" value="TlPheWlSUVL9H6PshIaey3mnzRv5hzHLKkzKEVviFtb4Rwj7YeTkMZqacf1ndQse">
+            <div class="col-md-6">
+                <label class="form-label">Xizmat nomi</label>
+                <input name="name" class="form-control" placeholder="Masalan: UZI, EKG, Qon analizi" required>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Narxi (so'm)</label>
+                <input name="price" type="number" step="0.01" min="0" class="form-control" placeholder="50000" required>
+            </div>
+            <div class="col-md-3">
+                <button class="btn btn-primary w-100"><i class="bi bi-plus-lg"></i> Qo'shish</button>
+            </div>
+        </form>
+        <div class="form-text mt-2">
+            Qo'shgandan keyin uni pastdagi jadvalda guruhga joylang — aks holda
+            shifokorning «+Analiz» modalida ko'rinmaydi.
+        </div>
+    </div>
+</div>
+
+
+<div class="alert alert-warning">
+  <div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle"></i> E'tibor bering</div>
+  
+    <div class="small mb-1">
+      <b>1 ta tekshiruvda mas'ul yo'q</b> —
+      ular hech kimning ro'yxatida chiqmaydi va bemor kutib qoladi:
+      <span class="badge bg-danger-subtle text-danger-emphasis">Rektoromanoskopiya (to&#x27;g&#x27;ri ichak)</span> 
+    </div>
+  
+  
+</div>
+
+
+
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-dark text-white">
+        <i class="bi bi-diagram-3"></i> Tekshiruvlar guruhlari — kim bajaradi
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-3">Guruh</th>
+                    <th>Standart rol (bo'lim)</th>
+                    <th>Standart xodim</th>
+                    <th>Kabinet</th>
+                    <th class="text-end pe-3">Saqlash</th>
+                </tr>
+            </thead>
+            <tbody>
+            
+                <tr>
+                    <td class="ps-3 fw-bold">
+                        🧪 Laboratoriya
+                        <span class="badge bg-light text-dark ms-1">0</span>
+                    </td>
+                    <td class="small">—</td>
+                    <td class="small">
+                        —
+                    </td>
+                    <td class="small">—</td>
+                    <td class="text-end pe-3">
+                        <button type="button" class="btn btn-sm btn-outline-dark"
+                                data-edit-category
+                                data-url="/clinical/service/category/08e84de1-07a9-433d-8168-a0d8d72d68da/defaults/"
+                                data-name="Laboratoriya"
+                                data-role=""
+                                data-staff=""
+                                data-room="">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                    </td>
+                </tr>
+            
+                <tr>
+                    <td class="ps-3 fw-bold">
+                        📈 EKG
+                        <span class="badge bg-light text-dark ms-1">0</span>
+                    </td>
+                    <td class="small">—</td>
+                    <td class="small">
+                        —
+                    </td>
+                    <td class="small">—</td>
+                    <td class="text-end pe-3">
+                        <button type="button" class="btn btn-sm btn-outline-dark"
+                                data-edit-category
+                                data-url="/clinical/service/category/44701fe6-d1ce-48d1-92a5-7fbcd1871121/defaults/"
+                                data-name="EKG"
+                                data-role=""
+                                data-staff=""
+                                data-room="">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                    </td>
+                </tr>
+            
+                <tr>
+                    <td class="ps-3 fw-bold">
+                        🔊 UZI
+                        <span class="badge bg-light text-dark ms-1">0</span>
+                    </td>
+                    <td class="small">—</td>
+                    <td class="small">
+                        —
+                    </td>
+                    <td class="small">—</td>
+                    <td class="text-end pe-3">
+                        <button type="button" class="btn btn-sm btn-outline-dark"
+                                data-edit-category
+                                data-url="/clinical/service/category/586ab785-6d3f-452b-8e21-e9816470e1bc/defaults/"
+                                data-name="UZI"
+                                data-role=""
+                                data-staff=""
+                                data-room="">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                    </td>
+                </tr>
+            
+                <tr>
+                    <td class="ps-3 fw-bold">
+                        🔦 Endoskopiya
+                        <span class="badge bg-light text-dark ms-1">1</span>
+                    </td>
+                    <td class="small">—</td>
+                    <td class="small">
+                        —
+                    </td>
+                    <td class="small">—</td>
+                    <td class="text-end pe-3">
+                        <button type="button" class="btn btn-sm btn-outline-dark"
+                                data-edit-category
+                                data-url="/clinical/service/category/5c456429-f03d-4af4-97e1-6806394cc638/defaults/"
+                                data-name="Endoskopiya"
+                                data-role=""
+                                data-staff=""
+                                data-room="">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                    </td>
+                </tr>
+            
+                <tr>
+                    <td class="ps-3 fw-bold">
+                        🩻 Rentgen
+                        <span class="badge bg-light text-dark ms-1">0</span>
+                    </td>
+                    <td class="small">—</td>
+                    <td class="small">
+                        —
+                    </td>
+                    <td class="small">—</td>
+                    <td class="text-end pe-3">
+                        <button type="button" class="btn btn-sm btn-outline-dark"
+                                data-edit-category
+                                data-url="/clinical/service/category/a3573d40-937f-42a1-8011-d82b60f6547a/defaults/"
+                                data-name="Rentgen"
+                                data-role=""
+                                data-staff=""
+                                data-room="">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                    </td>
+                </tr>
+            
+                <tr>
+                    <td class="ps-3 fw-bold">
+                        📊 Funksional diagnostika
+                        <span class="badge bg-light text-dark ms-1">0</span>
+                    </td>
+                    <td class="small">—</td>
+                    <td class="small">
+                        —
+                    </td>
+                    <td class="small">—</td>
+                    <td class="text-end pe-3">
+                        <button type="button" class="btn btn-sm btn-outline-dark"
+                                data-edit-category
+                                data-url="/clinical/service/category/0bdb565a-0c97-446b-9b38-7a0ede650b2c/defaults/"
+                                data-name="Funksional diagnostika"
+                                data-role=""
+                                data-staff=""
+                                data-room="">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                    </td>
+                </tr>
+            
+                <tr>
+                    <td class="ps-5 text-muted">
+                        └ Klinik tahlillar
+                        <span class="badge bg-light text-dark ms-1">0</span>
+                    </td>
+                    <td class="small">—</td>
+                    <td class="small">
+                        —
+                    </td>
+                    <td class="small">—</td>
+                    <td class="text-end pe-3">
+                        <button type="button" class="btn btn-sm btn-outline-dark"
+                                data-edit-category
+                                data-url="/clinical/service/category/baa5a71d-41c8-4d49-9a8e-6749bf011906/defaults/"
+                                data-name="Laboratoriya · Klinik tahlillar"
+                                data-role=""
+                                data-staff=""
+                                data-room="">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                    </td>
+                </tr>
+            
+                <tr>
+                    <td class="ps-5 text-muted">
+                        └ Biokimyoviy tahlillar
+                        <span class="badge bg-light text-dark ms-1">0</span>
+                    </td>
+                    <td class="small">—</td>
+                    <td class="small">
+                        —
+                    </td>
+                    <td class="small">—</td>
+                    <td class="text-end pe-3">
+                        <button type="button" class="btn btn-sm btn-outline-dark"
+                                data-edit-category
+                                data-url="/clinical/service/category/085b7dc4-05e3-46ff-b042-74e6e4072e3d/defaults/"
+                                data-name="Laboratoriya · Biokimyoviy tahlillar"
+                                data-role=""
+                                data-staff=""
+                                data-room="">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                    </td>
+                </tr>
+            
+                <tr>
+                    <td class="ps-5 text-muted">
+                        └ Gormonlar
+                        <span class="badge bg-light text-dark ms-1">0</span>
+                    </td>
+                    <td class="small">—</td>
+                    <td class="small">
+                        —
+                    </td>
+                    <td class="small">—</td>
+                    <td class="text-end pe-3">
+                        <button type="button" class="btn btn-sm btn-outline-dark"
+                                data-edit-category
+                                data-url="/clinical/service/category/67fc1274-0820-4591-aa63-3ff6fddb899d/defaults/"
+                                data-name="Laboratoriya · Gormonlar"
+                                data-role=""
+                                data-staff=""
+                                data-room="">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                    </td>
+                </tr>
+            
+                <tr>
+                    <td class="ps-5 text-muted">
+                        └ Gepatit
+                        <span class="badge bg-light text-dark ms-1">0</span>
+                    </td>
+                    <td class="small">—</td>
+                    <td class="small">
+                        —
+                    </td>
+                    <td class="small">—</td>
+                    <td class="text-end pe-3">
+                        <button type="button" class="btn btn-sm btn-outline-dark"
+                                data-edit-category
+                                data-url="/clinical/service/category/85fc9d96-83e8-4bff-ad43-bd8c5fd2eea9/defaults/"
+                                data-name="Laboratoriya · Gepatit"
+                                data-role=""
+                                data-staff=""
+                                data-room="">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                    </td>
+                </tr>
+            
+                <tr>
+                    <td class="ps-5 text-muted">
+                        └ Koagulogramma
+                        <span class="badge bg-light text-dark ms-1">0</span>
+                    </td>
+                    <td class="small">—</td>
+                    <td class="small">
+                        —
+                    </td>
+                    <td class="small">—</td>
+                    <td class="text-end pe-3">
+                        <button type="button" class="btn btn-sm btn-outline-dark"
+                                data-edit-category
+                                data-url="/clinical/service/category/9ebf1cf2-d3ff-4872-b3ee-42c852cf6931/defaults/"
+                                data-name="Laboratoriya · Koagulogramma"
+                                data-role=""
+                                data-staff=""
+                                data-room="">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                    </td>
+                </tr>
+            
+                <tr>
+                    <td class="ps-5 text-muted">
+                        └ Markazlashgan serologiya va PZR-diagnostika
+                        <span class="badge bg-light text-dark ms-1">0</span>
+                    </td>
+                    <td class="small">—</td>
+                    <td class="small">
+                        —
+                    </td>
+                    <td class="small">—</td>
+                    <td class="text-end pe-3">
+                        <button type="button" class="btn btn-sm btn-outline-dark"
+                                data-edit-category
+                                data-url="/clinical/service/category/cfe8490d-647e-42ae-918b-56e2c9887513/defaults/"
+                                data-name="Laboratoriya · Markazlashgan serologiya va PZR-diagnostika"
+                                data-role=""
+                                data-staff=""
+                                data-room="">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                    </td>
+                </tr>
+            
+                <tr>
+                    <td class="ps-5 text-muted">
+                        └ Sitologiya
+                        <span class="badge bg-light text-dark ms-1">0</span>
+                    </td>
+                    <td class="small">—</td>
+                    <td class="small">
+                        —
+                    </td>
+                    <td class="small">—</td>
+                    <td class="text-end pe-3">
+                        <button type="button" class="btn btn-sm btn-outline-dark"
+                                data-edit-category
+                                data-url="/clinical/service/category/7ebe122a-9e40-482e-9698-69f421eb8d07/defaults/"
+                                data-name="Laboratoriya · Sitologiya"
+                                data-role=""
+                                data-staff=""
+                                data-room="">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                    </td>
+                </tr>
+            
+            </tbody>
+        </table>
+    </div>
+    <div class="card-footer small text-muted">
+        Xodim tanlansa — faqat o'sha odam bajaradi. Faqat rol tanlansa —
+        o'sha bo'limdagi hamma ko'radi. Ikkalasi ham bo'sh bo'lsa — hamma ko'radi.
+    </div>
+</div>
+
+
+
+<div class="card shadow-sm mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="fw-bold">Endoskopiya</span>
+        <span class="badge bg-secondary">1</span>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-hover table-sm mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-3" style="width:22%">Xizmat nomi</th>
+                    <th style="width:16%">Narxi</th>
+                    <th style="width:38%">Kim bajaradi / qayerda</th>
+                    <th style="width:10%">Holat</th>
+                    <th class="text-end pe-3">Amal</th>
+                </tr>
+            </thead>
+            <tbody>
+                
+                <tr >
+                    <td class="ps-3 fw-semibold">Rektoromanoskopiya (to&#x27;g&#x27;ri ichak)</td>
+                    <td>
+                        <form method="post" action="/clinical/service/87917a52-9f38-4b67-8a34-afd8882aa43c/update-price/" class="d-inline-flex gap-1 align-items-center">
+                            <input type="hidden" name="csrfmiddlewaretoken" value="TlPheWlSUVL9H6PshIaey3mnzRv5hzHLKkzKEVviFtb4Rwj7YeTkMZqacf1ndQse">
+                            <input name="price" type="number" step="0.01" min="0" class="form-control form-control-sm" style="width:110px;" value="120000,00" required>
+                            <button class="btn btn-sm btn-outline-primary" title="Narxni saqlash"><i class="bi bi-pencil"></i></button>
+                        </form>
+                        <div class="text-muted" style="font-size:.7rem">
+                            O'zgarishi eski buyurtmalarga ta'sir qilmaydi
+                        </div>
+                    </td>
+                    
+                    <td>
+                        <div style="font-size:.8rem">
+                            <b>Biriktirilmagan</b>
+                            
+                        </div>
+                        <div class="text-muted" style="font-size:.72rem">
+                            Guruh: Endoskopiya
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-dark mt-1"
+                                data-edit-routing
+                                data-url="/clinical/service/87917a52-9f38-4b67-8a34-afd8882aa43c/routing/"
+                                data-name="Rektoromanoskopiya (to&#x27;g&#x27;ri ichak)"
+                                data-category="5c456429-f03d-4af4-97e1-6806394cc638"
+                                data-role=""
+                                data-staff=""
+                                data-room="">
+                            <i class="bi bi-person-gear"></i> O'zgartirish
+                        </button>
+                    </td>
+                    <td>
+                        
+                        <span class="badge bg-success">Faol</span>
+                        
+                    </td>
+                    <td class="text-end pe-3">
+                        <form method="post" action="/clinical/service/87917a52-9f38-4b67-8a34-afd8882aa43c/toggle/" class="d-inline">
+                            <input type="hidden" name="csrfmiddlewaretoken" value="TlPheWlSUVL9H6PshIaey3mnzRv5hzHLKkzKEVviFtb4Rwj7YeTkMZqacf1ndQse">
+                            
+                            <button class="btn btn-sm btn-outline-danger" title="O'chirish"><i class="bi bi-x-lg"></i></button>
+                            
+                        </form>
+                    </td>
+                </tr>
+                
+            </tbody>
+        </table>
+    </div>
+</div>
+
+
+
+<div class="modal fade" id="routingModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" id="routingForm">
+        <input type="hidden" name="csrfmiddlewaretoken" value="TlPheWlSUVL9H6PshIaey3mnzRv5hzHLKkzKEVviFtb4Rwj7YeTkMZqacf1ndQse">
+        <div class="modal-header">
+          <h6 class="modal-title"><i class="bi bi-person-gear"></i> <span id="routingName"></span></h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Yopish"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-2" id="routingCategoryBox">
+            <label class="form-label small fw-semibold">Guruh</label>
+            <select name="category" id="routingCategory" class="form-select form-select-sm"></select>
+            <div class="form-text">Guruhsiz xizmat shifokorning «+Analiz» modalida ko'rinmaydi.</div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Bajaruvchi rol (bo'lim)</label>
+            <select name="allowed_role" id="routingRole" class="form-select form-select-sm"></select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Mas'ul xodim</label>
+            <select name="responsible_staff" id="routingStaff" class="form-select form-select-sm"></select>
+            <div class="form-text">Tanlansa — faqat shu odam bajaradi, rol e'tiborga olinmaydi.</div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">Kabinet</label>
+            <select name="room" id="routingRoom" class="form-select form-select-sm"></select>
+          </div>
+          <div class="alert alert-light border small mb-0">
+            Ikkalasi ham bo'sh qoldirilsa, guruhdagi standart qiymat ishlaydi.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>
+          <button class="btn btn-sm btn-dark"><i class="bi bi-save"></i> Saqlash</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script id="routingOptions" type="application/json">{"categories": [["08e84de1-07a9-433d-8168-a0d8d72d68da", "Laboratoriya"], ["44701fe6-d1ce-48d1-92a5-7fbcd1871121", "EKG"], ["586ab785-6d3f-452b-8e21-e9816470e1bc", "UZI"], ["5c456429-f03d-4af4-97e1-6806394cc638", "Endoskopiya"], ["a3573d40-937f-42a1-8011-d82b60f6547a", "Rentgen"], ["0bdb565a-0c97-446b-9b38-7a0ede650b2c", "Funksional diagnostika"], ["baa5a71d-41c8-4d49-9a8e-6749bf011906", "Laboratoriya \u00b7 Klinik tahlillar"], ["085b7dc4-05e3-46ff-b042-74e6e4072e3d", "Laboratoriya \u00b7 Biokimyoviy tahlillar"], ["67fc1274-0820-4591-aa63-3ff6fddb899d", "Laboratoriya \u00b7 Gormonlar"], ["85fc9d96-83e8-4bff-ad43-bd8c5fd2eea9", "Laboratoriya \u00b7 Gepatit"], ["9ebf1cf2-d3ff-4872-b3ee-42c852cf6931", "Laboratoriya \u00b7 Koagulogramma"], ["cfe8490d-647e-42ae-918b-56e2c9887513", "Laboratoriya \u00b7 Markazlashgan serologiya va PZR-diagnostika"], ["7ebe122a-9e40-482e-9698-69f421eb8d07", "Laboratoriya \u00b7 Sitologiya"]], "roles": [["9b3c0d45-e1ca-4b9a-a32c-d71d34cbadb7", "Super admin"]], "staff": [["e4b430ac-4b3d-407d-9f98-6213d1c3d066", "fixture_super"]], "rooms": []}</script>
+<script>
+(function () {
+  var OPTS = JSON.parse(document.getElementById('routingOptions').textContent);
+
+  function fill(select, items, empty, current) {
+    select.innerHTML = '';
+    var o = document.createElement('option');
+    o.value = ''; o.textContent = empty;
+    select.appendChild(o);
+    items.forEach(function (it) {
+      var e = document.createElement('option');
+      e.value = it[0]; e.textContent = it[1];
+      if (it[0] === current) e.selected = true;
+      select.appendChild(e);
+    });
+  }
+
+  document.addEventListener('click', function (ev) {
+    var t = ev.target.closest && ev.target.closest('[data-edit-routing],[data-edit-category]');
+    if (!t) return;
+
+    // Guruh tahriri va xizmat tahriri bir xil modalni ishlatadi, farqi —
+    // guruhda «Guruh» maydoni yo'q va maydon nomlari `default_*` bo'ladi.
+    var isCategory = t.hasAttribute('data-edit-category');
+
+    // `form.action = …` o'rniga setAttribute: agar formada `action` nomli
+    // maydon bo'lsa, `form.action` o'sha ELEMENTNI qaytaradi va manzil
+    // o'rniga u yoziladi. setAttribute bunday tuzoqqa tushmaydi.
+    document.getElementById('routingForm').setAttribute('action', t.dataset.url);
+    document.getElementById('routingName').textContent = t.dataset.name;
+
+    var catBox = document.getElementById('routingCategoryBox');
+    catBox.classList.toggle('d-none', isCategory);
+    var cat = document.getElementById('routingCategory');
+    cat.disabled = isCategory;          // o'chirilgan maydon yuborilmaydi
+    if (!isCategory) fill(cat, OPTS.categories, '— guruhsiz —', t.dataset.category);
+
+    var role = document.getElementById('routingRole');
+    var staff = document.getElementById('routingStaff');
+    var room = document.getElementById('routingRoom');
+    role.name = isCategory ? 'default_role' : 'allowed_role';
+    staff.name = isCategory ? 'default_staff' : 'responsible_staff';
+    room.name = isCategory ? 'default_room' : 'room';
+
+    fill(role, OPTS.roles, '— tanlanmagan —', t.dataset.role);
+    fill(staff, OPTS.staff, '— tanlanmagan —', t.dataset.staff);
+    fill(room, OPTS.rooms, '— tanlanmagan —', t.dataset.room);
+
+    new bootstrap.Modal(document.getElementById('routingModal')).show();
+  });
+})();
+</script>
+
+
+        </main>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// === Universal modal + HTMX himoyasi (barcha bo'limlar) ===
+// 1) HTMX sahifani yangilaganda qolib ketgan modal-backdrop bosishni bloklashini oldini oladi
+//    (aks holda "modal ochilmaydi / tugma bosilmaydi" bug'i yuzaga keladi).
+function _dbnCleanupModals() {
+    if (!document.querySelector('.modal.show')) {
+        document.querySelectorAll('.modal-backdrop').forEach(function (el) { el.remove(); });
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('overflow');
+        document.body.style.removeProperty('padding-right');
+    }
+}
+document.body.addEventListener('htmx:afterSwap', _dbnCleanupModals);
+document.body.addEventListener('htmx:afterSettle', _dbnCleanupModals);
+// 2) Modal yopilganда backdrop kafolatli tozalansin
+document.addEventListener('hidden.bs.modal', function () { setTimeout(_dbnCleanupModals, 50); });
+// 3) Modal boshqa modal ustidan ochilsa yoki DOM'да takror bo'lsa — eng oxirgisini ishlatamiz
+document.addEventListener('show.bs.modal', function (e) {
+    var id = e.target && e.target.id;
+    if (!id) return;
+    var all = document.querySelectorAll('#' + CSS.escape(id));
+    if (all.length > 1) {  // dublikat bo'lsa, ko'rinmaganlarini o'chiramiz
+        for (var i = 0; i < all.length - 1; i++) all[i].remove();
+    }
+});
+
+// === Avtomatik yangilanish (HTMX polling) foydalanuvchiga xalaqit bermasin ===
+// Muammo: har 5s da sahifa yangilanib, tanlangan select/input asl holatiga qaytardi.
+// Yechim: foydalanuvchi forma bilan ishlayotgan paytda pollingni pauza qilamiz.
+window._dbnLastInteract = 0;
+function _dbnMarkInteract(e) {
+    // Faqat forma maydonlari (tanlov, kiritish) bilan ishlaganda
+    var t = e.target;
+    if (t && (t.tagName === 'SELECT' || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) {
+        window._dbnLastInteract = Date.now();
+    }
+}
+document.addEventListener('focusin', _dbnMarkInteract);
+document.addEventListener('change', _dbnMarkInteract);
+document.addEventListener('input', _dbnMarkInteract);
+// HTMX shu funksiyani tekshiradi: true bo'lsa — yangilanish o'tkazib yuboriladi
+window.htmxShouldPause = function () {
+    if (document.body.classList.contains('modal-open')) return true;       // modal ochiq
+    var a = document.activeElement;
+    if (a && (a.tagName === 'SELECT' || a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')) return true; // hozir yozyapti
+    if (Date.now() - window._dbnLastInteract < 25000) return true;         // oxirgi 25s ичida ishlagan
+    return false;
+};
+</script>
+
+
+<script src="/static/js/exam_picker.js"></script>
+
+
+<script src="/static/js/textarea_expand.js"></script>
+
+
+<script src="/static/js/patient_search.js"></script>
+
+<script>
+/* HTMX XATOLARI KO'RINSIN.
+ *
+ * Sukut bo'yicha HTMX 4xx/5xx javobni HECH QAYERGA yozmaydi: modal
+ * «Yuklanmoqda…» yozuvi bilan abadiy qotib qoladi va foydalanuvchi
+ * nima bo'lganini bilmaydi. «Bemorni joylashtirish» oynasi aynan shu
+ * sababdan «ishlamayapti» bo'lib ko'ringan edi.
+ *
+ * Endi xato o'sha yuklanayotgan joyning o'ziga yoziladi. */
+(function () {
+  function msg(status) {
+    if (status === 403) return 'Ruxsat yo’q. Bu amal sizning rolingizga ochiq emas.';
+    if (status === 404) return 'Ma’lumot topilmadi.';
+    if (status === 405) return 'Bu amal noto’g’ri usulda so’raldi.';
+    if (status >= 500) return 'Serverda xatolik yuz berdi.';
+    return 'So’rov bajarilmadi (' + status + ').';
+  }
+
+  function show(target, html) {
+    if (!target || !target.innerHTML) return;
+    target.innerHTML = html;
+  }
+
+  document.body.addEventListener('htmx:responseError', function (e) {
+    var d = e.detail, s = d.xhr ? d.xhr.status : 0;
+    show(d.target,
+      '<div class="alert alert-danger m-3">' +
+      '<b>' + msg(s) + '</b>' +
+      '<div class="small mt-1">Sahifani yangilab qayta urinib ko’ring. ' +
+      'Takrorlansa — administratorga ayting.</div></div>');
+    console.error('[htmx]', s, d.pathInfo && d.pathInfo.requestPath);
+  });
+
+  document.body.addEventListener('htmx:sendError', function (e) {
+    show(e.detail.target,
+      '<div class="alert alert-warning m-3">' +
+      '<b>Serverga ulanib bo’lmadi.</b>' +
+      '<div class="small mt-1">Internet yoki server ishlayotganini tekshiring.</div></div>');
+  });
+
+  document.body.addEventListener('htmx:timeout', function (e) {
+    show(e.detail.target,
+      '<div class="alert alert-warning m-3">Server javob bermadi (vaqt tugadi).</div>');
+  });
+})();
+</script>
+
+
+
+
+<div id="pay-toasts" class="position-fixed top-0 end-0 p-3"
+     style="z-index: 1090; max-width: 380px"
+     data-url="/billing/kutayotgan-tolovlar.json"
+     data-target="/billing/registrator/"></div>
+
+<script>
+(function () {
+  var quti = document.getElementById('pay-toasts');
+  if (!quti) return;
+
+  // To'lov sahifasining o'zida bildirishnoma keraksiz — ro'yxat ko'rinib turibdi.
+  if (window.location.pathname === quti.dataset.target) return;
+
+  var KECHIKISH = 5000;      // 5 soniya turadi, keyin o'zi yo'qoladi
+  var ORALIQ = 8000;         // har 8 soniyada tekshiriladi
+  var KALIT = 'pay-oxirgi';
+
+  /* OXIRGI HOLAT SAHIFALAR ORASIDA ESLAB QOLINADI.
+   *
+   * HAQIQIY XATO: holat faqat xotirada saqlanardi va har sahifa
+   * ochilganda nolga tushardi. Birinchi so'rov esa ataylab jim —
+   * eski tayinlovlar uchun bezovta qilmaslik kerak. Natijada
+   * registrator sahifadan sahifaga o'tib yursa, bildirishnoma
+   * UMUMAN chiqmasdi: har safar birinchi so'rov bo'lib qolardi.
+   *
+   * Endi holat brauzerda saqlanadi — sahifa almashsa ham baza
+   * saqlanib qoladi va yangi tayinlov darrov seziladi. */
+  var oxirgi = null;
+  try { oxirgi = window.localStorage.getItem(KALIT); } catch (e) { /* yopiq bo'lsa — mayli */ }
+
+  function eslab(qiymat) {
+    oxirgi = qiymat;
+    try { window.localStorage.setItem(KALIT, qiymat); } catch (e) {}
+  }
+
+  function korsat(soni, bemorlar) {
+    var el = document.createElement('div');
+    el.className = 'alert alert-warning alert-dismissible shadow d-flex '
+                 + 'align-items-center gap-2 mb-2';
+    el.setAttribute('role', 'alert');
+    el.innerHTML =
+      '<i class="bi bi-cash-coin fs-4"></i>' +
+      '<div class="flex-grow-1">' +
+        '<b>To\'lov qabul qilish kerak</b>' +
+        '<div class="small">' + soni + ' ta tayinlov to\'lov kutmoqda'
+          + (bemorlar ? ' · ' + bemorlar + ' bemor' : '') + '</div>' +
+        '<a href="' + quti.dataset.target + '" class="small">Ochish →</a>' +
+      '</div>' +
+      '<button type="button" class="btn-close" aria-label="Yopish"></button>';
+
+    // «×» bosilsa DARROV yo'qoladi — 5 soniyani kutmaydi.
+    var yopish = el.querySelector('.btn-close');
+    var soat = setTimeout(function () { el.remove(); }, KECHIKISH);
+    yopish.addEventListener('click', function () {
+      clearTimeout(soat);
+      el.remove();
+    });
+
+    quti.appendChild(el);
+  }
+
+  function tekshir() {
+    fetch(quti.dataset.url, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d) return;
+
+        /* Faqat holat O'ZGARGANDA xabar beramiz — ya'ni yangi tayinlov
+           kelganda. Aks holda har 8 soniyada bir xil xabar chiqib turardi.
+
+           Eng birinchi marta (brauzerda hech narsa saqlanmagan) ham jim
+           qolamiz: eski tayinlovlar uchun ogohlantirish bezovta qiladi. */
+        var oldingi = oxirgi;
+        eslab(d.signature);
+        if (oldingi === null || d.signature === oldingi || !d.count) return;
+
+        korsat(d.count, d.patients);
+      })
+      .catch(function () { /* tarmoq uzilsa jim qolamiz */ });
+  }
+
+  tekshir();
+  setInterval(tekshir, ORALIQ);
+})();
+</script>
+
+
+
+</body>
+</html>

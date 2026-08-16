@@ -4,9 +4,17 @@
  * Ular maydon nomlari bilan farq qiladi (`allowed_role` / `default_role`).
  * Adashsa, saqlash jimgina noto'g'ri joyga yozadi — shuning uchun test.
  *
- * Sahifa Django tomonidan haqiqiy chizilgan (/tmp/settings.html).
+ * Sahifa Django tomonidan haqiqiy chizilgan va `tests_js/fixtures/`
+ * ichiga yozilgan. Uni Django testi yangilaydi
+ * (apps/clinical/tests_settings_fixture.py).
+ *
+ * Ilgari bu yerda `/tmp/settings.html` turardi. Kompyuter o'chirilsa
+ * `/tmp` tozalanadi va test HAR SAFAR yiqilardi — xato dasturda emas,
+ * testning o'zida edi. Bunday test yolg'on signal beradi va vaqt
+ * o'tib umuman e'tibordan qoladi.
  */
 const fs = require('fs');
+const path = require('path');
 const { parseHTML } = require('linkedom');
 
 let pass = 0, fail = 0;
@@ -15,7 +23,14 @@ const ok = (n, c, e = '') => {
   else { fail++; console.log('  YIQILDI  ' + n + (e ? '   ' + e : '')); }
 };
 
-const html = fs.readFileSync('/tmp/settings.html', 'utf8');
+const FIXTURE = path.join(__dirname, 'fixtures', 'settings.html');
+if (!fs.existsSync(FIXTURE)) {
+  console.log('  O\'TKAZILDI  fixtures/settings.html yo\'q — avval ' +
+              'Django testini ishga tushiring: manage.py test ' +
+              'apps.clinical.tests_settings_fixture');
+  process.exit(0);
+}
+const html = fs.readFileSync(FIXTURE, 'utf8');
 const { window, document } = parseHTML(html);
 
 let shown = false;

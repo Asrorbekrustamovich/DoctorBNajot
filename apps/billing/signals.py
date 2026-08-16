@@ -3,6 +3,7 @@ from django.dispatch import receiver
 
 from apps.clinical.models import ServiceOrder, SurgerySchedule, InpatientStay, Consultation
 from apps.pharmacy.models import MedicineDispense
+from apps.registration.models import Visit
 
 @receiver(post_save, sender=ServiceOrder)
 @receiver(post_delete, sender=ServiceOrder)
@@ -34,3 +35,21 @@ def sync_invoice_on_visit_item_change(sender, instance, **kwargs):
     visit = getattr(instance, 'visit', None)
     if visit:
         generate_invoice_for_visit(visit)
+
+
+@receiver(post_save, sender=Visit)
+def sync_invoice_on_visit_change(sender, instance, **kwargs):
+    """Qabul yaratilganda yoki shifokori o'zgarganda chekni yangilash.
+
+    NEGA KERAK: chek faqat xizmat/xulosa qo'shilganda tuzilardi. Ammo
+    bemor shifokorga KIRISHIDAN OLDIN to'lashi kerak — ya'ni chek
+    registrator bemorni yozdirgan zahoti tayyor bo'lishi shart.
+
+    Boshqa shifokorga yo'naltirilganda ham shu signal ishlaydi va
+    chekdagi qabul narxi yangi shifokornikiga almashadi.
+    """
+    if kwargs.get("raw", False):
+        return
+    from apps.billing.services import generate_invoice_for_visit
+
+    generate_invoice_for_visit(instance)

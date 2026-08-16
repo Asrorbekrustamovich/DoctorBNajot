@@ -65,7 +65,7 @@ Django'da izoh HISOBLANMAYDI — ichidagi teglar bajarilib ketadi.
           </div>
           <div class="row g-3">
             <div class="col-md-6">
-              <label class="form-label">Operatsion asistent</label>
+              <label class="form-label">Anestiziska</label>
               <select name="assistant_id" class="form-select">
                 <option value="">-- Tanlang --</option>
                 {% for u in assistants %}
@@ -79,7 +79,7 @@ Django'da izoh HISOBLANMAYDI — ichidagi teglar bajarilib ketadi.
               <select name="anesthesiologist_id" class="form-select">
                 <option value="">-- Tanlang --</option>
                 {% for u in anesthesiologists %}
-                <option value="{{ u.id }}">{{ u.get_full_name|default:u.username }}</option>
+                <option value="{{ u.id }}">{{ u.get_full_name|default:u.username }}{% if u.specialty %} — {{ u.specialty }}{% endif %}</option>
                 {% empty %}
                 <option value="" disabled>— anesteziolog roli bilan xodim yo'q —</option>
                 {% endfor %}
@@ -91,7 +91,7 @@ Django'da izoh HISOBLANMAYDI — ichidagi teglar bajarilib ketadi.
               <select name="operating_nurse_id" class="form-select">
                 <option value="">-- Tanlang --</option>
                 {% for u in operating_nurses %}
-                <option value="{{ u.id }}">{{ u.get_full_name|default:u.username }}</option>
+                <option value="{{ u.id }}">{{ u.get_full_name|default:u.username }}{% if u.specialty %} — {{ u.specialty }}{% endif %}</option>
                 {% endfor %}
               </select>
             </div>
@@ -101,7 +101,7 @@ Django'da izoh HISOBLANMAYDI — ichidagi teglar bajarilib ketadi.
               <select name="ward_nurse_id" class="form-select">
                 <option value="">-- Tanlang --</option>
                 {% for u in ward_nurses %}
-                <option value="{{ u.id }}">{{ u.get_full_name|default:u.username }}</option>
+                <option value="{{ u.id }}">{{ u.get_full_name|default:u.username }}{% if u.specialty %} — {{ u.specialty }}{% endif %}</option>
                 {% endfor %}
               </select>
             </div>

@@ -59,6 +59,18 @@ def visit_create(
     )
     visit.full_clean()
     visit.save()
+
+    # Agar shifokorga yozilgan bo'lsa, avtomatik ravishda Qabul (Consultation)
+    # yaratamiz. Shunda uning narxi darhol chek (Invoice) da ko'rinadi.
+    if visit.doctor:
+        from apps.clinical.models import Consultation, DoctorPrice
+        fee = DoctorPrice.current_fee_for(visit.doctor)
+        Consultation.objects.create(
+            visit=visit,
+            doctor=visit.doctor,
+            fee=fee,
+        )
+        
     return visit
 
 

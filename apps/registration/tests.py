@@ -31,6 +31,11 @@ class RegistrationTestBase(TestCase):
             role=Role.objects.get(code="doctor"),
             first_name="Olim", last_name="Sattorov",
         )
+        # Registraturada bemor faqat AMBULATOR shifokorga yozdiriladi.
+        # Bu bayroqsiz shifokor ro'yxatga tushmaydi va API «bunday
+        # shifokor yo'q» deb 400 qaytaradi.
+        self.doctor.is_ambulatory = True
+        self.doctor.save(update_fields=["is_ambulatory"])
         self.patient = patient_create(
             last_name="Karimov", first_name="Aziz",
             birth_date=datetime.date(1990, 5, 20), gender=Patient.Gender.MALE,

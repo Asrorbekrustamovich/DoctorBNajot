@@ -4,11 +4,14 @@
   "private": true,
   "description": "Interfeys skriptlari uchun DOM testlari (Django testlari serverni tekshiradi, bular tugmalarni)",
   "scripts": {
-    "test": "node tests_js/exam_picker.test.js && node tests_js/service_settings.test.js && node tests_js/textarea_expand.test.js && node tests_js/assign_search.test.js",
+    "test": "node tests_js/exam_picker.test.js && node tests_js/service_settings.test.js && node tests_js/textarea_expand.test.js && node tests_js/assign_search.test.js && node tests_js/report_copy.test.js && node tests_js/vipiska_fit.test.js && node tests_js/pay_toast.test.js",
     "test:picker": "node tests_js/exam_picker.test.js",
     "test:settings": "node tests_js/service_settings.test.js",
     "test:textarea": "node tests_js/textarea_expand.test.js",
-    "test:search": "node tests_js/assign_search.test.js"
+    "test:search": "node tests_js/assign_search.test.js",
+    "test:report": "node tests_js/report_copy.test.js",
+    "test:vipiska": "node tests_js/vipiska_fit.test.js",
+    "test:toast": "node tests_js/pay_toast.test.js"
   },
   "devDependencies": {
     "linkedom": "^0.18.0"

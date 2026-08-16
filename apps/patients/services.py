@@ -15,8 +15,8 @@ CARD_SEQUENCE = "patient_card"
 
 _UPDATABLE_FIELDS = frozenset(
     {"last_name", "first_name", "middle_name", "birth_date", "gender", "phone",
-     "passport", "jshshir", "address", "relative_name", "relative_phone",
-     "insurance_company", "insurance_number", "notes"}
+     "passport", "jshshir", "birth_certificate", "address", "relative_name",
+     "relative_phone", "insurance_company", "insurance_number", "notes"}
 )
 
 
@@ -37,6 +37,7 @@ def patient_create(
     phone: str = "",
     passport: Optional[str] = None,
     jshshir: Optional[str] = None,
+    birth_certificate: Optional[str] = None,
     address: str = "",
     relative_name: str = "",
     relative_phone: str = "",
@@ -54,6 +55,11 @@ def patient_create(
     """
     passport = _normalize(passport.upper() if passport else passport)
     jshshir = _normalize(jshshir)
+    # METRIKA — bolalarda yagona hujjat. Bo'sh satr NULL ga
+    # aylantirilishi SHART: u unikal maydon, bo'sh satr saqlansa
+    # metrikasiz ikkinchi bemor ham `""` olib, cheklov buziladi.
+    birth_certificate = _normalize(
+        birth_certificate.upper() if birth_certificate else birth_certificate)
 
     duplicates = find_duplicates(
         jshshir=jshshir, passport=passport, phone=phone.strip(),
@@ -86,6 +92,7 @@ def patient_create(
         phone=phone.strip(),
         passport=passport,
         jshshir=jshshir,
+        birth_certificate=birth_certificate,
         address=address.strip(),
         relative_name=relative_name.strip(),
         relative_phone=relative_phone.strip(),
@@ -105,8 +112,11 @@ def patient_update(*, patient: Patient, **fields: Any) -> Patient:
     for name, value in fields.items():
         if name not in _UPDATABLE_FIELDS:
             raise DomainError(f"'{name}' maydonini o'zgartirib bo'lmaydi.")
-        if name in {"passport", "jshshir"}:
-            value = _normalize(value.upper() if name == "passport" and value else value)
+        if name in {"passport", "jshshir", "birth_certificate"}:
+            value = _normalize(
+                value.upper()
+                if name in {"passport", "birth_certificate"} and value
+                else value)
         if getattr(patient, name) != value:
             setattr(patient, name, value)
             changed.append(name)

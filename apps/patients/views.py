@@ -91,6 +91,8 @@ class PatientCreateView(RoleRequiredMixin, CreateView):
     template_name = "patients/form.html"
 
     def form_valid(self, form: PatientForm) -> Any:
+        from django.db import IntegrityError
+
         try:
             self.object = services.patient_create(
                 **form.cleaned_data,
@@ -100,6 +102,17 @@ class PatientCreateView(RoleRequiredMixin, CreateView):
             form.add_error(None, exc.message)
             if exc.code == "duplicate_suspected":
                 form.duplicate_suspected = True  # template tasdiq checkboxini ko'rsatadi
+            return self.form_invalid(form)
+        except IntegrityError as exc:
+            # OXIRGI HIMOYA. Formadagi tekshiruvlar asosiy holatlarni
+            # ushlaydi, lekin ikki xodim bir vaqtda bir xil JSHSHIR bilan
+            # saqlasa, tekshiruv bilan yozish orasida poyga bo'ladi.
+            # Bunda ham foydalanuvchi 500 sahifani emas, tushunarli
+            # xabarni ko'rishi kerak.
+            form.add_error(None,
+                           "Bu ma'lumot bilan bemor allaqachon ro'yxatga olingan. "
+                           "JSHSHIR yoki pasportni tekshiring. "
+                           f"({str(exc)[:120]})")
             return self.form_invalid(form)
         messages.success(self.request, f"Bemor yaratildi: {self.object}")
         return redirect(self.get_success_url())
@@ -115,10 +128,17 @@ class PatientUpdateView(RoleRequiredMixin, UpdateView):
     template_name = "patients/form.html"
 
     def form_valid(self, form: PatientForm) -> Any:
+        from django.db import IntegrityError
+
         try:
             services.patient_update(patient=self.object, **form.cleaned_data)
         except DomainError as exc:
             form.add_error(None, exc.message)
+            return self.form_invalid(form)
+        except IntegrityError as exc:
+            form.add_error(None,
+                           "Bu JSHSHIR yoki pasport boshqa bemorda band. "
+                           f"({str(exc)[:120]})")
             return self.form_invalid(form)
         messages.success(self.request, "Bemor ma'lumotlari yangilandi.")
         return super().form_valid(form)

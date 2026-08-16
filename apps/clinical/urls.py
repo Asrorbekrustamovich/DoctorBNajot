@@ -39,6 +39,7 @@ urlpatterns = [
     
     # Inpatient
     path("inpatient/", views.InpatientDashboardView.as_view(), name="inpatient_dashboard"),
+    path("inpatient/archive/", views.inpatient_archive, name="inpatient_archive"),
     path("inpatient/stay/<uuid:stay_id>/order-services/", views.order_inpatient_services, name="order_inpatient_services"),
     path("inpatient/bed/<uuid:bed_id>/assign/", views.assign_bed_htmx, name="assign_bed"),
     path("inpatient/visit/<uuid:visit_id>/admit/", views.admit_visit_htmx, name="admit_visit"),
@@ -50,6 +51,7 @@ urlpatterns = [
     path("inpatient/room/<uuid:room_id>/edit/", views.edit_room, name="edit_room"),
     path("inpatient/bed/add/", views.add_bed, name="add_bed"),
     path("inpatient/bed/<uuid:bed_id>/update-price/", views.update_bed_price, name="update_bed_price"),
+    path("inpatient/bed/<uuid:bed_id>/release/", views.release_bed, name="release_bed"),
     
     # Service Catalog Settings
     path("service/settings/", views.service_settings, name="service_settings"),
@@ -114,8 +116,6 @@ urlpatterns = [
     path("anesthesia-stock/", views.anesthesia_stock_page, name="anesthesia_stock_page"),
     path("anesthesia-stock/add/", views.anesthesia_stock_add, name="anesthesia_stock_add"),
     path("anesthesia-stock/<uuid:stock_id>/edit/", views.anesthesia_stock_edit, name="anesthesia_stock_edit"),
-    path("anesthesia-stock/<uuid:stock_id>/package/add/", views.anesthesia_stock_package_add, name="anesthesia_stock_package_add"),
-    path("anesthesia-stock/package/<uuid:package_id>/delete/", views.anesthesia_stock_package_delete, name="anesthesia_stock_package_delete"),
     
     # Surgery Protocols
     path("surgery/schedule/<uuid:schedule_id>/anesthesia-request/", views.anesthesia_request_create, name="anesthesia_request_create"),
@@ -139,14 +139,50 @@ urlpatterns = [
     path("episode/patient/<uuid:patient_id>/new/", episode_views.episode_create, name="episode_create"),
     path("episode/<uuid:pk>/", episode_views.episode_detail, name="episode_detail"),
     path("episode/<uuid:pk>/exam/", episode_views.episode_save_exam, name="episode_save_exam"),
+    path("episode/<uuid:pk>/select-orders/", episode_views.episode_select_orders,
+         name="episode_select_orders"),
+    path("episode/<uuid:pk>/save-template/", episode_views.episode_save_template,
+         name="episode_save_template"),
+    path("visit/<uuid:visit_id>/statsionarga/", episode_views.refer_to_inpatient,
+         name="refer_to_inpatient"),
+    path("episode/<uuid:pk>/statsionarga/bekor/",
+         episode_views.cancel_inpatient_referral,
+         name="cancel_inpatient_referral"),
+    path("episode/<uuid:pk>/delete-template/<uuid:tpl_id>/",
+         episode_views.episode_delete_template, name="episode_delete_template"),
     path("episode/<uuid:pk>/diagnosis/add/", episode_views.episode_add_diagnosis, name="episode_add_diagnosis"),
     path("episode/<uuid:pk>/diagnosis/<uuid:diagnosis_id>/delete/", episode_views.episode_delete_diagnosis, name="episode_delete_diagnosis"),
     path("episode/<uuid:pk>/send/", episode_views.episode_send, name="episode_send"),
     path("episode/<uuid:pk>/cancel/", episode_views.episode_cancel, name="episode_cancel"),
     path("icd/search/", episode_views.icd_search, name="icd_search"),
     path("nurse/incoming/", episode_views.nurse_incoming, name="nurse_incoming"),
+
+    # Operatsion hamshira -> asosiy ombor zayavkasi
+    path("surgery/<uuid:schedule_id>/supply/add/",
+         views.supply_request_add_item, name="supply_request_add_item"),
+    path("surgery/supply/item/<uuid:item_id>/remove/",
+         views.supply_request_remove_item, name="supply_request_remove_item"),
+    path("surgery/<uuid:schedule_id>/supply/send/",
+         views.supply_request_send, name="supply_request_send"),
+    path("supply-requests/", views.supply_requests, name="supply_requests"),
+    path("supply-requests/<uuid:pk>/issue/",
+         views.supply_request_issue, name="supply_request_issue"),
+    path("supply-requests/<uuid:pk>/reject/",
+         views.supply_request_reject, name="supply_request_reject"),
     path("episode/<uuid:pk>/discharge/", episode_views.episode_discharge, name="episode_discharge"),
     path("episode/<uuid:pk>/discharge/print/", episode_views.discharge_print, name="discharge_print"),
+
+    path("order/<uuid:order_id>/bekor/", episode_views.cancel_exam_order,
+         name="cancel_exam_order"),
+
+    # Vipiska boshqaruvi — faqat superadmin
+    path("vipiskalar/", episode_views.discharge_admin, name="discharge_admin"),
+    path("vipiskalar/<uuid:pk>/ochish/", episode_views.discharge_unlock,
+         name="discharge_unlock"),
+    path("vipiskalar/<uuid:pk>/ochirish/", episode_views.discharge_delete,
+         name="discharge_delete"),
+    path("vipiskalar/<uuid:pk>/tiklash/", episode_views.discharge_restore,
+         name="discharge_restore"),
 
     # Tekshiruv natijalarini chop etish (shifokor ham, registratura ham)
     path("result/<uuid:order_id>/print/", views.ServiceResultPrintView.as_view(), name="service_result_print"),

@@ -72,6 +72,28 @@ class ConsultationModalView(RoleRequiredMixin, TemplateView):
         context["assign_url"] = reverse(
             "clinical:consultation_assign_services", args=[visit.pk]
         )
+
+        # JAVOBI KELMAGAN TEKSHIRUVLAR — «Yakunlash» tugmasi shularga qarab
+        # yopiladi. Serverdagi tekshiruv bilan BIR XIL shart bo'lishi kerak,
+        # aks holda tugma ochiq turadi-yu, bosilganda xato chiqadi.
+        context["pending_exams"] = pending_exam_orders(visit)
+
+        # STATSIONARGA YO'NALTIRISH HOLATI.
+        #
+        # Modal qayta ochilganda tugma to'g'ri ko'rinishi kerak: agar
+        # allaqachon yuborilgan bo'lsa — kulrang «yuborildi», yonida
+        # bekor qilish. Aks holda shifokor ikkinchi marta bosib,
+        # o'zi ham bilmagan holda takror yuborardi.
+        from apps.clinical.models import AdmissionEpisode
+
+        context["open_episode"] = (
+            AdmissionEpisode.objects
+            .filter(patient=visit.patient,
+                    status__in=[AdmissionEpisode.Status.DRAFT,
+                                AdmissionEpisode.Status.SENT,
+                                AdmissionEpisode.Status.ADMITTED])
+            .order_by("-created_at").first()
+        )
         # Tayinlangan tekshiruvlar va ularning natijalari — shifokor
         # qabul oynasidan chiqmasdan ko'radi.
         context["exam_orders"] = clinical_selectors.visit_exam_orders(visit)
@@ -84,6 +106,25 @@ class ConsultationModalView(RoleRequiredMixin, TemplateView):
         ).exclude(id=self.request.user.id).order_by("last_name")
 
         return context
+
+def pending_exam_orders(visit):
+    """Javobi hali chiqmagan tekshiruvlar.
+
+    BITTA MANBA: ekrandagi «Yakunlash» tugmasi ham, serverdagi tekshiruv
+    ham shu funksiyadan foydalanadi. Shart ikki joyda alohida yozilsa,
+    ular albatta ajralib ketadi — tugma ochiq turadi-yu, bosilganda xato
+    chiqadi (yoki teskarisi).
+
+    Bekor qilinganlar hisobga olinmaydi: ular allaqachon «kerak emas»
+    deb belgilangan.
+    """
+    return [
+        o for o in visit.service_orders
+        .exclude(status=ServiceOrder.Status.CANCELLED)
+        .select_related("service")
+        if not o.has_result
+    ]
+
 
 class ConsultationSaveModalView(RoleRequiredMixin, View):
     """Ajax orqali Modal dan saqlash."""
@@ -132,6 +173,30 @@ class ConsultationSaveModalView(RoleRequiredMixin, View):
                         status=ServiceOrder.Status.WAITING,
                     )
 
+        # TAYINLANGAN TEKSHIRUV NATIJASIZ QOLSA — YAKUNLAB BO'LMAYDI.
+        #
+        # Shifokor tekshiruv buyurgan bo'lsa, uning javobini ko'rmasdan
+        # qabulni yopishi mantiqsiz: tashxis nimaga asoslanadi? Bundan
+        # tashqari yopilgan qabulga natija kelsa, uni hech kim ko'rmay
+        # qoladi va bemor javobini olmasdan ketadi.
+        #
+        # Bekor qilinganlar hisobga olinmaydi — ular allaqachon
+        # «kerak emas» deb belgilangan.
+        if status == "completed":
+            natijasiz = pending_exam_orders(visit)
+            if natijasiz:
+                nomlar = ", ".join(o.service.name for o in natijasiz[:5])
+                if len(natijasiz) > 5:
+                    nomlar += f" va yana {len(natijasiz) - 5} ta"
+                return JsonResponse({
+                    "error": (
+                        f"Qabulni yakunlab bo'lmaydi: {len(natijasiz)} ta "
+                        f"tekshiruvning javobi hali chiqmagan ({nomlar}). "
+                        f"Natijani kuting yoki keraksizini bekor qiling. "
+                        f"Hozircha «Saqlab turish» tugmasidan foydalaning."
+                    )
+                }, status=400)
+
         # Statusni FSM zanjiri bo'yicha o'zgartirish
         # (waiting → accepted → in_progress → completed)
         try:
@@ -168,24 +233,27 @@ def surgery_team_context():
     """
     from apps.clinical.models import OperatingRoom
 
+    from apps.accounts.models import users_with_role
+
+    # QO'SHIMCHA ROLLAR HAM HISOBGA OLINADI.
+    #
+    # Ilgari bu yerda `role__code=...` deb faqat asosiy rol qidirilardi
+    # va «Jarroh» hamda «Anesteziolog» ro'yxatlari bo'm-bo'sh chiqardi:
+    # klinikadagi xirurglarning asosiy roli «shifokor» (ular ambulator
+    # qabul ham qiladi), jarrohlik esa qo'shimcha rol.
     return {
         "surgery_types": SurgeryType.objects.filter(is_active=True).order_by("name"),
-        "surgeons": User.objects.filter(
-            role__code=Role.Code.SURGEON, is_active=True,
-        ).order_by("last_name"),
-        "assistants": User.objects.filter(
-            role__code__in=[Role.Code.SURGEON, Role.Code.DOCTOR, Role.Code.NURSE],
-            is_active=True,
-        ).order_by("last_name"),
-        "anesthesiologists": User.objects.filter(
-            role__code=Role.Code.ANESTHESIOLOGIST, is_active=True,
-        ).order_by("last_name"),
-        "operating_nurses": User.objects.filter(
-            role__code__in=[Role.Code.NURSE, Role.Code.WARD_NURSE], is_active=True,
-        ).order_by("last_name"),
-        "ward_nurses": User.objects.filter(
-            role__code=Role.Code.WARD_NURSE, is_active=True,
-        ).order_by("last_name"),
+        "surgeons": users_with_role(Role.Code.SURGEON),
+        # ANESTIZISKA — anesteziologning yordamchisi.
+        #
+        # Bu maydon ilgari «Operatsion asistent» deb atalardi va unga
+        # shifokorlar ham, hamshiralar ham aralash chiqardi. Amalda esa
+        # bu o'rinda anestiziska turadi — hamshira. Shifokorlar ro'yxatga
+        # tushishi faqat chalkashtirardi.
+        "assistants": users_with_role(Role.Code.NURSE, Role.Code.WARD_NURSE),
+        "anesthesiologists": users_with_role(Role.Code.ANESTHESIOLOGIST),
+        "operating_nurses": users_with_role(Role.Code.NURSE, Role.Code.WARD_NURSE),
+        "ward_nurses": users_with_role(Role.Code.WARD_NURSE),
         "operating_rooms": OperatingRoom.objects.filter(is_active=True).order_by("name"),
     }
 
@@ -264,12 +332,24 @@ class SurgeryReportView(RoleRequiredMixin, TemplateView):
             pk=self.kwargs["schedule_id"]
         )
         context["surgery"] = surgery
-        context["report"] = surgery.report
+        # BAYONNOMA HALI YOZILMAGAN BO'LISHI MUMKIN.
+        #
+        # `surgery.report` to'g'ridan-to'g'ri o'qilsa, yozuv yo'q paytda
+        # `RelatedObjectDoesNotExist` ko'tarilib, sahifa 500 bilan
+        # yiqilardi. Operatsiya rejalashtirilgan, lekin hali
+        # o'tkazilmagan holat esa mutlaqo oddiy.
+        context["report"] = getattr(surgery, "report", None)
         context["visit"] = surgery.visit
         return context
 
     def get(self, request, *args, **kwargs):
         context = self.get_context_data(**kwargs)
+        if context["report"] is None:
+            messages.warning(
+                request,
+                "Bu operatsiya bo'yicha bayonnoma hali yozilmagan.")
+            return redirect("clinical:surgery_process",
+                            schedule_id=self.kwargs["schedule_id"])
         if request.GET.get('format') == 'word':
             from django.template.loader import render_to_string
             from apps.core.exports import export_html_to_word
@@ -675,7 +755,14 @@ class InpatientDashboardView(RoleRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["rooms"] = Room.objects.prefetch_related("beds__stays").filter(is_active=True)
+        context["rooms"] = Room.objects.prefetch_related(
+            "beds__stays__visit__patient",
+            "beds__stays__assigned_doctor",
+            "beds__stays__doc_nurse",
+            "beds__stays__procedure_nurse",
+            "beds__stays__visit__service_orders__service",
+            "beds__stays__visit__dispensed_medicines__batch__medicine"
+        ).filter(is_active=True)
         from apps.pharmacy.models import MedicineBatch
         context["available_batches"] = MedicineBatch.objects.filter(quantity_available__gt=0).select_related('medicine', 'medicine__unit').order_by('medicine__name')
         from apps.clinical.models import ServiceCatalog
@@ -740,9 +827,16 @@ def _create_stay(request, visit, bed):
     else:
         daily_price = bed.price_per_day
 
-    doc_nurse = User.objects.filter(
-        id=request.POST.get("doc_nurse") or None, is_active=True
-    ).first()
+    # HUJJAT HAMSHIRASI — YOTQIZISHNI RASMIYLASHTIRAYOTGAN ODAM.
+    #
+    # Formadan OLINMAYDI: hujjatni bemorni qabul qilgan odam yuritadi.
+    # Ilgari bu ro'yxatdan tanlanardi va ikki xato mumkin edi — boshqa
+    # hamshira tanlanib qolishi, yoki bo'sh qoldirilib hujjat egasiz
+    # qolishi. Ikkinchisida keyin kim yozganini aniqlab bo'lmasdi.
+    #
+    # Shablonda maydon o'zgarmas qilingan, lekin unga ishonmaymiz:
+    # POST'ni qo'lda yuborib chetlab o'tish mumkin.
+    doc_nurse = request.user if request.user.is_authenticated else None
     procedure_nurse = User.objects.filter(
         id=request.POST.get("procedure_nurse") or None, is_active=True
     ).first()
@@ -762,6 +856,32 @@ def _create_stay(request, visit, bed):
         procedure_nurse=procedure_nurse,
         assigned_doctor=assigned_doctor,
     )
+
+    # YOTISHNI EPIZODGA BOG'LAYMIZ.
+    #
+    # HAQIQIY XATO: kravat berilganda `AdmissionEpisode.stay` bo'sh
+    # qolardi. Natijada shifokor yo'llagan epizod va hamshira ochgan
+    # yotish bir-birini «tanimasdi»: statsionar tarixida bemor ko'rinardi,
+    # lekin «Statsionar hisobotlari» bo'sh chiqardi va vipiskada yotgan
+    # kunlar hisoblanmasdi.
+    #
+    # Shu tashrifning ochiq epizodi bo'lsa — biriktiramiz va uni
+    # «Yotqizildi» holatiga o'tkazamiz.
+    from apps.clinical.models import AdmissionEpisode
+
+    episode = (
+        AdmissionEpisode.objects.filter(visit=visit, stay__isnull=True)
+        .exclude(status=AdmissionEpisode.Status.CANCELLED)
+        .order_by("-created_at")
+        .first()
+    )
+    if episode is not None:
+        episode.stay = stay
+        maydonlar = ["stay", "updated_at"]
+        if episode.status != AdmissionEpisode.Status.ADMITTED:
+            episode.status = AdmissionEpisode.Status.ADMITTED
+            maydonlar.append("status")
+        episode.save(update_fields=maydonlar)
 
     # Bemor yotqizilganda faqat statsionar paytida tayinlangan narsalar ro'yxatga tushishi kerak
     # Shu sababli ambulatoriya (asosiy visit) xizmatlarini avtomatik ko'chirmaymiz.
@@ -815,6 +935,19 @@ def assign_bed_htmx(request, bed_id):
     # qolishi mumkin edi. Sana bo'yicha saralab, birinchisini olamiz.
     seen: set = set()
     recent_visits = []
+    
+    # 1. Operatsiyasi rejalashtirilgan bemorlarni (ochiq tashriflarini) birinchi qo'shamiz
+    from apps.clinical.models import SurgerySchedule
+    pending_surgeries = SurgerySchedule.objects.filter(
+        status__in=[SurgerySchedule.Status.SCHEDULED, SurgerySchedule.Status.IN_PROGRESS]
+    ).select_related("visit", "visit__patient")
+    
+    for ps in pending_surgeries:
+        if ps.visit and ps.visit.patient_id not in seen:
+            seen.add(ps.visit.patient_id)
+            recent_visits.append(ps.visit)
+
+    # 2. So'ngra oxirgi tashriflarni qo'shamiz
     for v in (Visit.objects.select_related("patient")
               .order_by("-visit_date", "-created_at")[:400]):
         if v.patient_id in seen:
@@ -999,6 +1132,9 @@ def discharge_bed(request, stay_id):
         stay.total_amount = total
         stay.save()
         
+        # Epizod holati O'ZGARTIRILMAYDI — vipiska yozilganda DISCHARGED bo'ladi.
+        # patient_left property InpatientStay.status orqali "Chiqdi" ni ko'rsatadi.
+        
         # Kravatni bo'shatish (faqatgina agar bu kravatda boshqa faol yotish bo'lmasa)
         # Masalan: Bemor javob berildi, lekin hamroh (shu kravatda) hali yotgan bo'lishi mumkin.
         # Yoki hamroh ketdi, lekin bemor shu kravatda yotibdi.
@@ -1023,15 +1159,158 @@ def discharge_bed(request, stay_id):
 from apps.clinical.models import SurgerySchedule, SurgeryType
 from django.utils.dateparse import parse_datetime
 
+def _with_past_reports(surgeries):
+    """Har bir operatsiyaga bemorning oldingi bayonnomalarini biriktiradi.
+
+    HAMMA BAYONNOMA BITTA SO'ROVDA olinadi.
+
+    Har bir operatsiya uchun alohida so'rov yuborilsa, jarrohlik panelida
+    20 ta operatsiya bo'lganda 100 dan ortiq so'rov ketardi — panel esa
+    kun bo'yi ochiq turadi va o'z-o'zidan yangilanadi.
+
+    Shablon `surgery.past_reports` orqali o'qiydi.
+    """
+    natija = list(surgeries)
+    if not natija:
+        return natija
+
+    bemorlar = {s.visit.patient_id for s in natija
+                if s.visit_id and s.visit.patient_id}
+    if not bemorlar:
+        for s in natija:
+            s.past_reports = []
+        return natija
+
+    # Shu bemorlarning BARCHA bayonnomali operatsiyalari — bir marta
+    hammasi = list(
+        SurgerySchedule.objects
+        .filter(visit__patient_id__in=bemorlar, report__isnull=False)
+        .exclude(status="cancelled")
+        .select_related("report", "surgery_type", "surgeon", "visit")
+        .order_by("-scheduled_time")
+    )
+
+    bemor_boyicha = {}
+    for s in hammasi:
+        bemor_boyicha.setdefault(s.visit.patient_id, []).append(s)
+
+    for s in natija:
+        bemor_id = s.visit.patient_id if s.visit_id else None
+        s.past_reports = _reports_from(
+            bemor_boyicha.get(bemor_id, []), skip_pk=s.pk)
+    return natija
+
+
+def _reports_from(schedules, skip_pk=None):
+    """Tayyor ro'yxatdan nusxalanadigan bo'laklarni yig'adi."""
+    natija = []
+    for s in schedules:
+        if skip_pk is not None and s.pk == skip_pk:
+            continue          # o'zidan nusxa olishning ma'nosi yo'q
+        rep = getattr(s, "report", None)
+        if rep is None or getattr(rep, "is_deleted", False):
+            continue
+
+        bloklar = [
+            ("Bemor ahvoli (kelganda)", rep.arrival_condition, "arrival_condition"),
+            ("Nimalar qilindi", rep.performed_actions, "performed_actions"),
+            ("Narkoz", rep.anesthesia, "anesthesia"),
+            ("Yozilgan dorilar", rep.medications, "medications"),
+            ("Qilingan ukollar", rep.injections, "injections"),
+            ("Sarflangan materiallar", rep.consumables, "consumables"),
+            ("Qo'shimcha izohlar", rep.notes, "notes"),
+        ]
+        bloklar = [(n, (m or "").strip(), f)
+                   for n, m, f in bloklar if (m or "").strip()]
+        if not bloklar:
+            continue          # bo'sh bayonnomadan nusxa olib bo'lmaydi
+
+        natija.append({
+            "surgery": s,
+            "sana": s.scheduled_time,
+            "turi": s.surgery_type.name if s.surgery_type_id else "",
+            "usul": s.surgery_type.get_kind_display() if s.surgery_type_id else "",
+            "jarroh": s.surgeon,
+            "bloklar": bloklar,
+        })
+    return natija
+
+
+def past_surgery_reports(surgery):
+    """Bemorning OLDINGI operatsiya bayonnomalari — nusxalash uchun.
+
+    Vipiskadagi «Statsionar hisobotlari» bilan bir xil mantiq: jarroh
+    bayonnomani noldan yozmaydi, oldingisidan tayyor parchani oladi.
+    Ayniqsa takroriy va bir turdagi operatsiyalarda matn deyarli bir xil.
+
+    Bloklarni yig'ish `_reports_from` da — panel uchun ham, bitta
+    operatsiya uchun ham AYNAN SHU funksiya ishlatiladi, aks holda
+    ikkisi bir-biridan ajralib ketardi.
+    """
+    bemor_id = getattr(getattr(surgery, "visit", None), "patient_id", None)
+    if not bemor_id:
+        return []
+
+    schedules = (
+        SurgerySchedule.objects
+        .filter(visit__patient_id=bemor_id)
+        .exclude(status="cancelled")
+        .select_related("report", "surgery_type", "surgeon", "operating_room")
+        .order_by("-scheduled_time")
+    )
+    return _reports_from(schedules, skip_pk=surgery.pk)
+
+
+def _surgery_items_error(schedule, selected) -> str:
+    """Operatsiyani boshlash uchun anjomlar yetarlimi — USULGA QARAB.
+
+    Ochiq va endoskopik operatsiyaning anjomlari butunlay boshqa:
+
+      · OCHIQ — jarrohlik nabori (avtoklavda sterillangan) + belyo yoki
+        boshqa steril anjom;
+      · ENDOSKOPIK — endoskopik anjom (rastvorda tozalanadi, avtoklav
+        uni buzadi) + belyo yoki boshqa steril anjom.
+
+    Bo'sh satr qaytsa — hammasi joyida.
+    """
+    kind = getattr(schedule.surgery_type, "kind", None)
+
+    if kind == SurgeryType.Kind.ENDOSCOPIC:
+        if not selected.filter(item_type=SurgicalItem.Type.ENDO_INSTRUMENT).exists():
+            return ("Endoskopik operatsiyani boshlab bo'lmaydi: kamida bitta "
+                    "ENDOSKOPIK ANJOM tanlanishi shart (u rastvorda "
+                    "tozalanadi — avtoklav uni buzadi).")
+        if not selected.exclude(item_type=SurgicalItem.Type.ENDO_INSTRUMENT).exists():
+            return ("Endoskopik operatsiya uchun belyo yoki boshqa steril "
+                    "anjom ham tanlanishi shart.")
+        return ""
+
+    # Ochiq operatsiya (standart)
+    if not selected.filter(item_type=SurgicalItem.Type.NABOR).exists():
+        return ("Operatsiyani boshlab bo'lmaydi: kamida bitta 'Jarrohlik "
+                "nabori' tanlanishi shart.")
+    if not selected.exclude(item_type=SurgicalItem.Type.NABOR).exists():
+        return ("Operatsiyani boshlab bo'lmaydi: jarrohlik nabori bilan birga "
+                "kamida bitta sterilizatsiyadan o'tgan boshqa uskuna "
+                "tanlanishi shart.")
+    return ""
+
+
 class SurgeryDashboardView(RoleRequiredMixin, TemplateView):
     """Jarrohlik bloki (Operatsiya) oynasi."""
-    allowed_roles = (Role.Code.SURGEON, Role.Code.ADMINISTRATOR, Role.Code.SUPER_ADMIN, Role.Code.ANESTHESIOLOGIST, Role.Code.NURSE, Role.Code.SURGERY_ADMIN)
+    # `NURSE` o'rniga `OPERATING_NURSE` + `WARD_NURSE`: jarrohlik bloki
+    # klinikadagi hamma hamshiraga emas, palata va operatsion
+    # hamshiralarga ochiq.
+    allowed_roles = (Role.Code.SURGEON, Role.Code.ADMINISTRATOR, Role.Code.SUPER_ADMIN, Role.Code.ANESTHESIOLOGIST, Role.Code.OPERATING_NURSE, Role.Code.WARD_NURSE, Role.Code.SURGERY_ADMIN, Role.Code.DOCTOR, Role.Code.CHIEF_DOCTOR)
     template_name = "clinical/surgery_dashboard.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         # Barcha kutilayotgan yoki bugungi operatsiyalar
-        context["surgeries"] = SurgerySchedule.objects.select_related("visit__patient", "surgery_type", "surgeon").order_by("scheduled_time")
+        context["surgeries"] = _with_past_reports(
+            SurgerySchedule.objects
+            .select_related("visit__patient", "surgery_type", "surgeon")
+            .order_by("scheduled_time"))
         context["anesthesia_stocks"] = AnesthesiaStock.objects.filter(is_active=True)
         # Jamoa va xona tanlovlari — umumiy manbadan (surgery_team_context)
         context.update(surgery_team_context())
@@ -1230,24 +1509,28 @@ def update_surgery_status(request, schedule_id):
             if new_status == SurgerySchedule.Status.IN_PROGRESS:
                 item_ids = request.POST.getlist("items")
 
-                # QOIDA: operatsiya boshlash uchun kamida IKKI XIL uskuna
-                # shart — kamida bitta "Jarrohlik nabori" va kamida bitta
-                # sterilizatsiyadan o'tgan boshqa uskuna.
                 selected = SurgicalItem.objects.filter(
                     id__in=item_ids, status=SurgicalItem.Status.READY
                 )
-                has_nabor = selected.filter(item_type=SurgicalItem.Type.NABOR).exists()
-                has_other = selected.exclude(item_type=SurgicalItem.Type.NABOR).exists()
-                if not (has_nabor and has_other):
+
+                # ANJOM QOIDASI OPERATSIYA USULIGA BOG'LIQ.
+                #
+                # HAQIQIY XATO: `SurgeryType.kind` (ochiq / endoskopik)
+                # modelda bor edi, lekin HECH QAYERDA ishlatilmasdi.
+                # Natijada endoskopik operatsiyani ochiq jarrohlik nabori
+                # bilan boshlab yuborish mumkin edi — endoskopik anjom
+                # umuman tanlanmasa ham tizim ruxsat berardi.
+                #
+                # Endi:
+                #   · ochiq       — jarrohlik nabori + boshqa steril anjom;
+                #   · endoskopik  — endoskopik anjom (rastvorda tozalangan)
+                #                   + belyo yoki boshqa steril anjom.
+                xato = _surgery_items_error(schedule, selected)
+                if xato:
                     # Statusni orqaga qaytaramiz — operatsiya boshlanmaydi
                     schedule.status = SurgerySchedule.Status.SCHEDULED
                     schedule.save(update_fields=["status"])
-                    messages.error(
-                        request,
-                        "Operatsiyani boshlab bo'lmaydi: kamida bitta 'Jarrohlik "
-                        "nabori' VA kamida bitta sterilizatsiyadan o'tgan boshqa "
-                        "uskuna tanlanishi shart.",
-                    )
+                    messages.error(request, xato)
                     return redirect(referer)
 
                 if item_ids:
@@ -1512,6 +1795,53 @@ def add_bed(request):
     return redirect("clinical:rooms_settings")
 
 
+@require_POST
+@role_required(Role.Code.ADMINISTRATOR, Role.Code.SUPER_ADMIN)
+def release_bed(request, bed_id):
+    """Kravatni majburan bo'shatish — FAQAT ADMINISTRATOR.
+
+    NIMA UCHUN KERAK: `Bed.is_occupied` yotishlardan alohida saqlanadigan
+    bayroq. U normal holatda faqat bitta joyda — bemorga javob berilganda
+    (`discharge_bed`) — o'chadi. Agar shu zanjir uzilsa (baza tozalandi,
+    yozuv qo'lda o'chirildi, server yarim yo'lda to'xtadi), kravat abadiy
+    «band» bo'lib qoladi va statsionar to'silib qoladi: bemor yo'q, lekin
+    yangi bemorni ham yotqizib bo'lmaydi. Bu holatdan chiqishning yagona
+    yo'li bazaga kirish edi.
+
+    XAVFSIZLIK: agar kravatda HAQIQATDAN faol yotish bo'lsa, bo'shatishga
+    ruxsat berilmaydi. Aks holda bemor tizimda «yotgan» bo'lib turadi-yu,
+    o'rniga boshqasi yotqiziladi va ikkalasi bitta kravatda ko'rinadi.
+    Bunday holatda to'g'ri yo'l — bemorga javob berish.
+    """
+    bed = get_object_or_404(Bed, id=bed_id)
+
+    active = bed.stays.filter(status=InpatientStay.Status.ACTIVE).first()
+    if active is None:
+        active = bed.companion_stays.filter(
+            status=InpatientStay.Status.ACTIVE
+        ).first()
+
+    if active is not None:
+        messages.error(
+            request,
+            f"{bed} bo'shatilmadi — unda bemor yotibdi "
+            f"({active.visit.patient.full_name}). Avval javob bering.",
+        )
+        return redirect("clinical:rooms_settings")
+
+    if not bed.is_occupied:
+        messages.info(request, f"{bed} allaqachon bo'sh.")
+        return redirect("clinical:rooms_settings")
+
+    bed.is_occupied = False
+    bed.save(update_fields=["is_occupied"])
+    messages.success(
+        request,
+        f"{bed} bo'shatildi — endi yangi bemor yotqizish mumkin.",
+    )
+    return redirect("clinical:rooms_settings")
+
+
 @role_required(Role.Code.ADMINISTRATOR, Role.Code.SUPER_ADMIN)
 def service_settings(request):
     """Xizmatlar katalogi: narx, guruh va KIM BAJARISHI.
@@ -1558,9 +1888,20 @@ def service_settings(request):
         "rooms": [[str(r.id), r.name] for r in rooms],
     }
 
+    # OGOHLANTIRISHLAR — jimgina buzilishlarni ko'rsatamiz.
+    # Mas'uli yo'q tekshiruv hech kimning ro'yxatida chiqmaydi va bemor
+    # kutib qoladi; narxi 0 bo'lsa kassa uni bepul deb hisoblaydi.
+    unassigned = [s for s in services
+                  if s.category_id and s.is_active
+                  and s.owner_label == "Biriktirilmagan"]
+    no_price = [s for s in services
+                if s.category_id and s.is_active and (s.price or 0) <= 0]
+
     return render(request, "clinical/service_settings.html", {
         "services": services,
         "grouped": grouped,
+        "unassigned": unassigned,
+        "no_price": no_price,
         "categories": categories,
         "roles": roles,
         "staff": staff,
@@ -1931,6 +2272,58 @@ STAY_DOC_ROLES = (
 )
 
 
+def _stay_clinical_context(stay) -> dict:
+    """Yotishga bog'liq KLINIK yozuvlar: ko'rik matnlari va tashxislar.
+
+    Epizod yotishga ikki yo'l bilan bog'langan bo'lishi mumkin:
+      · `AdmissionEpisode.stay` — kravat berilganda biriktiriladi;
+      · tashrif orqali — eski ma'lumotlarda bog'lanish bo'lmasligi mumkin.
+
+    Ikkalasini ham qaraymiz, aks holda eski yotishlarda hujjat bo'sh
+    chiqadi.
+    """
+    from apps.clinical.models import AdmissionEpisode
+
+    episode = getattr(stay, "episode", None)
+
+    # O'CHIRILGAN EPIZOD HISOBGA OLINMAYDI.
+    #
+    # `stay.episode` teskari bog'lanish soft delete'ni tekshirmaydi —
+    # o'chirilgan epizod ham qaytadi va uning yozuvlari hujjatga chiqib
+    # ketardi.
+    if episode is not None and getattr(episode, "is_deleted", False):
+        episode = None
+
+    if episode is None and stay.visit_id:
+        episode = (AdmissionEpisode.objects
+                   .filter(visit_id=stay.visit_id)
+                   .exclude(status=AdmissionEpisode.Status.CANCELLED)
+                   .order_by("-created_at")
+                   .first())
+
+    if episode is None:
+        return {"episode": None, "episode_diagnoses": [], "episode_bloklar": []}
+
+    bloklar = [
+        ("Murojaat sababi", episode.reason),
+        ("Shikoyatlar", episode.complaints),
+        ("Anamnesis morbi", episode.anamnesis_morbi),
+        ("Anamnesis vitae", episode.anamnesis_vitae),
+        ("Epidemiologik anamnez", episode.epid_anamnesis),
+        ("Status praesens", episode.status_praesens),
+        ("Status localis", episode.status_localis),
+        ("Allergoanamnez", episode.allergo_anamnesis),
+        ("Nevrologik holati", episode.neuro_status),
+        ("Klinik tashxis", episode.clinical_diagnosis),
+    ]
+    return {
+        "episode": episode,
+        "episode_diagnoses": list(episode.diagnoses.select_related("icd")),
+        # Bo'shlari chiqmaydi — hujjatni bekorga cho'zadi
+        "episode_bloklar": [(n, (m or "").strip()) for n, m in bloklar if (m or "").strip()],
+    }
+
+
 @role_required(*STAY_DOC_ROLES)
 def stay_documentation(request, stay_id):
     from apps.clinical.models import OperatingRoom
@@ -1947,12 +2340,24 @@ def stay_documentation(request, stay_id):
         ),
         id=stay_id,
     )
-    # Shifokor tayinlagan xizmatlar (tekshiruvlar) - FAQT statsionarga yotqizilgandan keyingilari
-    service_orders = stay.visit.service_orders.select_related(
-        "service"
-    ).filter(
-        created_at__gte=stay.admission_date
-    ).exclude(status=ServiceOrder.Status.CANCELLED).order_by("created_at")
+    # SHU TASHRIFDAGI BARCHA TEKSHIRUVLAR.
+    #
+    # HAQIQIY XATO: bu yerda `created_at >= admission_date` filtri bor edi,
+    # ya'ni faqat YOTQIZILGANDAN KEYIN tayinlanganlari ko'rinardi.
+    # Amalda esa oqim teskari: shifokor ambulator ko'rikda tekshiruv
+    # buyuradi, natijalar keladi va SHUNDAN KEYIN bemor yotqiziladi.
+    # Natijada aynan yotqizishga asos bo'lgan tahlillar statsionar
+    # hujjatlarida umuman ko'rinmasdi.
+    service_orders = list(
+        stay.visit.service_orders.select_related("service")
+        .prefetch_related("result_rows")
+        .exclude(status=ServiceOrder.Status.CANCELLED)
+        .order_by("created_at")
+    )
+    for o in service_orders:
+        # Qaysi biri yotqizishdan oldin bo'lganini ajratib ko'rsatamiz
+        o.yotishdan_oldin = bool(
+            stay.admission_date and o.created_at < stay.admission_date)
 
     # Rejalashtirilgan operatsiyalar
     surgeries = stay.visit.surgeries.select_related(
@@ -1974,6 +2379,14 @@ def stay_documentation(request, stay_id):
         "surgeries": surgeries,
         "categories": StayChecklistItem.Category.choices,
         "proc_categories": ProcedureRecord.Category.choices,
+        # KLINIK YOZUVLAR — shifokorning dastlabki ko'rigi va tashxislari.
+        #
+        # Ilgari bu sahifa faqat hamshira yozuvlarini ko'rsatardi
+        # (checklist, ukollar, dorilar). Shikoyatlar, anamnez, klinik
+        # tashxis va MKB-10 kodlari epizodda saqlanadi va ular bu yerga
+        # umuman chiqmasdi — holbuki statsionar hujjati aynan shulardan
+        # boshlanadi.
+        **_stay_clinical_context(stay),
     }
     # Rasmiy TOZA hujjat (alohida shablon — imzo rasmi bilan, keraksiz UI'siz)
     if request.GET.get("format") == "word":
@@ -2096,10 +2509,26 @@ def stay_checklist_toggle(request, item_id):
 
         else:
             # Eski fallback: StayChecklistItem
+            #
+            # BU YERDA IKKI XATO BOR EDI (chekinish buzilgan):
+            #
+            #  1) Qulf tekshiruvi `else` dan TASHQARIDA turardi va
+            #     «tekshiruv»/«operatsiya» tarmoqlarida ham ishlab
+            #     ketardi — u yerda `item` umuman yo'q, natijada
+            #     NameError va oq ekran (500).
+            #
+            #  2) Belgilash satrlari `return` dan KEYIN yozilgan edi,
+            #     ya'ni hech qachon bajarilmasdi: hamshira ptechkani
+            #     bosadi, sahifa yangilanadi, belgi esa o'z holicha
+            #     qoladi. Hech qanday xato ham chiqmasdi.
             item = get_object_or_404(StayChecklistItem, id=item_id)
-        if _stay_locked(item.stay, request.user):
-            messages.error(request, "Bemor imzo qo'ygan — hujjat qulflangan.")
-            return redirect("clinical:stay_documentation", stay_id=item.stay_id)
+
+            if _stay_locked(item.stay, request.user):
+                messages.error(request,
+                               "Bemor imzo qo'ygan — hujjat qulflangan.")
+                return redirect("clinical:stay_documentation",
+                                stay_id=item.stay_id)
+
             item.is_done = not item.is_done
             item.done_at = timezone.now() if item.is_done else None
             item.done_by = request.user if item.is_done else None
@@ -2124,10 +2553,25 @@ def stay_procedure_add(request, stay_id):
         if category not in ProcedureRecord.Category.values:
             category = ProcedureRecord.Category.INJECTION
         if name:
-            ProcedureRecord.objects.create(
+            rec = ProcedureRecord.objects.create(
                 stay=stay, nurse=request.user, category=category,
                 name=name, notes=request.POST.get("notes", "").strip(),
             )
+            performed_at = request.POST.get("performed_at")
+            if performed_at:
+                try:
+                    from django.utils.dateparse import parse_datetime
+                    from django.utils.timezone import is_aware, make_aware
+                    
+                    dt = parse_datetime(performed_at)
+                    if dt:
+                        if not is_aware(dt):
+                            dt = make_aware(dt)
+                        rec.performed_at = dt
+                        rec.save(update_fields=["performed_at"])
+                except Exception:
+                    pass
+
             # Hujjatlashtirish hisobotiga ham avtomatik + bo'lib tushadi
             StayChecklistItem.objects.create(
                 stay=stay,
@@ -2528,7 +2972,14 @@ ANESTH_ROLES = _SA + (Role.Code.ANESTHESIOLOGIST,)
 
 # Operatsion hamshira: xona tayyorlash, steril naborlardan FOYDALANISH,
 # ishlatilgan/ishlatilmagan belgilash va qolgan sarf-harajatlar.
-NURSE_ROLES = _SA + (Role.Code.NURSE, Role.Code.WARD_NURSE)
+# OPERATSION BLOK — palata va operatsion hamshiralarga.
+#
+# Palata hamshirasi bemorni operatsiyaga tayyorlaydi, olib boradi va
+# qaytarib oladi — blok unga kerak. Oddiy hamshira esa faqat aniq
+# biriktirilganda kiradi: anestiziska va operatsion hamshiraga
+# «operatsion hamshira» roli qo'shimcha qilib beriladi. Ilgari bu yerda
+# `NURSE` turardi, ya'ni klinikadagi HAMMA hamshira kirardi.
+NURSE_ROLES = _SA + (Role.Code.OPERATING_NURSE, Role.Code.WARD_NURSE)
 
 # Bo'lim hamshirasi: bemorni tayyorlash (1-qadam)
 WARD_NURSE_ROLES = _SA + (Role.Code.WARD_NURSE,)
@@ -2539,7 +2990,8 @@ STERIL_ROLES = _SA + (Role.Code.STERILIZATION,)
 # Tayyorlash (xona + steril naborlarni biriktirish) —
 # bo'lim/operatsion hamshira, avtoklav hamshirasi VA anesteziolog
 PREP_ROLES = _SA + (
-    Role.Code.NURSE, Role.Code.WARD_NURSE, Role.Code.STERILIZATION,
+    Role.Code.NURSE, Role.Code.WARD_NURSE, Role.Code.OPERATING_NURSE,
+    Role.Code.STERILIZATION,
     Role.Code.ANESTHESIOLOGIST,
 )
 
@@ -2647,22 +3099,20 @@ def surgery_dashboard_table(request):
     from django.contrib.auth import get_user_model
     User = get_user_model()
     
-    surgeries = SurgerySchedule.objects.select_related(
+    surgeries = _with_past_reports(SurgerySchedule.objects.select_related(
         "visit__patient", "surgery_type", "surgeon", "assistant",
         "anesthesiologist", "operating_nurse", "operating_room",
-    ).order_by("scheduled_time")
+    ).order_by("scheduled_time"))
 
     context = {
         "surgeries": surgeries,
         "anesthesia_stocks": AnesthesiaStock.objects.filter(is_active=True),
-        # Tahrirlash modali uchun jamoa ro'yxatlari
-        "surgeons": User.objects.filter(role__code=Role.Code.SURGEON, is_active=True).order_by("last_name"),
-        "assistants": User.objects.filter(
-            role__code__in=[Role.Code.SURGEON, Role.Code.DOCTOR, Role.Code.NURSE], is_active=True
-        ).order_by("last_name"),
-        "anesthesiologists": User.objects.filter(
-            role__code=Role.Code.ANESTHESIOLOGIST, is_active=True
-        ).order_by("last_name"),
+        # Tahrirlash modali uchun jamoa ro'yxatlari — bu yerda ham
+        # qo'shimcha rollar hisobga olinishi kerak, aks holda tahrir
+        # oynasi tanlash oynasidan boshqacha ro'yxat ko'rsatib qolardi.
+        **{k: v for k, v in surgery_team_context().items()
+           if k in ("surgeons", "assistants", "anesthesiologists",
+                    "operating_nurses", "ward_nurses", "operating_rooms")},
     }
     context.update(_role_flags(request.user))
     return render(request, "clinical/surgery_dashboard_table.html", context)
@@ -2737,6 +3187,22 @@ def _ready_items_for(surgery):
     return base.filter(linen_q | instr_q).order_by("item_type", "name")
 
 
+def _supply_context(surgery):
+    """Operatsion hamshiraning asosiy ombor zayavkasi.
+
+    Ombordagi mahsulotlar ro'yxati ham shu yerdan beriladi — oynada
+    alohida so'ralsa, ikki joyda ikki xil filtr paydo bo'lardi.
+    """
+    from apps.clinical.models import SurgerySupplyRequest
+
+    zayavka = getattr(surgery, "supply_request", None)
+    return {
+        "supply_request": zayavka,
+        "supply_items": (zayavka.items.select_related("stock")
+                         if zayavka else []),
+    }
+
+
 def _surgery_process_context(surgery, user=None):
     """Jarayon sahifasi uchun umumiy kontekst."""
     from apps.clinical.models import RoomLeftover
@@ -2773,6 +3239,8 @@ def _surgery_process_context(surgery, user=None):
                           - surgery.anesthesia_expense_total
                           - surgery.nurse_expense_total,
         "room_leftovers": room_leftovers,
+        # OPERATSION HAMSHIRA ZAYAVKASI (asosiy ombor)
+        **_supply_context(surgery),
     }
     if user is not None:
         ctx.update(_role_flags(user))
@@ -2877,39 +3345,42 @@ def surgery_patient_prep(request, schedule_id):
     return redirect("clinical:surgery_process", schedule_id=surgery.id)
 
 
-@role_required(*SURGEON_ROLES)
+@role_required(*(SURGEON_ROLES + ANESTH_ROLES))
 def surgery_start_operation(request, schedule_id):
     """4-qadamga o'tish: operatsiyani boshlash (protokol yuritila boshlaydi)."""
     surgery = get_object_or_404(SurgerySchedule, id=schedule_id)
     if request.method == "POST":
-        if not surgery.patient_prepared:
-            messages.error(request, "Avval bemor tayyorlanishi kerak (1-qadam: Bo'lim hamshirasi).")
-            return redirect("clinical:surgery_process", schedule_id=surgery.id)
-        if not surgery.anesthesia_exam_at:
-            messages.error(request, "Avval anesteziologik ko'rik o'tkazilishi kerak (2-qadam).")
-            return redirect("clinical:surgery_process", schedule_id=surgery.id)
-        if not surgery.room_prepared:
-            messages.error(request, "Avval operatsion xona tayyorlanishi kerak (3-qadam).")
-        req = getattr(surgery, "anesthesia_request", None)
-        if req is None or req.status != AnesthesiaRequest.Status.SENT:
-            messages.error(
-                request,
-                "Anesteziolog materiallarni «Yuborildi» deb belgilamaguncha "
-                "operatsiyani boshlab bo'lmaydi.",
-            )
-            return redirect("clinical:surgery_process", schedule_id=surgery.id)
-        # QOIDA: BELYO (material biks) HAR QANDAY operatsiyada MAJBURIY.
-        # Steril belyo biriktirilmagan bo'lsa operatsiya boshlanmaydi.
-        has_linen = surgery.items_used.filter(
-            item_type=SurgicalItem.Type.LINEN
-        ).exists()
-        if not has_linen:
-            messages.error(
-                request,
-                "Steril BELYO (material biks) biriktirilmagan — belyo har "
-                "qanday operatsiyada majburiy. 2-qadamda belyoni tanlang.",
-            )
-            return redirect("clinical:surgery_process", schedule_id=surgery.id)
+        # Foydalanuvchi talabiga asosan qat'iy validatsiyalar olib tashlandi.
+        # if not surgery.patient_prepared:
+        #     messages.error(request, "Avval bemor tayyorlanishi kerak (1-qadam: Bo'lim hamshirasi).")
+        #     return redirect("clinical:surgery_process", schedule_id=surgery.id)
+        # if not surgery.anesthesia_exam_at:
+        #     messages.error(request, "Avval anesteziologik ko'rik o'tkazilishi kerak (2-qadam).")
+        #     return redirect("clinical:surgery_process", schedule_id=surgery.id)
+        # if not surgery.room_prepared:
+        #     messages.error(request, "Avval operatsion xona tayyorlanishi kerak (3-qadam).")
+        #     return redirect("clinical:surgery_process", schedule_id=surgery.id)
+        # 
+        # req = getattr(surgery, "anesthesia_request", None)
+        # if req is None or req.status != AnesthesiaRequest.Status.SENT:
+        #     messages.error(
+        #         request,
+        #         "Anesteziolog materiallarni «Yuborildi» deb belgilamaguncha "
+        #         "operatsiyani boshlab bo'lmaydi.",
+        #     )
+        #     return redirect("clinical:surgery_process", schedule_id=surgery.id)
+        # 
+        # has_linen = surgery.items_used.filter(
+        #     item_type=SurgicalItem.Type.LINEN
+        # ).exists()
+        # if not has_linen:
+        #     messages.error(
+        #         request,
+        #         "Steril BELYO (material biks) biriktirilmagan — belyo har "
+        #         "qanday operatsiyada majburiy. 2-qadamda belyoni tanlang.",
+        #     )
+        #     return redirect("clinical:surgery_process", schedule_id=surgery.id)
+        
         surgery.stage = SurgerySchedule.Stage.OPERATING
         surgery.status = SurgerySchedule.Status.IN_PROGRESS
         surgery.started_at = timezone.now()
@@ -2923,21 +3394,8 @@ def surgery_finish_operation(request, schedule_id):
     """Operatsiyani yakunlash — asboblar ifloslangan holatga o'tadi."""
     surgery = get_object_or_404(SurgerySchedule, id=schedule_id)
     if request.method == "POST":
-        if not surgery.patient_prepared:
-            messages.error(request, "Operatsiyani yakunlashdan oldin 1-qadam (Bemorni tayyorlash) yakunlangan bo'lishi kerak.")
-            return redirect("clinical:surgery_process", schedule_id=surgery.id)
-
-        if not surgery.anesthesia_exam_at:
-            messages.error(request, "Operatsiyani yakunlashdan oldin 2-qadam (Anesteziologik ko'rik) yakunlangan bo'lishi kerak.")
-            return redirect("clinical:surgery_process", schedule_id=surgery.id)
-            
-        if not surgery.room_prepared:
-            messages.error(request, "Operatsiyani yakunlashdan oldin 3-qadam (Operatsiyaga tayyorlash) yakunlangan bo'lishi kerak.")
-            return redirect("clinical:surgery_process", schedule_id=surgery.id)
-            
-        if not surgery.vitals.exists():
-            messages.error(request, "Operatsiyani yakunlashdan oldin 4-qadam (Intraoperatsion protokol) bo'yicha kamida bitta yozuv kiritilgan bo'lishi kerak.")
-            return redirect("clinical:surgery_process", schedule_id=surgery.id)
+        # Foydalanuvchi talabiga asosan qat'iy validatsiyalar olib tashlandi
+        # (surgery_start_operation bilan bir xil)
             
         surgery.stage = SurgerySchedule.Stage.FINISHED
         surgery.status = SurgerySchedule.Status.COMPLETED
@@ -3491,7 +3949,7 @@ def delete_operating_room(request, room_id):
 @role_required(Role.Code.ANESTHESIOLOGIST, Role.Code.SUPER_ADMIN, Role.Code.ADMINISTRATOR)
 def anesthesia_stock_page(request):
     """Anesteziolog ombori: qoldiqlar + qo'shish/tahrirlash + yuborilgan zayavkalar bildirgisi."""
-    from apps.clinical.models import AnesthesiaRequest
+    from apps.clinical.models import AnesthesiaRequest, SurgerySupplyRequest
     stocks = AnesthesiaStock.objects.prefetch_related("packages").order_by("name")
     # Excel eksport
     if request.GET.get("format") == "excel":
@@ -3518,6 +3976,17 @@ def anesthesia_stock_page(request):
         status=AnesthesiaRequest.Status.SENT, sent_at__date=today
     ).count()
     
+    # HAMSHIRA ZAYAVKALARI (Operatsion hamshira so'ragan materiallar)
+    nurse_requests = (
+        SurgerySupplyRequest.objects.filter(status=SurgerySupplyRequest.Status.SENT)
+        .select_related("surgery__visit__patient", "requested_by")
+        .prefetch_related("items__stock")
+        .order_by("-created_at")[:25]
+    )
+    nurse_sent_today = SurgerySupplyRequest.objects.filter(
+        status=SurgerySupplyRequest.Status.SENT, created_at__date=today
+    ).count()
+    
     from apps.pharmacy.models import MeasurementUnit
     measurement_units = MeasurementUnit.objects.all().order_by('name')
     return render(request, "clinical/anesthesia_stock.html", {
@@ -3526,6 +3995,8 @@ def anesthesia_stock_page(request):
         "low_stock": low,
         "sent_requests": sent_requests,
         "sent_today": sent_today,
+        "nurse_requests": nurse_requests,
+        "nurse_sent_today": nurse_sent_today,
     })
 
 
@@ -3541,7 +4012,6 @@ def anesthesia_stock_add(request):
         if AnesthesiaStock.all_objects.filter(name__iexact=name).exists():
             messages.error(request, f"'{name}' allaqachon omborda bor — miqdorini tahrirlang.")
             return redirect("clinical:anesthesia_stock_page")
-        from apps.clinical.models import AnesthesiaStockPackage
         def _dec(key, default="0"):
             try:
                 return Decimal(request.POST.get(key) or default)
@@ -3557,21 +4027,9 @@ def anesthesia_stock_add(request):
             is_psychotropic=request.POST.get("is_psychotropic") == "1",
         )
         
-        # Handle multiple packages
-        pkg_names = request.POST.getlist("package_name[]")
-        pkg_sizes = request.POST.getlist("package_size[]")
-        
-        for i in range(len(pkg_sizes)):
-            try:
-                p_size = Decimal(pkg_sizes[i])
-                p_name = pkg_names[i].strip() if i < len(pkg_names) else "O'ram"
-                if p_size > 0 and p_name:
-                    AnesthesiaStockPackage.objects.create(
-                        stock=stock, name=p_name, quantity_in_base_unit=p_size
-                    )
-            except (InvalidOperation, ValueError, IndexError):
-                pass
-                
+        # QADOQ (blok/karobka) YARATILMAYDI — qoldiq faqat asosiy
+        # birlikda yuritiladi.
+
         messages.success(request, f"'{name}' omborga qo'shildi (boshlang'ich: {qty} {unit}).")
     return redirect("clinical:anesthesia_stock_page")
 
@@ -3581,7 +4039,6 @@ def anesthesia_stock_edit(request, stock_id):
     """Ombor mahsulotini tahrirlash: kirim qo'shish, narx, faollik."""
     if request.method == "POST":
         from decimal import Decimal, InvalidOperation
-        from apps.clinical.models import AnesthesiaStockPackage
         stock = get_object_or_404(AnesthesiaStock, id=stock_id)
         try:
             add_qty = Decimal(request.POST.get("add_quantity") or "0")
@@ -3590,65 +4047,28 @@ def anesthesia_stock_edit(request, stock_id):
             messages.error(request, "Miqdor/narx noto'g'ri.")
             return redirect("clinical:anesthesia_stock_page")
 
-        # KIRIM QADOQ orqali: "nechta karobka" × (1 karobkadagi soni) = asosiy birlikda qo'shiladi
-        pkg_id = request.POST.get("add_package_id")
-        pkg_note = ""
-        if pkg_id:
-            pkg = AnesthesiaStockPackage.objects.filter(id=pkg_id, stock=stock).first()
-            try:
-                pkg_count = Decimal(request.POST.get("add_package_count") or "0")
-            except InvalidOperation:
-                pkg_count = Decimal("0")
-            if pkg and pkg_count > 0:
-                converted = pkg_count * pkg.quantity_in_base_unit
-                add_qty += converted
-                pkg_note = f" ({pkg_count} × {pkg.name} = {converted} {stock.unit})"
-
+        # KIRIM FAQAT ASOSIY BIRLIKDA.
+        #
+        # Ilgari «nechta karobka» tanlanib, u ampulaga ko'paytirilardi.
+        # Karobka o'lchami noto'g'ri kiritilsa butun qoldiq buzilardi, bir
+        # dori turli o'ramlarda kelganda esa hisob chalkashardi.
+        # Anesteziolog nechta ampula kelganini o'zi sanab yozadi.
         if add_qty:
             stock.quantity = (stock.quantity or 0) + add_qty
         stock.selling_price = price
         stock.is_active = request.POST.get("is_active") == "1"
         stock.is_psychotropic = request.POST.get("is_psychotropic") == "1"
         stock.save(update_fields=["quantity", "selling_price", "is_active", "is_psychotropic"])
-        messages.success(request, f"'{stock.name}' yangilandi (qoldiq: {stock.quantity} {stock.unit}){pkg_note}.")
+        messages.success(request, f"'{stock.name}' yangilandi (qoldiq: {stock.quantity} {stock.unit}).")
     return redirect("clinical:anesthesia_stock_page")
 
 
-@role_required(Role.Code.ANESTHESIOLOGIST, Role.Code.SUPER_ADMIN, Role.Code.ADMINISTRATOR)
-def anesthesia_stock_package_add(request, stock_id):
-    """Ombor mahsulotiga qadoq (Blok, Pochka) qo'shish."""
-    from apps.clinical.models import AnesthesiaStockPackage
-    if request.method == "POST":
-        from decimal import Decimal, InvalidOperation
-        stock = get_object_or_404(AnesthesiaStock, id=stock_id)
-        pkg_name = (request.POST.get("package_name") or "").strip()
-        if not pkg_name:
-            messages.error(request, "Qadoq nomi kiritilmadi.")
-            return redirect("clinical:anesthesia_stock_page")
-        try:
-            qty_in_base = Decimal(request.POST.get("quantity_in_base_unit") or "1")
-        except InvalidOperation:
-            messages.error(request, "Ichidagi soni noto'g'ri.")
-            return redirect("clinical:anesthesia_stock_page")
-        if qty_in_base <= 0:
-            messages.error(request, "Ichidagi son 0 dan katta bo'lishi kerak.")
-            return redirect("clinical:anesthesia_stock_page")
-        AnesthesiaStockPackage.objects.create(
-            stock=stock, name=pkg_name, quantity_in_base_unit=qty_in_base,
-        )
-        messages.success(request, f"'{pkg_name}' (= {qty_in_base} {stock.unit}) qadog'i qo'shildi.")
-    return redirect("clinical:anesthesia_stock_page")
-
-
-@role_required(Role.Code.ANESTHESIOLOGIST, Role.Code.SUPER_ADMIN, Role.Code.ADMINISTRATOR)
-def anesthesia_stock_package_delete(request, package_id):
-    """Ombor mahsulotining qadog'ini o'chirish."""
-    from apps.clinical.models import AnesthesiaStockPackage
-    if request.method == "POST":
-        pkg = get_object_or_404(AnesthesiaStockPackage, id=package_id)
-        pkg.delete()
-        messages.success(request, "Qadoq o'chirildi.")
-    return redirect("clinical:anesthesia_stock_page")
+# QADOQ (blok/pochka) BOSHQARUVI OLIB TASHLANDI.
+#
+# «1 blok = 50 ampula» iyerarxiyasi hisobni chalkashtirardi: anesteziologga
+# nechta ampula borligi kerak, blokni bo'lib hisoblash emas. Ustiga-ustak
+# blok o'lchami keyin o'zgartirilsa, eski qoldiqlar boshqacha ko'rinib
+# qolardi. Endi qoldiq faqat mahsulotning o'z birligida yuritiladi.
 
 
 # ==========================================================================
@@ -3848,3 +4268,207 @@ class VisitResultsPrintView(RoleRequiredMixin, TemplateView):
         ctx["single"] = False
         ctx["printed_at"] = timezone.now()
         return ctx
+
+@role_required(
+    Role.Code.ADMINISTRATOR, Role.Code.RECEPTION, Role.Code.DIRECTOR,
+    Role.Code.CHIEF_DOCTOR, Role.Code.DOCTOR, Role.Code.SURGEON,
+    Role.Code.NURSE, Role.Code.WARD_NURSE, Role.Code.ANESTHESIOLOGIST
+)
+def inpatient_archive(request):
+    """Statsionardan chiqarilgan bemorlar tarixi"""
+    from apps.clinical.models import InpatientStay
+    stays = InpatientStay.objects.filter(status=InpatientStay.Status.DISCHARGED).select_related(
+        "visit__patient", "bed__room", "assigned_doctor", "doc_nurse", "procedure_nurse"
+    ).order_by('-discharge_date')[:100]
+    return render(request, "clinical/inpatient_archive.html", {"stays": stays})
+
+
+# ==========================================================================
+# OPERATSION HAMSHIRA -> ANESTEZIOLOG OMBORIGA ZAYAVKA
+#
+# Ombor bitta, lekin so'rovchi va mahsulot turi boshqa: anesteziolog
+# psixotrop dorilarni so'raydi, operatsion hamshira esa oddiy
+# sarf-materialni (shprits, bint, doka). Ilgari hamshirada so'rashning
+# yo'li yo'q edi — u anesteziolog zayavkasidan yozardi va server
+# «psixotrop emas» deb rad etardi.
+# ==========================================================================
+
+SUPPLY_NURSE_ROLES = _SA + (
+    Role.Code.OPERATING_NURSE, Role.Code.WARD_NURSE,
+    Role.Code.SURGERY_ADMIN, Role.Code.SURGEON,
+)
+# Zayavkani ANESTEZIOLOG beradi — ombor uniki.
+SUPPLY_WAREHOUSE_ROLES = _SA + (
+    Role.Code.ANESTHESIOLOGIST, Role.Code.WAREHOUSE, Role.Code.ADMINISTRATOR,
+)
+
+
+def _supply_qty(raw, default="1"):
+    from decimal import Decimal
+    try:
+        qty = Decimal(str(raw or default).replace(",", "."))
+    except Exception:
+        return None
+    return qty if qty > 0 else None
+
+
+@role_required(*SUPPLY_NURSE_ROLES)
+@require_POST
+def supply_request_add_item(request, schedule_id):
+    """Zayavkaga ombordagi mahsulot qo'shish."""
+    from apps.clinical.models import SurgerySupplyItem, SurgerySupplyRequest
+
+    surgery = get_object_or_404(SurgerySchedule, id=schedule_id)
+    zayavka, _ = SurgerySupplyRequest.objects.get_or_create(
+        surgery=surgery, defaults={"requested_by": request.user})
+
+    if not zayavka.is_editable:
+        messages.error(request, "Zayavka omborga yuborilgan — o'zgartirib bo'lmaydi.")
+        return redirect("clinical:surgery_process", schedule_id=surgery.id)
+
+    dori = AnesthesiaStock.objects.filter(
+        pk=request.POST.get("stock_id"), is_active=True).first()
+    if dori is None:
+        messages.error(request, "Ombordan mahsulot tanlanmadi.")
+        return redirect("clinical:surgery_process", schedule_id=surgery.id)
+
+    # PSIXOTROPNI HAMSHIRA SO'RAMAYDI.
+    #
+    # Ular qat'iy hisobda va faqat anesteziolog zayavka qiladi. Aks
+    # holda bitta dori ikki xil yo'ldan yechilib, hisob buzilardi.
+    if dori.is_psychotropic:
+        messages.error(
+            request,
+            f"{dori.name} — psixotrop dori. Uni faqat anesteziolog "
+            f"zayavka qiladi.")
+        return redirect("clinical:surgery_process", schedule_id=surgery.id)
+
+    qty = _supply_qty(request.POST.get("quantity"))
+    if qty is None:
+        messages.error(request, "Soni musbat son bo'lishi kerak.")
+        return redirect("clinical:surgery_process", schedule_id=surgery.id)
+
+    # Bir mahsulot ikki qator bo'lib ketmasin — ombor ro'yxatni o'qiydi.
+    qator = zayavka.items.filter(stock=dori).first()
+    if qator:
+        qator.quantity = qator.quantity + qty
+        qator.save(update_fields=["quantity", "updated_at"])
+    else:
+        SurgerySupplyItem.objects.create(
+            request=zayavka, stock=dori, quantity=qty,
+            note=(request.POST.get("note") or "").strip()[:200])
+
+    messages.success(request, f"{dori.name} × {qty} zayavkaga qo'shildi.")
+    return redirect("clinical:surgery_process", schedule_id=surgery.id)
+
+
+@role_required(*SUPPLY_NURSE_ROLES)
+@require_POST
+def supply_request_remove_item(request, item_id):
+    from apps.clinical.models import SurgerySupplyItem
+
+    qator = get_object_or_404(
+        SurgerySupplyItem.objects.select_related("request__surgery"), pk=item_id)
+    surgery_id = qator.request.surgery_id
+    if not qator.request.is_editable:
+        messages.error(request, "Zayavka yuborilgan — qator o'chirilmaydi.")
+    else:
+        qator.delete()
+        messages.success(request, "Qator o'chirildi.")
+    return redirect("clinical:surgery_process", schedule_id=surgery_id)
+
+
+@role_required(*SUPPLY_NURSE_ROLES)
+@require_POST
+def supply_request_send(request, schedule_id):
+    """Zayavkani omborga yuborish."""
+    from apps.clinical.models import SurgerySupplyRequest
+
+    surgery = get_object_or_404(SurgerySchedule, id=schedule_id)
+    zayavka = get_object_or_404(SurgerySupplyRequest, surgery=surgery)
+
+    if not zayavka.is_editable:
+        messages.info(request, "Zayavka allaqachon yuborilgan.")
+    elif not zayavka.items.exists():
+        # Bo'sh zayavka omborda «nima kerak edi?» degan savol tug'diradi.
+        messages.error(request, "Zayavka bo'sh — avval mahsulot qo'shing.")
+    else:
+        zayavka.status = SurgerySupplyRequest.Status.SENT
+        zayavka.sent_at = timezone.now()
+        zayavka.requested_by = zayavka.requested_by or request.user
+        zayavka.save(update_fields=["status", "sent_at", "requested_by",
+                                    "updated_at"])
+        messages.success(request, "Zayavka omborga yuborildi.")
+    return redirect("clinical:surgery_process", schedule_id=surgery.id)
+
+
+@role_required(*SUPPLY_WAREHOUSE_ROLES)
+@require_POST
+def supply_request_issue(request, pk):
+    """Ombor zayavkani berdi deb belgilaydi.
+
+    Har qator uchun berilgan miqdor alohida kiritiladi: omborda
+    so'ralgan narsaning hammasi bo'lmasligi mumkin va zayavkani
+    «to'liq bajarildi» deb yozib qo'yish haqiqatni yashiradi.
+    """
+    from apps.clinical.models import SurgerySupplyRequest
+
+    zayavka = get_object_or_404(
+        SurgerySupplyRequest.objects.prefetch_related("items"), pk=pk)
+
+    if zayavka.status != SurgerySupplyRequest.Status.SENT:
+        messages.error(request, "Faqat yuborilgan zayavkani berish mumkin.")
+        return redirect("clinical:supply_requests")
+
+    for qator in zayavka.items.all():
+        xom = request.POST.get(f"issued_{qator.pk}")
+        berilgan = _supply_qty(xom, default="0")
+        qator.issued_quantity = berilgan if berilgan is not None else qator.quantity
+        qator.save(update_fields=["issued_quantity", "updated_at"])
+
+    zayavka.status = SurgerySupplyRequest.Status.ISSUED
+    zayavka.issued_by = request.user
+    zayavka.issued_at = timezone.now()
+    zayavka.save(update_fields=["status", "issued_by", "issued_at", "updated_at"])
+    messages.success(request, "Zayavka berildi deb belgilandi.")
+    return redirect("clinical:supply_requests")
+
+
+@role_required(*SUPPLY_WAREHOUSE_ROLES)
+@require_POST
+def supply_request_reject(request, pk):
+    from apps.clinical.models import SurgerySupplyRequest
+
+    zayavka = get_object_or_404(SurgerySupplyRequest, pk=pk)
+    if zayavka.status != SurgerySupplyRequest.Status.SENT:
+        messages.error(request, "Faqat yuborilgan zayavkani rad etish mumkin.")
+    else:
+        zayavka.status = SurgerySupplyRequest.Status.REJECTED
+        zayavka.notes = (request.POST.get("reason") or "").strip()[:500]
+        zayavka.save(update_fields=["status", "notes", "updated_at"])
+        messages.success(request, "Zayavka rad etildi.")
+    return redirect("clinical:supply_requests")
+
+
+@role_required(*(SUPPLY_WAREHOUSE_ROLES + SUPPLY_NURSE_ROLES))
+def supply_requests(request):
+    """Ombor uchun operatsion zayavkalar ro'yxati."""
+    from apps.clinical.models import SurgerySupplyRequest
+
+    qs = (SurgerySupplyRequest.objects
+          .select_related("surgery__visit__patient", "surgery__surgery_type",
+                          "requested_by", "issued_by")
+          .prefetch_related("items__stock")
+          .order_by("-created_at"))
+
+    holat = request.GET.get("status") or ""
+    if holat:
+        qs = qs.filter(status=holat)
+
+    return render(request, "clinical/supply_requests.html", {
+        "requests": qs,
+        "current_status": holat,
+        "statuses": SurgerySupplyRequest.Status.choices,
+        "can_issue": (request.user.is_superuser
+                      or request.user.has_role(*SUPPLY_WAREHOUSE_ROLES)),
+    })

@@ -20,7 +20,7 @@
     <div class="card-body">
         <input type="search" name="q" value="{{ request.GET.q }}"
                class="form-control mb-3"
-               placeholder="FIO, karta, telefon, JSHSHIR yoki pasport bo'yicha qidiring..."
+               placeholder="FIO, karta, telefon, JSHSHIR, pasport yoki metrika bo'yicha qidiring..."
                hx-get="{% url 'patients:list' %}"
                hx-trigger="input changed delay:400ms, search"
                hx-target="#patient-table"

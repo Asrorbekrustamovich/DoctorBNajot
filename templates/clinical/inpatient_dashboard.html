@@ -6,6 +6,11 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1 class="h3"><i class="bi bi-hospital"></i> Palatalar holati</h1>
+    <div>
+        <a href="{% url 'clinical:inpatient_archive' %}" class="btn btn-secondary">
+            <i class="bi bi-archive"></i> Bemorlar tarixi (Chiqarilganlar)
+        </a>
+    </div>
 </div>
 
 <div class="row g-4">
@@ -76,12 +81,12 @@
                                                     </button>
                                                 </div>
                                                 {% endif %}
-                                                {% if user.is_superuser or user.role.code == 'administrator' or user.role.code == 'chief_doctor' or user.role.code == 'surgeon' or user == stay.doc_nurse or user == stay.procedure_nurse or user == stay.assigned_doctor %}
+                                                {% if user.is_superuser or 'administrator' in user.role_codes or 'chief_doctor' in user.role_codes or 'surgeon' in user.role_codes or user == stay.doc_nurse or user == stay.procedure_nurse or user == stay.assigned_doctor %}
                                                 <a href="{% url 'clinical:stay_documentation' stay.id %}" class="btn btn-sm btn-outline-primary">
                                                     <i class="bi bi-journal-medical"></i> Hujjatlar / Hisobot
                                                 </a>
                                                 {% endif %}
-                                                {% if user.is_superuser or user.role.code == 'administrator' or user.role.code == 'chief_doctor' or user == stay.assigned_doctor %}
+                                                {% if user.is_superuser or 'administrator' in user.role_codes or 'chief_doctor' in user.role_codes or user == stay.assigned_doctor %}
                                                 <form method="post" action="{% url 'clinical:discharge_bed' stay.id %}">
                                                     {% csrf_token %}
                                                     <button type="submit" class="btn btn-sm btn-outline-danger w-100" onclick="return confirm('Rostdan ham javob berasizmi?');">
@@ -182,7 +187,7 @@
                                     <span class="badge bg-success mb-2">Bo'sh</span>
                                     <p class="mb-1 text-muted small">Oddiy: {{ bed.price_per_day }} so'm/kun</p>
                                     <p class="mb-2 text-muted small">Paketli (dori ichida): {{ bed.package_price_per_day }} so'm/kun</p>
-                                      {% if user.is_superuser or user.role.code in 'administrator,reception,nurse,ward_nurse,chief_doctor' %}
+                                      {% if user.is_superuser or "administrator" in user.role_codes or "reception" in user.role_codes or "nurse" in user.role_codes or "ward_nurse" in user.role_codes or "chief_doctor" in user.role_codes %}
                                       <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#assignModal" hx-get="{% url 'clinical:assign_bed' bed.id %}" hx-target="#assignModalBody">
                                           <i class="bi bi-person-plus"></i> Joylashtirish
                                       </button>
