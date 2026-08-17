@@ -1151,8 +1151,8 @@ class AnesthesiaStock(Auditable, BaseModel):
     )
 
     class Meta:
-        verbose_name = "Anesteziolog ombori (mahsulot)"
-        verbose_name_plural = "Anesteziolog ombori"
+        verbose_name = "Umumiy ombor (mahsulot)"
+        verbose_name_plural = "Umumiy ombor"
         ordering = ["name"]
 
     def __str__(self):
@@ -1333,7 +1333,7 @@ class SurgerySupplyItem(Auditable, BaseModel):
     stock = models.ForeignKey(
         "AnesthesiaStock", on_delete=models.PROTECT,
         related_name="surgery_supply_items",
-        verbose_name="Anesteziolog omboridagi material",
+        verbose_name="Umumiy ombordagi material",
     )
     quantity = models.DecimalField("So'ralgan soni", max_digits=12,
                                    decimal_places=2, default=1)
@@ -1359,7 +1359,7 @@ class NurseUsageItem(Auditable, BaseModel):
     )
     stock = models.ForeignKey(
         'AnesthesiaStock', on_delete=models.PROTECT, related_name="nurse_usages",
-        verbose_name="Anesteziolog omboridan anjom", null=True
+        verbose_name="Umumiy ombordan anjom", null=True
     )
     quantity = models.DecimalField("Soni", max_digits=12, decimal_places=2, default=1)
     price = models.DecimalField("Narxi (birlik, sotish)", max_digits=12, decimal_places=2, default=0)
@@ -1396,7 +1396,7 @@ class NurseUsageItem(Auditable, BaseModel):
 
 
 class AnesthesiaStockPackage(Auditable, BaseModel):
-    """Anesteziolog ombori uchun qadoq iyerarxiyasi.
+    """Umumiy ombor uchun qadoq iyerarxiyasi.
 
     Masalan: 1 Blok = 50 Ampula, 1 Pochka = 10 Ampula.
     Asosiy birlik AnesthesiaStock.unit da saqlanadi.
@@ -1412,8 +1412,8 @@ class AnesthesiaStockPackage(Auditable, BaseModel):
     )
 
     class Meta:
-        verbose_name = "Anesteziolog ombori qadog'i"
-        verbose_name_plural = "Anesteziolog ombori qadoqlari"
+        verbose_name = "Umumiy ombor qadog'i"
+        verbose_name_plural = "Umumiy ombor qadoqlari"
         ordering = ["-quantity_in_base_unit"]
 
     def __str__(self):
@@ -1599,6 +1599,12 @@ class AdmissionEpisode(Auditable, LockableMixin, BaseModel):
         """Operatsiya uchun yotqizilsa, istoriyaga anesteziolog qo'shiladi."""
         return self.purpose == self.Purpose.SURGERY
 
+    def can_modify(self, user) -> bool:
+        """Shifokor (referred_by) har doim tahrirlay oladi."""
+        if super().can_modify(user):
+            return True
+        return self.referred_by == user
+
     @property
     def is_open(self) -> bool:
         return self.status in (self.Status.DRAFT, self.Status.SENT, self.Status.ADMITTED)
@@ -1781,6 +1787,12 @@ class DischargeSummary(Auditable, LockableMixin, BaseModel):
 
     def __str__(self) -> str:
         return f"Vipiska — {self.episode.patient.full_name} ({self.discharged_at:%d.%m.%Y})"
+
+    def can_modify(self, user) -> bool:
+        """Shifokor (epizodni ochgan) har doim tahrirlay oladi."""
+        if super().can_modify(user):
+            return True
+        return self.episode.referred_by == user
 
     @property
     def admitted_at(self):

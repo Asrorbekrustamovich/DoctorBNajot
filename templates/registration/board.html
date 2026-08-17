@@ -155,8 +155,10 @@ function buildPhrase(call) {
 
     if (call.room) {
         phrase += "Iltimos, " + roomPhrase(call.room) + ".";
+    } else if (call.specialty) {
+        phrase += "Iltimos, " + call.specialty + " qabuliga o'ting.";
     } else if (call.doctor) {
-        phrase += "Sizni " + call.doctor + " kutmoqda.";
+        phrase += "Iltimos, shifokor qabuliga o'ting.";
     } else {
         phrase += "Iltimos, qabulxonaga o'ting.";
     }

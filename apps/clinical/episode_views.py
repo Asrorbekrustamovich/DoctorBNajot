@@ -129,7 +129,8 @@ def _past_episode_reports(episode):
                 ("Allergoanamnez", ep.allergo_anamnesis),
                 ("Klinik tashxis", ep.clinical_diagnosis),
             ]
-        if vip is not None:
+        # Joriy epizodning vipiskasi bloklarga qo'shilmaydi (chunki u yozilmoqda)
+        if vip is not None and (ep is None or ep.pk != episode.pk):
             bloklar += [
                 ("O'tkazilgan davolash", vip.treatment_given),
                 ("Operatsiya bayoni", vip.surgery_text),
@@ -236,13 +237,23 @@ def _past_episode_reports(episode):
 
     # --- 1) EPIZODLAR
     for ep in (epizodlar
-               .select_related("discharge", "referred_by", "stay__bed__room")
+               .select_related("discharge", "referred_by", "stay__bed__room", "stay__doc_nurse", "stay__procedure_nurse")
                .prefetch_related("diagnoses__icd")
                .order_by("-created_at")):
         vip = getattr(ep, "discharge", None)
         stay = ep.stay
         if stay is not None:
             korilgan_stay.add(stay.pk)
+
+        # Oldingi epizodning operatsiyalari (vipiska templateda ko'rsatish uchun)
+        ep_surgeries = []
+        if ep.visit_id and hasattr(ep.visit, 'surgeries'):
+            ep_surgeries = list(
+                ep.visit.surgeries
+                .select_related('surgery_type', 'surgeon', 'report')
+                .exclude(status='cancelled')
+                .order_by('scheduled_time')
+            )
 
         natija.append({
             "episode": ep,
@@ -252,6 +263,8 @@ def _past_episode_reports(episode):
             "bolim": ep.department or (stay.bed.room.name if stay else ""),
             "kravat": str(stay.bed) if stay else "",
             "shifokor": ep.referred_by,
+            "doc_nurse": stay.doc_nurse if stay else None,
+            "procedure_nurse": stay.procedure_nurse if stay else None,
             "sabab": ep.reason,
             "maqsad": ep.get_purpose_display(),
             "kunlar": vip.bed_days if vip else (stay.total_days if stay else None),
@@ -261,6 +274,7 @@ def _past_episode_reports(episode):
             "print_pk": ep.pk if vip else None,
             # Shu yotishning o'zi — ro'yxatda ajratib ko'rsatiladi
             "joriy": ep.pk == episode.pk,
+            "past_surgeries": ep_surgeries,
         })
 
     # --- 2) EPIZODSIZ YOTISHLAR
@@ -273,8 +287,18 @@ def _past_episode_reports(episode):
                  .filter(visit__patient=episode.patient)
                  .exclude(pk__in=korilgan_stay)
                  .exclude(status=InpatientStay.Status.CANCELLED)
-                 .select_related("bed__room", "assigned_doctor", "visit")
+                 .select_related("bed__room", "assigned_doctor", "doc_nurse", "procedure_nurse", "visit")
                  .order_by("-admission_date")):
+        # Epizodsiz yotishning operatsiyalari
+        stay_surgeries = []
+        if stay.visit_id and hasattr(stay.visit, 'surgeries'):
+            stay_surgeries = list(
+                stay.visit.surgeries
+                .select_related('surgery_type', 'surgeon', 'report')
+                .exclude(status='cancelled')
+                .order_by('scheduled_time')
+            )
+
         natija.append({
             "episode": None,
             "stay": stay,
@@ -283,6 +307,8 @@ def _past_episode_reports(episode):
             "bolim": stay.bed.room.name if stay.bed_id else "",
             "kravat": str(stay.bed) if stay.bed_id else "",
             "shifokor": stay.assigned_doctor,
+            "doc_nurse": stay.doc_nurse,
+            "procedure_nurse": stay.procedure_nurse,
             "sabab": "",
             "maqsad": stay.get_stay_type_display() if hasattr(stay, "get_stay_type_display") else "",
             "kunlar": stay.total_days or None,
@@ -290,6 +316,7 @@ def _past_episode_reports(episode):
             "bloklar": amaliy_bloklar(stay, stay.visit),
             "print_pk": None,
             "joriy": False,
+            "past_surgeries": stay_surgeries,
         })
 
     natija.sort(key=lambda r: r["sana"], reverse=True)
@@ -316,7 +343,7 @@ def _pick(model, raw):
 #  1–3. HUJJAT BO'YICHA TOPISH
 # --------------------------------------------------------------------------
 
-@role_required(*EPISODE_ROLES)
+@role_required(*EPISODE_VIEW_ROLES)
 def episode_search(request):
     """Hujjat turi + raqam bo'yicha bemorni topish sahifasi."""
     doc_type = request.GET.get("document_type", AdmissionEpisode.DocumentType.JSHSHIR)
@@ -367,12 +394,15 @@ def episode_search(request):
                 .order_by("-created_at")[:20]
             )
 
+    can_create_episode = not request.user.has_role(Role.Code.RECEPTION, Role.Code.ADMINISTRATOR)
+
     return render(request, "clinical/episode_search.html", {
         "doc_types": AdmissionEpisode.DocumentType.choices,
         "doc_type": doc_type,
         "number": number,
         "patient": patient,
         "episodes": episodes,
+        "can_create_episode": can_create_episode,
         "searched": searched,
         "error": error,
         "purposes": AdmissionEpisode.Purpose.choices,
@@ -471,11 +501,17 @@ def episode_detail(request, pk):
         or request.user.has_role(*EPISODE_ROLES)
     ) and episode.is_open
 
+    # Registrator va qabulxona — faqat ko'rish va chop etish, tahrirlash emas
+    can_write_discharge = not request.user.has_role(
+        Role.Code.RECEPTION, Role.Code.ADMINISTRATOR
+    )
+
     return render(request, "clinical/episode_detail.html", {
         "episode": episode,
         "patient": episode.patient,
         "visit": visit,
         "can_edit": can_edit,
+        "can_write_discharge": can_write_discharge,
         "exam_groups": exam_groups,
         "exam_orders": exam_orders,
         "tanlangan_soni": tanlangan_soni,
@@ -1187,9 +1223,9 @@ def _episode_dossier(episode, selected_order_ids=None,
         all_procedures = [p for p in all_procedures if str(p.pk) in selected_procedure_ids]
 
     # Shifokorning shablonlari
-    templates = []
-    if hasattr(episode, '_request_user'):
-        templates = list(DischargeTemplate.objects.filter(doctor=episode._request_user))
+    discharge_templates = []
+    if hasattr(episode, "_request_user"):
+        discharge_templates = list(DischargeTemplate.objects.filter(doctor=episode._request_user).order_by("-created_at"))
 
     # --- TASHXISLAR: bemorning BUTUN tarixi ---
     #
@@ -1245,7 +1281,7 @@ def _episode_dossier(episode, selected_order_ids=None,
         "all_procedures": all_procedures,
         "all_surgeries": all_surgeries,
         "stay": stay,
-        "discharge_templates": templates,
+        "discharge_templates": discharge_templates,
         "past_episodes": past_episodes,
     }
 
@@ -1261,7 +1297,6 @@ def episode_discharge(request, pk):
     summary = getattr(episode, "discharge", None)
 
     if request.method == "POST":
-        # Shablon saqlash so'rovi
         if request.POST.get("save_template"):
             from apps.clinical.models import DischargeTemplate
             tpl_name = (request.POST.get("template_name") or "").strip()
@@ -1288,8 +1323,8 @@ def episode_discharge(request, pk):
         if summary is not None and not summary.can_modify(request.user):
             messages.error(
                 request,
-                "Vipiska shakllantirilgan va qulflangan. Xatolik bo'lsa "
-                "superadmindan qayta ochishni so'rang.")
+                "Vipiska shakllantirilgan va qulflangan. Faqat epizodni "
+                "ochgan shifokor yoki superadmin qayta tahrirlashi mumkin.")
             return redirect("clinical:episode_discharge", pk=episode.pk)
 
         # SAQLAB TURISH.
@@ -1370,8 +1405,8 @@ def episode_discharge(request, pk):
 
         messages.success(
             request,
-            "Vipiska shakllantirildi va qulflandi. Xatolik bo'lsa "
-            "superadmin qayta ochib beradi.")
+            "Vipiska shakllantirildi va qulflandi. Keyin qayta "
+            "tahrirlashingiz mumkin.")
         return redirect("clinical:discharge_print", pk=episode.pk)
 
     is_ready = episode.status != AdmissionEpisode.Status.CANCELLED

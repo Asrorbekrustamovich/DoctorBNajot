@@ -836,7 +836,12 @@ def _create_stay(request, visit, bed):
     #
     # Shablonda maydon o'zgarmas qilingan, lekin unga ishonmaymiz:
     # POST'ni qo'lda yuborib chetlab o'tish mumkin.
-    doc_nurse = request.user if request.user.is_authenticated else None
+    doc_nurse = User.objects.filter(
+        id=request.POST.get("doc_nurse") or None, is_active=True
+    ).first()
+    if not doc_nurse:
+        doc_nurse = request.user if request.user.is_authenticated else None
+
     procedure_nurse = User.objects.filter(
         id=request.POST.get("procedure_nurse") or None, is_active=True
     ).first()

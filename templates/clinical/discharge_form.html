@@ -69,14 +69,62 @@
             <label class="form-label small fw-semibold">
               <i class="bi bi-heart-pulse text-danger"></i> Operatsiya bayoni (erkin matn)
             </label>
+
+            {% comment %} Joriy yotishdagi va oldingi yotishlardagi operatsiyalar tarixini shu yerga chiqaramiz {% endcomment %}
+            {% if all_surgeries or past_episodes %}
+              <div class="alert alert-secondary py-2 px-3 mb-2 small" style="max-height: 250px; overflow-y: auto;">
+                <strong class="text-dark">Operatsiyalar tarixi:</strong>
+                
+                {% if all_surgeries %}
+                  <div class="mt-1 fw-bold text-primary">Joriy yotishdagi operatsiyalar:</div>
+                  <ul class="mb-2 ms-2">
+                  {% for sx in all_surgeries %}
+                    <li>
+                      <strong>{{ sx.scheduled_time|date:"d.m.Y H:i" }} — {{ sx.surgery_type.name }}</strong>
+                      <br><em>Jarroh: {{ sx.surgeon.get_full_name|default:sx.surgeon.username }}</em>
+                      {% if sx.report and sx.report.performed_actions %}
+                        <div class="p-2 mt-1 mb-2 bg-white border rounded">
+                          {{ sx.report.performed_actions|linebreaksbr }}
+                        </div>
+                      {% else %}
+                        <div class="text-muted mt-1 mb-2">Protokol kiritilmagan</div>
+                      {% endif %}
+                    </li>
+                  {% endfor %}
+                  </ul>
+                {% endif %}
+
+                {% for pe in past_episodes %}
+                  {% if pe.past_surgeries %}
+                    <div class="mt-1 fw-bold text-success">Oldingi yotish: {{ pe.sana|date:"d.m.Y" }} ({{ pe.maqsad }})</div>
+                    <ul class="mb-2 ms-2">
+                    {% for sx in pe.past_surgeries %}
+                      <li>
+                        <strong>{{ sx.scheduled_time|date:"d.m.Y H:i" }} — {{ sx.surgery_type.name }}</strong>
+                        <br><em>Jarroh: {{ sx.surgeon.get_full_name|default:sx.surgeon.username }}</em>
+                        {% if sx.report and sx.report.performed_actions %}
+                          <div class="p-2 mt-1 mb-2 bg-white border rounded">
+                            {{ sx.report.performed_actions|linebreaksbr }}
+                          </div>
+                        {% else %}
+                          <div class="text-muted mt-1 mb-2">Protokol kiritilmagan</div>
+                        {% endif %}
+                      </li>
+                    {% endfor %}
+                    </ul>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            {% endif %}
+
             <textarea name="surgery_text" rows="4" class="form-control form-control-sm"
                       placeholder="Operatsiya qilingan bo'lsa, bayonnomasini shu yerga yozing yoki shablondan oling…">{% if summary %}{{ summary.surgery_text }}{% else %}{{ default_surgery_text|default:'' }}{% endif %}</textarea>
-            {% if discharge_templates %}
+            {% if surgery_templates %}
               <div class="mt-1">
-                <label class="form-label small text-muted">Shablondan olish:</label>
-                <select id="tpl-select" class="form-select form-select-sm">
+                <label class="form-label small text-muted">Operatsiya shablonidan olish:</label>
+                <select id="tpl-select-surgery" class="form-select form-select-sm">
                   <option value="">— Tanlang —</option>
-                  {% for t in discharge_templates %}
+                  {% for t in surgery_templates %}
                     <option value="{{ t.content }}">{{ t.name }}</option>
                   {% endfor %}
                 </select>
@@ -92,6 +140,17 @@
             <label class="form-label small fw-semibold">Tavsiyalar</label>
             <textarea name="recommendations" rows="4" class="form-control form-control-sm"
                       placeholder="Parhez, rejim, dorilar, cheklovlar…">{{ summary.recommendations|default:'' }}</textarea>
+            {% if discharge_templates %}
+              <div class="mt-1">
+                <label class="form-label small text-muted">Vipiska shablonidan olish:</label>
+                <select id="tpl-select-discharge" class="form-select form-select-sm">
+                  <option value="">— Tanlang —</option>
+                  {% for t in discharge_templates %}
+                    <option value="{{ t.content }}">{{ t.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            {% endif %}
           </div>
           <div class="mb-3">
             <label class="form-label small fw-semibold">Nazorat ko'rigi</label>
@@ -101,11 +160,11 @@
           </div>
           <div class="mt-3">
             {% comment %}
-              Qulflash — ataylab qilinadigan amal. Tasdiq so'raladi,
-              chunki keyin faqat superadmin qayta ocha oladi.
+              Qulflash — ataylab qilinadigan amal. Tasdiq so'raladi.
+              Shifokor (epizod ochgan) keyin qayta ochib tahrirlashi mumkin.
             {% endcomment %}
             <button class="btn btn-success" name="action" value="finalize"
-                    onclick="return confirm('Vipiska shakllantirilib QULFLANADI. Keyin tahrirlash uchun superadmindan ochishni so\'rash kerak bo\'ladi. Davom etilsinmi?');"
+                    onclick="return confirm('Vipiska shakllantirilib QULFLANADI. Keyin qayta tahrirlashingiz mumkin. Davom etilsinmi?');"
                     {% if not is_ready %}disabled{% endif %}>
               <i class="bi bi-file-earmark-check"></i>
               {% if summary %}Vipiskani yangilash{% else %}Vipiskani shakllantirish{% endif %}
@@ -144,7 +203,7 @@
     {% endcomment %}
     <div class="card shadow-sm mt-3">
       <div class="card-header bg-white fw-bold py-2 d-flex justify-content-between align-items-center">
-        <span><i class="bi bi-bookmark-plus"></i> Yangi shablon saqlash</span>
+        <span><i class="bi bi-bookmark-plus"></i> Yangi operatsiya shabloni saqlash</span>
         {% if past_episodes %}
           <button type="button" class="btn btn-sm btn-outline-dark" id="open-past">
             <i class="bi bi-clock-history"></i>
@@ -157,6 +216,8 @@
         <form method="post">
           {% csrf_token %}
           <input type="hidden" name="save_template" value="1">
+          <input type="hidden" name="template_type" value="surgery">
+          
           <div class="mb-2">
             <input name="template_name" id="tpl-name" class="form-control form-control-sm" placeholder="Shablon nomi (masalan: Appendektomiya standart)">
           </div>
@@ -388,7 +449,13 @@
                     {% if pe.bolim %} · {{ pe.bolim }}{% endif %}
                     {% if pe.kravat %} · {{ pe.kravat }}{% endif %}
                     {% if pe.shifokor %}
-                      · {{ pe.shifokor.get_full_name|default:pe.shifokor.username }}
+                      · Shifokori: {{ pe.shifokor.get_full_name|default:pe.shifokor.username }}
+                    {% endif %}
+                    {% if pe.doc_nurse %}
+                      <br>· Hujjat. hamshira: {{ pe.doc_nurse.get_full_name|default:pe.doc_nurse.username }}
+                    {% endif %}
+                    {% if pe.procedure_nurse %}
+                      · Muolaja hamshira: {{ pe.procedure_nurse.get_full_name|default:pe.procedure_nurse.username }}
                     {% endif %}
                     <div class="small text-muted">
                       {{ pe.sabab|default:"sabab yozilmagan"|truncatechars:90 }}
@@ -465,16 +532,32 @@
 function toggleAll(cls, state) {
   document.querySelectorAll('.' + cls).forEach(cb => cb.checked = state);
 }
-// Shablonni tanlanganda surgery_text ga qo'yish
-const sel = document.getElementById('tpl-select');
-if (sel) {
-  sel.addEventListener('change', function() {
-    if (this.value) {
-      const ta = document.querySelector('[name="surgery_text"]');
-      if (ta) ta.value = this.value;
-    }
-  });
-}
+  // Shablonni tanlanganda tegishli maydonga qo'yish
+  const selSurg = document.getElementById('tpl-select-surgery');
+  if (selSurg) {
+    selSurg.addEventListener('change', function() {
+      if (this.value) {
+        const area = document.querySelector('textarea[name="surgery_text"]');
+        if (area) {
+          area.value = area.value.trim() ? area.value.trim() + '\n\n' + this.value : this.value;
+        }
+        this.value = "";
+      }
+    });
+  }
+
+  const selDisch = document.getElementById('tpl-select-discharge');
+  if (selDisch) {
+    selDisch.addEventListener('change', function() {
+      if (this.value) {
+        const area = document.querySelector('textarea[name="recommendations"]');
+        if (area) {
+          area.value = area.value.trim() ? area.value.trim() + '\n\n' + this.value : this.value;
+        }
+        this.value = "";
+      }
+    });
+  }
 
 /* ---------- OLDINGI YOTISHLARDAN SHABLON YIG'ISH ----------
    Modalni JS bilan ochamiz, `data-bs-toggle` bilan emas: bu forma

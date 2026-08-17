@@ -114,7 +114,9 @@
                   <i class="bi bi-printer"></i> Vipiska
                 </a>
                 {% endif %}
+                {% if can_create_episode %}
                 <a href="{% url 'clinical:episode_detail' e.pk %}" class="btn btn-sm btn-outline-secondary">Ochish</a>
+                {% endif %}
               </td>
             </tr>
           {% endfor %}
@@ -126,6 +128,7 @@
     </div>
   </div>
 
+  {% if can_create_episode %}
   <div class="card shadow-sm border-primary">
     <div class="card-header bg-primary text-white py-2">
       <i class="bi bi-plus-circle"></i> 3-qadam. Yangi epizod
@@ -181,6 +184,7 @@
       </form>
     </div>
   </div>
+  {% endif %}
 {% endif %}
 
 <script>

@@ -407,11 +407,13 @@
         {%comment%}Qabulxona hamshirasi mustaqil ishlaydi — yuborish tugmasi olib tashlandi{%endcomment%}
 
         {% comment %} VIPISKA — davolash yakunlanganda {% endcomment %}
+        {% if can_write_discharge %}
         <a href="{% url 'clinical:episode_discharge' episode.pk %}"
            class="btn btn-outline-success w-100 mb-3">
           <i class="bi bi-file-earmark-medical"></i>
           {% if episode.discharge %}Vipiskani ochish{% else %}Vipiska yozish{% endif %}
         </a>
+        {% endif %}
 
         {% if episode.status != 'admitted' %}
           <form method="post" action="{% url 'clinical:episode_cancel' episode.pk %}"
@@ -701,6 +703,14 @@ document.addEventListener('click', function (e) {
               <td>{{ pe.bolim|default:"—" }}{% if pe.kravat %} · {{ pe.kravat }}{% endif %}</td></tr>
           <tr><th>Shifokor</th>
               <td>{% if pe.shifokor %}{{ pe.shifokor.get_full_name|default:pe.shifokor.username }}{% else %}—{% endif %}</td></tr>
+          {% if pe.doc_nurse %}
+          <tr><th>Hujjatlashtirish hamshirasi</th>
+              <td>{{ pe.doc_nurse.get_full_name|default:pe.doc_nurse.username }}</td></tr>
+          {% endif %}
+          {% if pe.procedure_nurse %}
+          <tr><th>Muolaja hamshirasi</th>
+              <td>{{ pe.procedure_nurse.get_full_name|default:pe.procedure_nurse.username }}</td></tr>
+          {% endif %}
           {% if pe.maqsad %}<tr><th>Maqsad</th><td>{{ pe.maqsad }}</td></tr>{% endif %}
           {% if pe.stay %}
             <tr><th>Yotqizilgan</th><td>{{ pe.stay.admission_date|date:"d.m.Y H:i" }}</td></tr>

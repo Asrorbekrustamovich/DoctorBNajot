@@ -153,17 +153,24 @@ def board_feed(request: Any) -> JsonResponse:
 
     calls = []
 
+    board_type = request.GET.get("type", "all").lower()
+
     # --- 1) Shifokor qabuliga chaqirilganlar ---
-    visits = (
-        Visit.objects.filter(
-            visit_date=today,
-            accepted_at__isnull=False,
-            status__in=[Visit.Status.ACCEPTED, Visit.Status.IN_PROGRESS],
-        )
-        .select_related("patient", "doctor")
-        .prefetch_related("doctor__ambulatory_rooms")
-        .order_by("-accepted_at")[:15]
-    )
+    from django.db.models import Q
+    visits_qs = Visit.objects.filter(
+        visit_date=today,
+        accepted_at__isnull=False,
+        status__in=[Visit.Status.ACCEPTED, Visit.Status.IN_PROGRESS],
+    ).select_related("patient", "doctor").prefetch_related("doctor__ambulatory_rooms")
+
+    if board_type == "terapevt":
+        visits_qs = visits_qs.filter(Q(doctor__specialty__icontains="terapevt") | Q(doctor__specialty__icontains="terapiya"))
+    elif board_type == "uzi":
+        visits_qs = visits_qs.filter(Q(doctor__specialty__icontains="uzi") | Q(doctor__specialty__icontains="utt"))
+    elif board_type == "other":
+        visits_qs = visits_qs.exclude(Q(doctor__specialty__icontains="terapevt") | Q(doctor__specialty__icontains="terapiya") | Q(doctor__specialty__icontains="uzi") | Q(doctor__specialty__icontains="utt"))
+
+    visits = visits_qs.order_by("-accepted_at")[:15]
     for v in visits:
         doc = v.doctor
         calls.append({
@@ -181,17 +188,23 @@ def board_feed(request: Any) -> JsonResponse:
     # --- 2) Tekshiruvga chaqirilganlar (UZI, EKG, tahlil...) ---
     # Faqat xodim «Chaqirish» tugmasini bosganlari chiqadi.
     from apps.clinical.models import ServiceOrder
-    orders = (
-        ServiceOrder.objects.filter(
-            called_at__date=today,
-        )
-        .exclude(status__in=[ServiceOrder.Status.COMPLETED, ServiceOrder.Status.CANCELLED])
-        .select_related(
-            "visit__patient", "service__room",
-            "service__responsible_staff", "called_by",
-        )
-        .order_by("-called_at")[:15]
+    orders_qs = ServiceOrder.objects.filter(
+        called_at__date=today,
+    ).exclude(
+        status__in=[ServiceOrder.Status.COMPLETED, ServiceOrder.Status.CANCELLED]
+    ).select_related(
+        "visit__patient", "service__room",
+        "service__responsible_staff", "called_by",
     )
+
+    if board_type == "terapevt":
+        orders_qs = orders_qs.filter(Q(service__name__icontains="terapevt") | Q(service__name__icontains="terapiya"))
+    elif board_type == "uzi":
+        orders_qs = orders_qs.filter(Q(service__name__icontains="uzi") | Q(service__name__icontains="utt"))
+    elif board_type == "other":
+        orders_qs = orders_qs.exclude(Q(service__name__icontains="terapevt") | Q(service__name__icontains="terapiya") | Q(service__name__icontains="uzi") | Q(service__name__icontains="utt"))
+
+    orders = orders_qs.order_by("-called_at")[:15]
     for o in orders:
         xodim = o.service.responsible_staff or o.called_by
         room = o.service.room

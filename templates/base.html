@@ -175,7 +175,7 @@
                     {% if user.is_superuser or "super_admin" in user.role_codes or "administrator" in user.role_codes or "reception" in user.role_codes or "director" in user.role_codes or "chief_doctor" in user.role_codes or "doctor" in user.role_codes or "surgeon" in user.role_codes or "anesthesiologist" in user.role_codes or "nurse" in user.role_codes or "ward_nurse" in user.role_codes %}
                     <a href="{% url 'clinical:inpatient_dashboard' %}" class="{% if request.resolver_match.url_name == 'inpatient_dashboard' %}active{% endif %}"><i class="bi bi-hospital"></i> Stasionar</a>
                     {% endif %}
-                    {% if user.is_superuser or "super_admin" in user.role_codes or "administrator" in user.role_codes or "chief_doctor" in user.role_codes or "doctor" in user.role_codes %}
+                    {% if user.is_superuser or "super_admin" in user.role_codes or "administrator" in user.role_codes or "chief_doctor" in user.role_codes or "doctor" in user.role_codes or "reception" in user.role_codes %}
                     <a href="{% url 'clinical:episode_search' %}" class="{% if request.resolver_match.url_name == 'episode_search' or request.resolver_match.url_name == 'episode_detail' %}active{% endif %}"><i class="bi bi-file-medical"></i> Statsionarga rasmiylashtirish</a>
                     {% endif %}
                     {% if user.is_superuser or "super_admin" in user.role_codes or "administrator" in user.role_codes or "nurse" in user.role_codes or "ward_nurse" in user.role_codes or "reception" in user.role_codes %}
@@ -198,7 +198,7 @@
                     <a href="{% url 'clinical:discharge_admin' %}" class="{% if request.resolver_match.url_name == 'discharge_admin' %}active{% endif %}"><i class="bi bi-shield-lock"></i> Vipiskalar boshqaruvi</a>
                     {% endif %}
                     {% if user.is_superuser or "anesthesiologist" in user.role_codes or "super_admin" in user.role_codes or "administrator" in user.role_codes %}
-                    <a href="{% url 'clinical:anesthesia_stock_page' %}" class="{% if request.resolver_match.url_name == 'anesthesia_stock_page' %}active{% endif %}"><i class="bi bi-capsule"></i> Anesteziolog ombori{% if anesthesia_sent_today %} <span class="badge bg-danger rounded-pill">{{ anesthesia_sent_today }}</span>{% endif %}</a>
+                    <a href="{% url 'clinical:anesthesia_stock_page' %}" class="{% if request.resolver_match.url_name == 'anesthesia_stock_page' %}active{% endif %}"><i class="bi bi-capsule"></i> Umumiy ombori{% if anesthesia_sent_today %} <span class="badge bg-danger rounded-pill">{{ anesthesia_sent_today }}</span>{% endif %}</a>
                     {% endif %}
                     {% comment %}
                       Operatsion zayavkalar — hamshira so'raydi, ombor beradi.

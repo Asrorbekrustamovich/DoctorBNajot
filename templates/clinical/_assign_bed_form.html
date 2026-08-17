@@ -81,12 +81,14 @@
     {% endcomment %}
     <div class="mb-3">
         <label class="form-label fw-bold">Hujjatlashtirish hamshirasi</label>
-        <input type="text" class="form-control bg-light" readonly
-               value="{{ request.user.get_full_name|default:request.user.username }}">
+        <select name="doc_nurse" class="form-select">
+            <option value="">-- Tanlang --</option>
+            {% for nurse in nurses %}
+            <option value="{{ nurse.id }}" {% if request.user.id == nurse.id %}selected{% endif %}>{{ nurse.get_full_name|default:nurse.username }}</option>
+            {% endfor %}
+        </select>
         <div class="form-text">
-            <i class="bi bi-lock"></i>
-            Hujjatni qabul qilayotgan hamshira yuritadi — o'zgartirib bo'lmaydi.
-            Nima berildi/qilindi hisobotini (+/-) shu odam yuritadi.
+            Hujjatni qabul qilayotgan hamshira yuritadi. Nima berildi/qilindi hisobotini (+/-) shu odam yuritadi.
         </div>
     </div>
 
