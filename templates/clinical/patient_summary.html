@@ -105,7 +105,12 @@
             <div class="border border-success rounded p-2 mb-2 bg-light">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <strong class="text-success"><i class="bi bi-file-earmark-medical"></i> {{ o.service.name }} natijasi</strong>
-                    <span class="small text-muted">Bajardi: {{ o.performed_by.get_full_name|default:"-" }}</span>
+                    <div>
+                        <span class="small text-muted me-2">Bajardi: {{ o.performed_by.get_full_name|default:"-" }}</span>
+                        <a href="{% url 'clinical:service_result_print' o.id %}" target="_blank" class="btn btn-sm btn-outline-success d-print-none px-2 py-0" title="Chop etish">
+                            <i class="bi bi-printer"></i>
+                        </a>
+                    </div>
                 </div>
                 
                 {% if o.result_rows.all %}
