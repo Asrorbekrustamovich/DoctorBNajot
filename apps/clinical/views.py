@@ -2274,6 +2274,7 @@ def delete_consultation_template(request, template_id):
 STAY_DOC_ROLES = (
     Role.Code.NURSE, Role.Code.WARD_NURSE, Role.Code.DOCTOR, Role.Code.CHIEF_DOCTOR,
     Role.Code.ADMINISTRATOR, Role.Code.DIRECTOR, Role.Code.SUPER_ADMIN, Role.Code.SURGEON,
+    Role.Code.RECEPTION,
 )
 
 
