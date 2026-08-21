@@ -54,7 +54,6 @@
                     <th>F.I.O</th>
                     <th>Login</th>
                     <th>Rol</th>
-                    <th>Mutaxassislik</th>
                     <th>Telefon</th>
                     <th class="text-center">Holati</th>
                     <th class="text-end">Amallar</th>
@@ -85,8 +84,10 @@
                         {% else %}
                         <span class="text-muted">—</span>
                         {% endif %}
+                        {% if u.specialty %}
+                        <div class="small text-muted mt-1"><i class="bi bi-briefcase"></i> {{ u.specialty }}</div>
+                        {% endif %}
                     </td>
-                    <td>{{ u.specialty|default:"—" }}</td>
                     <td>{{ u.phone|default:"—" }}</td>
                     <td class="text-center">
                         {% if u.is_active %}
