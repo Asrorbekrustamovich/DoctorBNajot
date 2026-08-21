@@ -42,7 +42,7 @@ class SmokeTest(TestCase):
 
     ROLLAR = [
         Role.Code.SUPER_ADMIN, Role.Code.ADMINISTRATOR, Role.Code.DIRECTOR,
-        Role.Code.CHIEF_DOCTOR, Role.Code.RECEPTION, Role.Code.DOCTOR,
+        Role.Code.CHIEF_DOCTOR, Role.Code.RECEPTION, *Role.DOCTOR_ROLES,
         Role.Code.NURSE, Role.Code.WARD_NURSE, Role.Code.OPERATING_NURSE,
         Role.Code.LAB, Role.Code.RADIOLOGY, Role.Code.WAREHOUSE,
         Role.Code.CASHIER, Role.Code.ACCOUNTANT, Role.Code.SURGERY_ADMIN,

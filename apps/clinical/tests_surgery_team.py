@@ -23,7 +23,7 @@ def rol(kod, nom):
 
 class UsersWithRoleTest(TestCase):
     def setUp(self):
-        self.doctor = rol(Role.Code.DOCTOR, "Shifokor")
+        self.doctor = rol(Role.Code.THERAPIST, "Terapevt")
         self.surgeon = rol(Role.Code.SURGEON, "Jarroh")
         self.anest = rol(Role.Code.ANESTHESIOLOGIST, "Anesteziolog")
 
@@ -54,7 +54,7 @@ class UsersWithRoleTest(TestCase):
         u = User.objects.create_user(username="j4", password="x",
                                      role=self.surgeon)
         u.extra_roles.add(self.surgeon, self.doctor)
-        royxat = list(users_with_role(Role.Code.SURGEON, Role.Code.DOCTOR))
+        royxat = list(users_with_role(Role.Code.SURGEON, *Role.DOCTOR_ROLES))
         self.assertEqual(royxat.count(u), 1)
 
     def test_faolsiz_xodim_chiqmaydi(self):
@@ -75,7 +75,7 @@ class SurgeryTeamContextTest(TestCase):
     """Oynaga uzatiladigan ro'yxatlar bo'sh qolmasin."""
 
     def setUp(self):
-        doctor = rol(Role.Code.DOCTOR, "Shifokor")
+        doctor = rol(Role.Code.THERAPIST, "Terapevt")
         self.xirurg = User.objects.create_user(
             username="xirurg", password="x", role=doctor,
             last_name="Durdiyev", first_name="Xamdam",
@@ -124,7 +124,7 @@ class SurgeryModalRenderTest(TestCase):
     """Oyna chindan ham ismlarni chiqarayaptimi."""
 
     def setUp(self):
-        doctor = rol(Role.Code.DOCTOR, "Shifokor")
+        doctor = rol(Role.Code.THERAPIST, "Terapevt")
         self.xirurg = User.objects.create_user(
             username="xirurg2", password="x", role=doctor,
             last_name="Zaripboev", first_name="Jasur",

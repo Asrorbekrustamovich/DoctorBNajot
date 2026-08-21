@@ -93,7 +93,7 @@ class BillingDashboardView(RoleRequiredMixin, TemplateView):
 # kassir/buxgalter/direktor bilan cheklangan bo'lib qoladi.
 _INVOICE_VIEW_ROLES = (
     Role.Code.CASHIER, Role.Code.ACCOUNTANT, Role.Code.DIRECTOR, Role.Code.SUPER_ADMIN,
-    Role.Code.ADMINISTRATOR, Role.Code.CHIEF_DOCTOR, Role.Code.DOCTOR,
+    Role.Code.ADMINISTRATOR, Role.Code.CHIEF_DOCTOR, *Role.DOCTOR_ROLES,
     Role.Code.NURSE, Role.Code.WARD_NURSE, Role.Code.RECEPTION,
     Role.Code.SURGEON, Role.Code.SURGERY_ADMIN,
 )
@@ -494,7 +494,7 @@ def refund_invoice(request, invoice_id):
     return redirect(request.META.get('HTTP_REFERER') or "billing:dashboard")
 
 
-@role_required(*_INVOICE_EDIT_ROLES, Role.Code.DOCTOR)
+@role_required(*_INVOICE_EDIT_ROLES, *Role.DOCTOR_ROLES)
 def cancel_service_order(request, order_id):
     """Xizmat buyurtmasini otmen qilish — chekdan avtomatik chiqadi.
 

@@ -30,7 +30,7 @@ class VipiskaLockTest(TestCase):
     def setUp(self):
         self.doctor = User.objects.create_user(
             username="doc_lock", password="x",
-            role=rol(Role.Code.DOCTOR, "Shifokor"))
+            role=rol(Role.Code.THERAPIST, "Terapevt"))
         patient = Patient.objects.create(
             first_name="Ali", last_name="Aliyev", birth_date="1990-01-01",
             gender="male", birth_certificate="MB-7070707")

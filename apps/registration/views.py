@@ -34,7 +34,7 @@ from apps.registration.serializers import (
 )
 
 WRITE_ROLES = (Role.Code.SUPER_ADMIN, Role.Code.ADMINISTRATOR, Role.Code.RECEPTION)
-TRANSITION_ROLES = WRITE_ROLES + (Role.Code.DOCTOR, Role.Code.CHIEF_DOCTOR, Role.Code.NURSE)
+TRANSITION_ROLES = WRITE_ROLES + (*Role.DOCTOR_ROLES, Role.Code.CHIEF_DOCTOR, Role.Code.NURSE)
 VIEW_ROLES = TRANSITION_ROLES + (
     Role.Code.DIRECTOR, Role.Code.WARD_NURSE, Role.Code.CASHIER,
     Role.Code.ACCOUNTANT, Role.Code.AUDITOR, Role.Code.VIEWER,
@@ -361,7 +361,7 @@ def tts_health(request):
 class VisitViewSet(viewsets.ModelViewSet):
     serializer_class = VisitSerializer
     permission_classes = [DenyWriteForReadOnlyRoles, HasRoleForWrite]
-    write_roles = WRITE_ROLES + (Role.Code.DOCTOR, Role.Code.CHIEF_DOCTOR, Role.Code.NURSE)
+    write_roles = WRITE_ROLES + (*Role.DOCTOR_ROLES, Role.Code.CHIEF_DOCTOR, Role.Code.NURSE)
     http_method_names = ["get", "post", "head", "options"]
     filterset_fields = {"status": ["exact"], "visit_date": ["exact", "gte", "lte"],
                         "patient": ["exact"], "doctor": ["exact"]}

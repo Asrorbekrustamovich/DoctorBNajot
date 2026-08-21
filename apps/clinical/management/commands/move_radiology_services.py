@@ -25,7 +25,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--from", dest="src", default=Role.Code.RADIOLOGY,
                             help="Manba rol kodi (default: radiology)")
-        parser.add_argument("--to", dest="dst", default=Role.Code.DOCTOR,
+        parser.add_argument("--to", dest="dst", default=Role.Code.THERAPIST,
                             help="Maqsad rol kodi (default: doctor)")
         parser.add_argument("--dry-run", action="store_true",
                             help="Hech narsa o'zgartirmasdan faqat ko'rsatadi")

@@ -37,7 +37,7 @@ class ReferPurposeTest(TestCase):
 
     def setUp(self):
         self.doctor = User.objects.create_user(
-            username="doc_p", password="x", role=rol(Role.Code.DOCTOR, "Shifokor"))
+            username="doc_p", password="x", role=rol(Role.Code.THERAPIST, "Terapevt"))
         self.patient = Patient.objects.create(
             first_name="Asror", last_name="Azatbayev",
             birth_date="2004-01-01", gender="male",
@@ -75,7 +75,7 @@ class VipiskaHoldTest(TestCase):
 
     def setUp(self):
         self.doctor = User.objects.create_user(
-            username="doc_h", password="x", role=rol(Role.Code.DOCTOR, "Shifokor"))
+            username="doc_h", password="x", role=rol(Role.Code.THERAPIST, "Terapevt"))
         self.patient = Patient.objects.create(
             first_name="Vali", last_name="Valiyev",
             birth_date="1990-01-01", gender="male",
@@ -144,7 +144,7 @@ class VipiskaSurgeryBlockTest(TestCase):
 
     def setUp(self):
         self.doctor = User.objects.create_user(
-            username="doc_s", password="x", role=rol(Role.Code.DOCTOR, "Shifokor"))
+            username="doc_s", password="x", role=rol(Role.Code.THERAPIST, "Terapevt"))
         self.jarroh = User.objects.create_user(
             username="jarroh_s", password="x",
             role=rol(Role.Code.SURGEON, "Jarroh"),

@@ -8,6 +8,8 @@ from .models import SimultaneousSurgeryLog, HistologyLog, MinorSurgeryLog, Outpa
 
 JOURNAL_ROLES = (
     Role.Code.OPERATING_NURSE,
+    Role.Code.WARD_NURSE,
+    Role.Code.NURSE,
     Role.Code.SURGERY_ADMIN,
     Role.Code.CHIEF_DOCTOR,
     Role.Code.SUPER_ADMIN,

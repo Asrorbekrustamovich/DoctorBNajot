@@ -26,13 +26,25 @@ class Role(Auditable, BaseModel):
     yozish amallari permission darajasida bloklanadi.
     """
 
+    
+
     class Code(models.TextChoices):
         SUPER_ADMIN = "super_admin", "Super Admin"
         ADMINISTRATOR = "administrator", "Registrator"
         DIRECTOR = "director", "Direktor"
         CHIEF_DOCTOR = "chief_doctor", "Bosh shifokor"
         RECEPTION = "reception", "Registratura"
-        DOCTOR = "doctor", "Shifokor"
+        THERAPIST = "therapist", "Terapevt"
+        PEDIATRICIAN = "pediatrician", "Pediatr"
+        CARDIOLOGIST = "cardiologist", "Kardiolog"
+        NEUROLOGIST = "neurologist", "Nevrolog"
+        GYNECOLOGIST = "gynecologist", "Ginekolog"
+        UROLOGIST = "urologist", "Urolog"
+        ENDOCRINOLOGIST = "endocrinologist", "Endokrinolog"
+        OTOLARYNGOLOGIST = "otolaryngologist", "Otolaringolog"
+        OPHTHALMOLOGIST = "ophthalmologist", "Oftalmolog"
+        TRAUMATOLOGIST = "traumatologist", "Travmatolog"
+        GASTROENTEROLOGIST = "gastroenterologist", "Gastroenterolog" 
         NURSE = "nurse", "Hamshira"
         WARD_NURSE = "ward_nurse", "Palata hamshirasi"
         LAB = "lab", "Laboratoriya"
@@ -57,6 +69,14 @@ class Role(Auditable, BaseModel):
         VIEWER = "viewer", "Viewer (faqat ko'rish)"
 
     code = models.CharField("Kod", max_length=32, choices=Code.choices, unique=True)
+
+    DOCTOR_ROLES = (
+        Code.THERAPIST, Code.PEDIATRICIAN, Code.CARDIOLOGIST,
+        Code.NEUROLOGIST, Code.GYNECOLOGIST, Code.UROLOGIST,
+        Code.ENDOCRINOLOGIST, Code.OTOLARYNGOLOGIST, Code.OPHTHALMOLOGIST,
+        Code.TRAUMATOLOGIST, Code.GASTROENTEROLOGIST
+    )
+
     name = models.CharField("Nomi", max_length=100)
     description = models.TextField("Tavsif", blank=True)
     is_read_only = models.BooleanField(
@@ -200,7 +220,7 @@ class User(AbstractUser):
     # --- Sahifa ko'rish/yozish ruxsatlari (template uchun) -----------------
     _PATIENT_VIEW_ROLES = (
         Role.Code.SUPER_ADMIN, Role.Code.ADMINISTRATOR, Role.Code.RECEPTION,
-        Role.Code.DIRECTOR, Role.Code.CHIEF_DOCTOR, Role.Code.DOCTOR,
+        Role.Code.DIRECTOR, Role.Code.CHIEF_DOCTOR, *Role.DOCTOR_ROLES,
         Role.Code.NURSE, Role.Code.WARD_NURSE, Role.Code.CASHIER,
         Role.Code.ACCOUNTANT, Role.Code.AUDITOR, Role.Code.VIEWER,
         Role.Code.LAB, Role.Code.RADIOLOGY,
@@ -210,7 +230,7 @@ class User(AbstractUser):
     )
     _VISIT_VIEW_ROLES = (
         Role.Code.SUPER_ADMIN, Role.Code.ADMINISTRATOR, Role.Code.RECEPTION,
-        Role.Code.DIRECTOR, Role.Code.CHIEF_DOCTOR, Role.Code.DOCTOR,
+        Role.Code.DIRECTOR, Role.Code.CHIEF_DOCTOR, *Role.DOCTOR_ROLES,
         Role.Code.NURSE, Role.Code.WARD_NURSE, Role.Code.CASHIER,
         Role.Code.ACCOUNTANT, Role.Code.AUDITOR, Role.Code.VIEWER,
     )
@@ -219,7 +239,7 @@ class User(AbstractUser):
     )
     _VISIT_TRANSITION_ROLES = (
         Role.Code.SUPER_ADMIN, Role.Code.ADMINISTRATOR, Role.Code.RECEPTION,
-        Role.Code.DOCTOR, Role.Code.CHIEF_DOCTOR, Role.Code.NURSE,
+        *Role.DOCTOR_ROLES, Role.Code.CHIEF_DOCTOR, Role.Code.NURSE,
     )
 
     @property

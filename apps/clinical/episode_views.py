@@ -39,7 +39,7 @@ from apps.patients.models import Patient
 # Kim epizod ocha oladi — ambulator shifokor va boshqaruv
 EPISODE_ROLES = (
     Role.Code.SUPER_ADMIN, Role.Code.ADMINISTRATOR,
-    Role.Code.CHIEF_DOCTOR, Role.Code.DOCTOR, Role.Code.SURGEON,
+    Role.Code.CHIEF_DOCTOR, *Role.DOCTOR_ROLES, Role.Code.SURGEON,
 )
 # Kim ko'ra oladi — yuqoridagilar + qabulxona hamshirasi va registratura
 EPISODE_VIEW_ROLES = EPISODE_ROLES + (

@@ -750,7 +750,7 @@ from apps.clinical.models import Room, Bed, InpatientStay
 
 class InpatientDashboardView(RoleRequiredMixin, TemplateView):
     """Palatalar holati (Dashbord) Admin, Registratura va Shifokorlar uchun."""
-    allowed_roles = (Role.Code.ADMINISTRATOR, Role.Code.RECEPTION, Role.Code.DIRECTOR, Role.Code.CHIEF_DOCTOR, Role.Code.DOCTOR, Role.Code.SURGEON, Role.Code.NURSE, Role.Code.WARD_NURSE, Role.Code.ANESTHESIOLOGIST)
+    allowed_roles = (Role.Code.ADMINISTRATOR, Role.Code.RECEPTION, Role.Code.DIRECTOR, Role.Code.CHIEF_DOCTOR, *Role.DOCTOR_ROLES, Role.Code.SURGEON, Role.Code.NURSE, Role.Code.WARD_NURSE, Role.Code.ANESTHESIOLOGIST)
     template_name = "clinical/inpatient_dashboard.html"
 
     def get_context_data(self, **kwargs):
@@ -771,7 +771,7 @@ class InpatientDashboardView(RoleRequiredMixin, TemplateView):
 
 @role_required(
     Role.Code.ADMINISTRATOR, Role.Code.RECEPTION, Role.Code.DIRECTOR,
-    Role.Code.CHIEF_DOCTOR, Role.Code.DOCTOR, Role.Code.SURGEON,
+    Role.Code.CHIEF_DOCTOR, *Role.DOCTOR_ROLES, Role.Code.SURGEON,
     Role.Code.NURSE, Role.Code.WARD_NURSE
 )
 def _create_stay(request, visit, bed):
@@ -895,7 +895,7 @@ def _create_stay(request, visit, bed):
 
 @role_required(
     Role.Code.ADMINISTRATOR, Role.Code.RECEPTION, Role.Code.DIRECTOR,
-    Role.Code.CHIEF_DOCTOR, Role.Code.DOCTOR, Role.Code.SURGEON,
+    Role.Code.CHIEF_DOCTOR, *Role.DOCTOR_ROLES, Role.Code.SURGEON,
     Role.Code.NURSE, Role.Code.WARD_NURSE
 )
 def assign_bed_htmx(request, bed_id):
@@ -962,7 +962,7 @@ def assign_bed_htmx(request, bed_id):
         if len(recent_visits) >= 50:
             break
     nurses = User.objects.filter(role__code__in=(Role.Code.NURSE, Role.Code.WARD_NURSE), is_active=True)
-    doctors = User.objects.filter(role__code__in=(Role.Code.DOCTOR, Role.Code.SURGEON, Role.Code.CHIEF_DOCTOR), is_active=True)
+    doctors = User.objects.filter(role__code__in=(*Role.DOCTOR_ROLES, Role.Code.SURGEON, Role.Code.CHIEF_DOCTOR), is_active=True)
 
     # DIQQAT: bu yerda ham aniqlanmagan `ward_nurses` bor edi va forma
     # NameError bilan qulardi — HTMX esa 500 javobni ekranga chiqarmaydi,
@@ -1011,7 +1011,7 @@ def admit_visit_htmx(request, visit_id):
     from django.contrib.auth import get_user_model
     User = get_user_model()
     nurses = User.objects.filter(role__code__in=(Role.Code.NURSE, Role.Code.WARD_NURSE), is_active=True)
-    doctors = User.objects.filter(role__code__in=(Role.Code.DOCTOR, Role.Code.SURGEON, Role.Code.CHIEF_DOCTOR), is_active=True)
+    doctors = User.objects.filter(role__code__in=(*Role.DOCTOR_ROLES, Role.Code.SURGEON, Role.Code.CHIEF_DOCTOR), is_active=True)
     empty_beds = Bed.objects.filter(is_occupied=False).order_by("room__name", "number")
     
     # DIQQAT: bu yerda «ward_nurses» degan aniqlanmagan o'zgaruvchi bor edi
@@ -1026,7 +1026,7 @@ def admit_visit_htmx(request, visit_id):
 
 @role_required(
     Role.Code.ADMINISTRATOR, Role.Code.RECEPTION, Role.Code.DIRECTOR,
-    Role.Code.CHIEF_DOCTOR, Role.Code.DOCTOR, Role.Code.SURGEON,
+    Role.Code.CHIEF_DOCTOR, *Role.DOCTOR_ROLES, Role.Code.SURGEON,
 )
 def order_inpatient_services(request, stay_id):
     """Statsionardagi bemorga tekshiruv (UZI, EKG, Laboratoriya) tayinlash."""
@@ -1057,7 +1057,7 @@ def order_inpatient_services(request, stay_id):
 
 @role_required(
     Role.Code.ADMINISTRATOR, Role.Code.RECEPTION, Role.Code.DIRECTOR,
-    Role.Code.CHIEF_DOCTOR, Role.Code.DOCTOR, Role.Code.SURGEON,
+    Role.Code.CHIEF_DOCTOR, *Role.DOCTOR_ROLES, Role.Code.SURGEON,
 )
 def add_companion_to_stay_htmx(request, visit_id):
     """Bemor yotgan bo'lsa, ustiga keyinchalik hamroh qo'shish."""
@@ -1107,7 +1107,7 @@ def add_companion_to_stay_htmx(request, visit_id):
 
 @role_required(
     Role.Code.ADMINISTRATOR, Role.Code.RECEPTION, Role.Code.DIRECTOR,
-    Role.Code.CHIEF_DOCTOR, Role.Code.DOCTOR, Role.Code.SURGEON,
+    Role.Code.CHIEF_DOCTOR, *Role.DOCTOR_ROLES, Role.Code.SURGEON,
     Role.Code.NURSE, Role.Code.WARD_NURSE
 )
 def discharge_bed(request, stay_id):
@@ -1306,7 +1306,7 @@ class SurgeryDashboardView(RoleRequiredMixin, TemplateView):
     # `NURSE` o'rniga `OPERATING_NURSE` + `WARD_NURSE`: jarrohlik bloki
     # klinikadagi hamma hamshiraga emas, palata va operatsion
     # hamshiralarga ochiq.
-    allowed_roles = (Role.Code.SURGEON, Role.Code.ADMINISTRATOR, Role.Code.SUPER_ADMIN, Role.Code.ANESTHESIOLOGIST, Role.Code.OPERATING_NURSE, Role.Code.WARD_NURSE, Role.Code.SURGERY_ADMIN, Role.Code.DOCTOR, Role.Code.CHIEF_DOCTOR)
+    allowed_roles = (Role.Code.SURGEON, Role.Code.ADMINISTRATOR, Role.Code.SUPER_ADMIN, Role.Code.ANESTHESIOLOGIST, Role.Code.OPERATING_NURSE, Role.Code.WARD_NURSE, Role.Code.SURGERY_ADMIN, *Role.DOCTOR_ROLES, Role.Code.CHIEF_DOCTOR)
     template_name = "clinical/surgery_dashboard.html"
 
     def get_context_data(self, **kwargs):
@@ -1356,7 +1356,7 @@ class AdminSurgeryListView(RoleRequiredMixin, TemplateView):
 
 @role_required(
     Role.Code.ADMINISTRATOR, Role.Code.SUPER_ADMIN,
-    Role.Code.DOCTOR, Role.Code.CHIEF_DOCTOR,
+    *Role.DOCTOR_ROLES, Role.Code.CHIEF_DOCTOR,
     Role.Code.SURGEON, Role.Code.SURGERY_ADMIN, Role.Code.DIRECTOR,
 )
 def schedule_surgery(request):
@@ -1688,7 +1688,7 @@ class RoomsSettingsView(RoleRequiredMixin, TemplateView):
         )
         context["rooms"] = Room.objects.prefetch_related(beds_prefetch, "assigned_doctor").order_by("floor", "name")
         from apps.accounts.models import User, Role
-        context["doctors"] = User.objects.filter(role__code__in=[Role.Code.DOCTOR, Role.Code.CHIEF_DOCTOR, Role.Code.SURGEON], is_active=True).order_by("first_name", "last_name")
+        context["doctors"] = User.objects.filter(role__code__in=[*Role.DOCTOR_ROLES, Role.Code.CHIEF_DOCTOR, Role.Code.SURGEON], is_active=True).order_by("first_name", "last_name")
         return context
 
 @role_required(Role.Code.ADMINISTRATOR, Role.Code.SUPER_ADMIN)
@@ -2272,7 +2272,7 @@ def delete_consultation_template(request, template_id):
 # ==========================================
 
 STAY_DOC_ROLES = (
-    Role.Code.NURSE, Role.Code.WARD_NURSE, Role.Code.DOCTOR, Role.Code.CHIEF_DOCTOR,
+    Role.Code.NURSE, Role.Code.WARD_NURSE, *Role.DOCTOR_ROLES, Role.Code.CHIEF_DOCTOR,
     Role.Code.ADMINISTRATOR, Role.Code.DIRECTOR, Role.Code.SUPER_ADMIN, Role.Code.SURGEON,
     Role.Code.RECEPTION,
 )
@@ -2628,7 +2628,7 @@ def stay_save_signature(request, stay_id):
 
 @role_required(
     Role.Code.SURGEON, Role.Code.SURGERY_ADMIN, Role.Code.DIRECTOR,
-    Role.Code.CHIEF_DOCTOR, Role.Code.DOCTOR, Role.Code.NURSE,
+    Role.Code.CHIEF_DOCTOR, *Role.DOCTOR_ROLES, Role.Code.NURSE,
     Role.Code.ADMINISTRATOR, Role.Code.SUPER_ADMIN,
 )
 def surgery_report_save(request, schedule_id):
@@ -2665,7 +2665,7 @@ def surgery_report_save(request, schedule_id):
 # ==============================================================
 
 EXAMINER_ROLES = (
-    Role.Code.RADIOLOGY, Role.Code.LAB, Role.Code.DOCTOR, Role.Code.CHIEF_DOCTOR,
+    Role.Code.RADIOLOGY, Role.Code.LAB, *Role.DOCTOR_ROLES, Role.Code.CHIEF_DOCTOR,
 )
 
 
@@ -2760,7 +2760,7 @@ class ExaminerDashboardView(RoleRequiredMixin, TemplateView):
 
 @role_required(
     Role.Code.SUPER_ADMIN, Role.Code.ADMINISTRATOR, Role.Code.RECEPTION,
-    Role.Code.DIRECTOR, Role.Code.CHIEF_DOCTOR, Role.Code.DOCTOR, Role.Code.NURSE,
+    Role.Code.DIRECTOR, Role.Code.CHIEF_DOCTOR, *Role.DOCTOR_ROLES, Role.Code.NURSE,
 )
 def service_referral(request, visit_id):
     """Bemorga beriladigan yo'llanma — qaysi xonaga, kimning oldiga borishi.
@@ -3150,13 +3150,13 @@ def _role_flags(user):
         # Bayonnoma yozish: jarroh/shifokor/hamshira/boshqaruv (anesteziolog EMAS)
         "can_report": su or user.has_role(
             Role.Code.SURGEON, Role.Code.SURGERY_ADMIN, Role.Code.DIRECTOR,
-            Role.Code.CHIEF_DOCTOR, Role.Code.DOCTOR, Role.Code.NURSE,
+            Role.Code.CHIEF_DOCTOR, *Role.DOCTOR_ROLES, Role.Code.NURSE,
             Role.Code.ADMINISTRATOR,
         ),
         # Operatsiyaga yozish (jadval): jarroh/shifokor/boshqaruv (anesteziolog/hamshira EMAS)
         "can_schedule": su or user.has_role(
             Role.Code.SURGEON, Role.Code.SURGERY_ADMIN, Role.Code.DIRECTOR,
-            Role.Code.CHIEF_DOCTOR, Role.Code.DOCTOR, Role.Code.ADMINISTRATOR,
+            Role.Code.CHIEF_DOCTOR, *Role.DOCTOR_ROLES, Role.Code.ADMINISTRATOR,
         ),
     }
 
@@ -4126,7 +4126,7 @@ def ambulatory_rooms_settings(request):
     # Barcha shifokorlar (dropdown uchun)
     from apps.accounts.models import User, Role
     doctors = User.objects.filter(role__code__in=[
-        Role.Code.DOCTOR, Role.Code.CHIEF_DOCTOR, Role.Code.SURGEON, 
+        *Role.DOCTOR_ROLES, Role.Code.CHIEF_DOCTOR, Role.Code.SURGEON, 
         Role.Code.ANESTHESIOLOGIST, Role.Code.LAB, Role.Code.RADIOLOGY
     ], is_active=True).order_by("last_name")
 
@@ -4277,7 +4277,7 @@ class VisitResultsPrintView(RoleRequiredMixin, TemplateView):
 
 @role_required(
     Role.Code.ADMINISTRATOR, Role.Code.RECEPTION, Role.Code.DIRECTOR,
-    Role.Code.CHIEF_DOCTOR, Role.Code.DOCTOR, Role.Code.SURGEON,
+    Role.Code.CHIEF_DOCTOR, *Role.DOCTOR_ROLES, Role.Code.SURGEON,
     Role.Code.NURSE, Role.Code.WARD_NURSE, Role.Code.ANESTHESIOLOGIST
 )
 def inpatient_archive(request):

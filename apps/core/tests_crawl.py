@@ -48,7 +48,7 @@ class CrawlTest(TestCase):
             is_superuser=True)
         doctor = User.objects.create_user(
             username="crawl_doc", password="x",
-            role=rol(Role.Code.DOCTOR, "Shifokor"))
+            role=rol(Role.Code.THERAPIST, "Terapevt"))
         jarroh = User.objects.create_user(
             username="crawl_surg", password="x",
             role=rol(Role.Code.SURGEON, "Jarroh"))
@@ -123,7 +123,7 @@ class CrawlTest(TestCase):
     def test_boshqa_rollar_havolalari_yiqilmaydi(self):
         """Har rol boshqa menyuni ko'radi — xato ham boshqa joyda chiqadi."""
         rollar = [
-            (Role.Code.DOCTOR, "Shifokor"),
+            (Role.Code.THERAPIST, "Terapevt"),
             (Role.Code.RECEPTION, "Registratura"),
             (Role.Code.WARD_NURSE, "Palata hamshirasi"),
             (Role.Code.SURGEON, "Jarroh"),

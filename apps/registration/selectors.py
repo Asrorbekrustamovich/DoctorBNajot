@@ -30,7 +30,7 @@ def visits_today(*, status: str = "", user=None) -> QuerySet[Visit]:
     # Shifokor faqat o'ziga assigned vizitlarni ko'radi
     if user and not user.is_superuser and user.role:
         doctor_only_roles = {
-            Role.Code.DOCTOR, Role.Code.SURGEON,
+            *Role.DOCTOR_ROLES, Role.Code.SURGEON,
             Role.Code.CHIEF_DOCTOR, Role.Code.NURSE,
             Role.Code.WARD_NURSE, Role.Code.LAB, Role.Code.RADIOLOGY,
         }

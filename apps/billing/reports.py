@@ -361,7 +361,7 @@ def doctor_prices(request):
         price_str = request.POST.get("price", "").replace(",", ".").replace(" ", "").strip()
         doctor = get_object_or_404(
             User, id=doctor_id, is_active=True,
-            role__code__in=(Role.Code.DOCTOR, Role.Code.CHIEF_DOCTOR, Role.Code.SURGEON),
+            role__code__in=(*Role.DOCTOR_ROLES, Role.Code.CHIEF_DOCTOR, Role.Code.SURGEON),
         )
         try:
             price = Decimal(price_str)
@@ -396,7 +396,7 @@ def doctor_prices(request):
     doctors = (
         User.objects.filter(
             is_active=True,
-            role__code__in=(Role.Code.DOCTOR, Role.Code.CHIEF_DOCTOR, Role.Code.SURGEON),
+            role__code__in=(*Role.DOCTOR_ROLES, Role.Code.CHIEF_DOCTOR, Role.Code.SURGEON),
         )
         .select_related("role", "consultation_price")
         .order_by("last_name", "first_name")

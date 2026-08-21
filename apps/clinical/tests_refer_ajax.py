@@ -25,7 +25,7 @@ AJAX = {"HTTP_X_REQUESTED_WITH": "XMLHttpRequest"}
 class ReferAjaxTest(TestCase):
     def setUp(self):
         self.doc_role, _ = Role.objects.get_or_create(
-            code=Role.Code.DOCTOR, defaults={"name": "Shifokor"})
+            code=Role.Code.THERAPIST, defaults={"name": "Terapevt"})
         self.nurse_role, _ = Role.objects.get_or_create(
             code=Role.Code.NURSE, defaults={"name": "Hamshira"})
 
@@ -134,7 +134,7 @@ class ReferButtonStateTest(TestCase):
 
     def setUp(self):
         role, _ = Role.objects.get_or_create(
-            code=Role.Code.DOCTOR, defaults={"name": "Shifokor"})
+            code=Role.Code.THERAPIST, defaults={"name": "Terapevt"})
         self.doctor = User.objects.create_user(
             username="doc_state", password="x", role=role)
         self.patient = Patient.objects.create(
@@ -183,7 +183,7 @@ class NurseIncomingButtonTest(TestCase):
 
     def setUp(self):
         doc_role, _ = Role.objects.get_or_create(
-            code=Role.Code.DOCTOR, defaults={"name": "Shifokor"})
+            code=Role.Code.THERAPIST, defaults={"name": "Terapevt"})
         nurse_role, _ = Role.objects.get_or_create(
             code=Role.Code.NURSE, defaults={"name": "Hamshira"})
         self.doctor = User.objects.create_user(

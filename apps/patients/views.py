@@ -27,7 +27,7 @@ WRITE_ROLES = (
     Role.Code.SUPER_ADMIN, Role.Code.ADMINISTRATOR, Role.Code.RECEPTION,
 )
 VIEW_ROLES = WRITE_ROLES + (
-    Role.Code.DIRECTOR, Role.Code.CHIEF_DOCTOR, Role.Code.DOCTOR,
+    Role.Code.DIRECTOR, Role.Code.CHIEF_DOCTOR, *Role.DOCTOR_ROLES,
     Role.Code.NURSE, Role.Code.WARD_NURSE, Role.Code.CASHIER,
     Role.Code.ACCOUNTANT, Role.Code.AUDITOR, Role.Code.VIEWER,
     Role.Code.LAB, Role.Code.RADIOLOGY,

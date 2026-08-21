@@ -30,7 +30,7 @@ def create_user(username, role_code, last_name, first_name):
         u.save()
         print(f"Created new {username}")
 
-create_user("muzaffar_allayarov", Role.Code.DOCTOR, "Allayarov", "Muzaffar")
+create_user("muzaffar_allayarov", Role.Code.THERAPIST, "Allayarov", "Muzaffar")
 create_user("maxmurdova_shaxnoza", Role.Code.NURSE, "Maxmurdova", "Shaxnoza")
 create_user("meretova_ayqibat", Role.Code.NURSE, "Meretova", "Ayqibat")
 create_user("sabirova_farida", Role.Code.NURSE, "Sabirova", "Farida")

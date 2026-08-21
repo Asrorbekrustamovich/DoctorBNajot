@@ -264,7 +264,7 @@ class EpisodePatientLeftTest(TestCase):
     def setUp(self):
         self.doctor = User.objects.create_user(
             username="doc_left", password="x",
-            role=rol(Role.Code.DOCTOR, "Shifokor"))
+            role=rol(Role.Code.THERAPIST, "Terapevt"))
         self.patient = Patient.objects.create(
             first_name="Asror", last_name="Azatbayev",
             birth_date="2004-01-01", gender="male",

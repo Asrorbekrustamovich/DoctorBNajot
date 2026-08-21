@@ -68,7 +68,7 @@ class ClearAllDataTests(TestCase):
         from apps.registration.models import Visit
 
         cls.rol = Role.objects.get_or_create(
-            code=Role.Code.DOCTOR, defaults={"name": "Shifokor"})[0]
+            code=Role.Code.THERAPIST, defaults={"name": "Terapevt"})[0]
         cls.doctor = User.objects.create_user(
             username="shifokor_t", password="x", first_name="Test",
             last_name="Shifokorov", role=cls.rol,

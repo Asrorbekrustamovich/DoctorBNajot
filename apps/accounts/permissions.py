@@ -86,7 +86,7 @@ class IsSuperAdmin(BasePermission):
 def role_required(*codes: str):
     """Funksiya-view'lar uchun rol tekshiruvi dekoratori.
 
-    @role_required(Role.Code.DOCTOR, Role.Code.CHIEF_DOCTOR)
+    @role_required(*Role.DOCTOR_ROLES, Role.Code.CHIEF_DOCTOR)
     def my_view(request, ...): ...
 
     Superuser doim o'tadi. HTMX so'rovlarga alert, oddiylariga redirect.

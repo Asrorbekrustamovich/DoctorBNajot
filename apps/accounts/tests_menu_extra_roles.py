@@ -22,7 +22,7 @@ def rol(kod, nom):
 
 class MenuExtraRolesTest(TestCase):
     def setUp(self):
-        self.doctor = rol(Role.Code.DOCTOR, "Shifokor")
+        self.doctor = rol(Role.Code.THERAPIST, "Terapevt")
         self.user = User.objects.create_user(
             username="qabulov", password="x", role=self.doctor,
             last_name="Qabulov", first_name="Kamaraddin",

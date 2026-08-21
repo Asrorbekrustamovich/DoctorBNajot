@@ -41,7 +41,7 @@ class DoctorShareTest(TestCase):
     def setUp(self):
         self.doctor = User.objects.create_user(
             username="ul_doc", password="x",
-            role=rol(Role.Code.DOCTOR, "Shifokor"),
+            role=rol(Role.Code.THERAPIST, "Terapevt"),
             last_name="Durdiyev", first_name="Xamdam")
         bemor = Patient.objects.create(
             first_name="Ali", last_name="Aliyev", birth_date="1990-01-01",
@@ -104,7 +104,7 @@ class ExpenseReportTest(TestCase):
     def setUp(self):
         self.doctor = User.objects.create_user(
             username="xar_doc", password="x",
-            role=rol(Role.Code.DOCTOR, "Shifokor"))
+            role=rol(Role.Code.THERAPIST, "Terapevt"))
         bemor = Patient.objects.create(
             first_name="Gul", last_name="Gulova", birth_date="1990-01-01",
             gender="female", birth_certificate="MB-2222000")

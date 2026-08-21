@@ -12,7 +12,7 @@ from .models import MeasurementUnit, Medicine, MedicineBatch
 STOCK_ROLES = (Role.Code.WAREHOUSE, Role.Code.ADMINISTRATOR, Role.Code.SUPER_ADMIN)
 # Dori chiqimi (bemorga ishlatish) uchun rollar
 DISPENSE_ROLES = STOCK_ROLES + (
-    Role.Code.DOCTOR, Role.Code.CHIEF_DOCTOR, Role.Code.NURSE,
+    *Role.DOCTOR_ROLES, Role.Code.CHIEF_DOCTOR, Role.Code.NURSE,
     Role.Code.WARD_NURSE,
 )
 

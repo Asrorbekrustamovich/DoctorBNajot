@@ -20,7 +20,7 @@ DEMO_USERS: tuple[tuple[str, str, str, str], ...] = (
     ("direktor", Role.Code.DIRECTOR, "Klinika", "Direktori"),
     ("bosh_shifokor", Role.Code.CHIEF_DOCTOR, "Bosh", "Shifokor"),
     ("registratura", Role.Code.RECEPTION, "Qabul", "Xodimi"),
-    ("shifokor", Role.Code.DOCTOR, "Davolovchi", "Shifokor"),
+    ("terapevt", Role.Code.THERAPIST, "Davolovchi", "Terapevt"),
     ("hamshira", Role.Code.NURSE, "Katta", "Hamshira"),
     ("palata_hamshira", Role.Code.WARD_NURSE, "Palata", "Hamshirasi"),
     ("laborant", Role.Code.LAB, "Laboratoriya", "Xodimi"),

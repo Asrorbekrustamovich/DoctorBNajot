@@ -22,7 +22,7 @@ DEFAULT_ROLES: tuple[tuple[str, str, bool], ...] = (
     (Role.Code.DIRECTOR, "Direktor", False),
     (Role.Code.CHIEF_DOCTOR, "Bosh shifokor", False),
     (Role.Code.RECEPTION, "Registratura", False),
-    (Role.Code.DOCTOR, "Shifokor", False),
+    (Role.Code.THERAPIST, "Terapevt", False),
     (Role.Code.NURSE, "Hamshira", False),
     (Role.Code.WARD_NURSE, "Palata hamshirasi", False),
     (Role.Code.LAB, "Laboratoriya", False),

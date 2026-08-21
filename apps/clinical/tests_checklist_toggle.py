@@ -36,7 +36,7 @@ class ChecklistToggleTest(TestCase):
             role=rol(Role.Code.WARD_NURSE, "Palata hamshirasi"))
         self.doctor = User.objects.create_user(
             username="tog_doc", password="x",
-            role=rol(Role.Code.DOCTOR, "Shifokor"))
+            role=rol(Role.Code.THERAPIST, "Terapevt"))
 
         bemor = Patient.objects.create(
             first_name="Nur", last_name="Nurov", birth_date="1990-01-01",

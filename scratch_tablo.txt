@@ -1,0 +1,53 @@
+78: <!-- Ovoz qulfi: brauzer avtoijroni to'ssa shu chiqadi -->
+79: <div id="audioGate" onclick="unlockAudio()" style="display:none; position:fixed;
+84: <span id="audioGateMsg">🔇 Ovozni yoqish uchun bosing</span>
+89: <p>Ovozli e'lonlarni yoqish uchun tugmani bosing. Bu brauzer talabi — ovoz bir marta yoqilsa, keyin avtomatik ishlaydi.</p>
+129: var firstLoad = true;   // birinchi yuklashda ovoz chiqmaydi
+132: var audioQueue = [];
+135: // Xona nomini o'zbekcha to'g'ri o'qiladigan holga keltiradi.
+136: // "3-Xona"      -> "uchinchi xonaga kiring"  (raqamni TTS o'zi o'qiydi)
+137: // "UZI xonasi"  -> "UZI xonasiga kiring"     (avval "xonasisi" bo'lib ketardi)
+141: var m = t.match(/^(\d+)\s*[-–]?\s*(xona|kabinet)?$/i);
+142: if (m) return m[1] + "-xonaga kiring";
+143: if (/xonasi$/i.test(t))  return t + "ga kiring";
+144: if (/xona$/i.test(t))    return t + "siga kiring";
+161: phrase += "Iltimos, qabulxonaga o'ting.";
+167: if (audioQueue.length === 0) {
+172: var call = audioQueue.shift();
+179: document.getElementById("curDoctor").textContent = call.doctor || "Shifokor";
+186: // Server ovozi: edge-tts (toza o'zbekcha, uz-UZ-MadinaNeural).
+187: // Brauzerning ichki ovozi (speechSynthesis) ATAYLAB ishlatilmaydi —
+196: var audioUrl = "{% url 'registration:tts_speak' %}?text=" + encodeURIComponent(phrase);
+197: var audio = new Audio(audioUrl);
+198: audio.onended = next;
+199: audio.onerror = function () { setAudioState('error'); next(); };
+200: audio.play().then(function () {
+201: setAudioState('ok');
+203: /* AVTOIJRO SIYOSATI — tabloda ovoz ishlamasligining asosiy sababi.
+205: * Brauzer sahifa bilan hech qanday aloqa bo'lmaguncha ovozni
+213: * ekranda hech qanday belgi qolmasdi. Endi ekranda «Ovozni
+217: setAudioState('locked');
+220: setAudioState('error');
+225: setAudioState('error');
+230: /* ---- Ovoz holati va qulfni ochish ---- */
+233: function setAudioState(state) {
+234: var box = document.getElementById('audioGate');
+235: var msg = document.getElementById('audioGateMsg');
+240: msg.innerHTML = '🔇 Ovoz brauzer tomonidan to\'sib qo\'yilgan. ' +
+243: msg.innerHTML = '⚠ Ovoz serverdan kelmadi. Internet va edge-tts ' +
+248: function unlockAudio() {
+249: // Foydalanuvchi harakati ichida jim ovoz ijro etamiz — shundan keyin
+250: // brauzer shu sahifaga ovoz chiqarishga ruxsat beradi.
+251: var probe = new Audio(
+252: "{% url 'registration:tts_speak' %}?text=" + encodeURIComponent('Ovoz yoqildi'));
+254: setAudioState('ok');
+257: setAudioState('error');
+262: audioQueue.push(call);
+276: (c.doctor || "Shifokor") + (c.room ? ' &mdash; ' + c.room : '');
+288: document.getElementById("curDoctor").textContent = c.doctor || "Shifokor";
+310: // Yangi chaqiruvlarni aniqlaymiz va audio navbatga qo'shamiz (eskilaridan yangisiga qarab)
+354: function playDirectAudio(text) {
+356: var audioUrl = "{% url 'registration:tts_speak' %}?text=" + encodeURIComponent(text);
+357: var audio = new Audio(audioUrl);
+358: audio.play().catch(function (e) { console.log(e); });
+364: playDirectAudio("Tablo tayyor");
