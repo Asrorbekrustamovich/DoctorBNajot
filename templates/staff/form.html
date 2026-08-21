@@ -45,6 +45,11 @@
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">Rol <span class="text-danger">*</span></label>
                             {{ form.role }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Qo'shimcha rollar</label>
+                            {{ form.extra_roles }}
+                            <div class="form-text small">Agar bir nechta lavozimda ishlasa tanlang</div>
                             {% if form.role.errors %}<div class="text-danger small mt-1">{{ form.role.errors|join:", " }}</div>{% endif %}
                         </div>
                         <div class="col-md-6">

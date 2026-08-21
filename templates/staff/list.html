@@ -79,6 +79,9 @@
                     <td>
                         {% if u.role %}
                         <span class="badge bg-info text-dark">{{ u.role.name }}</span>
+                        {% for erole in u.extra_roles.all %}
+                            <span class="badge bg-secondary">{{ erole.name }}</span>
+                        {% endfor %}
                         {% else %}
                         <span class="text-muted">—</span>
                         {% endif %}

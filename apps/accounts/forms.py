@@ -31,7 +31,7 @@ class UserForm(forms.ModelForm):
         model = User
         fields = [
             "username", "last_name", "first_name", "middle_name",
-            "phone", "email", "role", "is_active",
+            "phone", "email", "role", "extra_roles", "is_active",
         ]
         widgets = {
             "username": forms.TextInput(attrs={"class": "form-control"}),
@@ -41,12 +41,15 @@ class UserForm(forms.ModelForm):
             "phone": forms.TextInput(attrs={"class": "form-control", "placeholder": "+998901234567"}),
             "email": forms.EmailInput(attrs={"class": "form-control"}),
             "role": forms.Select(attrs={"class": "form-select"}),
+            "extra_roles": forms.SelectMultiple(attrs={"class": "form-select select2", "data-placeholder": "Qo'shimcha rollar..."}),
             "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
-        self.fields["role"].queryset = Role.objects.order_by("name")  # type: ignore[attr-defined]
+        self.fields["role"].queryset = Role.objects.order_by("name")
+        self.fields["extra_roles"].queryset = Role.objects.order_by("name")
+        self.fields["extra_roles"].required = False  # type: ignore[attr-defined]
 
 
 class StaffCreateForm(forms.ModelForm):
@@ -66,7 +69,7 @@ class StaffCreateForm(forms.ModelForm):
         model = User
         fields = [
             "username", "last_name", "first_name", "middle_name",
-            "phone", "email", "role", "specialty",
+            "phone", "email", "role", "extra_roles", "specialty",
         ]
         labels = {
             "username": "Login (foydalanuvchi nomi)",
@@ -80,12 +83,15 @@ class StaffCreateForm(forms.ModelForm):
             "phone": forms.TextInput(attrs={"class": "form-control", "placeholder": "+998901234567"}),
             "email": forms.EmailInput(attrs={"class": "form-control"}),
             "role": forms.Select(attrs={"class": "form-select"}),
+            "extra_roles": forms.SelectMultiple(attrs={"class": "form-select select2", "data-placeholder": "Qo'shimcha rollar..."}),
             "specialty": forms.TextInput(attrs={"class": "form-control", "placeholder": "Masalan: Kardiolog"}),
         }
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
         self.fields["role"].queryset = Role.objects.order_by("name")
+        self.fields["extra_roles"].queryset = Role.objects.order_by("name")
+        self.fields["extra_roles"].required = False
 
     def clean(self):
         cleaned_data = super().clean()
@@ -103,7 +109,7 @@ class StaffEditForm(forms.ModelForm):
         model = User
         fields = [
             "username", "last_name", "first_name", "middle_name",
-            "phone", "email", "role", "specialty", "is_active",
+            "phone", "email", "role", "extra_roles", "specialty", "is_active",
         ]
         labels = {
             "specialty": "Mutaxassislik (ixtiyoriy)",
@@ -116,6 +122,7 @@ class StaffEditForm(forms.ModelForm):
             "phone": forms.TextInput(attrs={"class": "form-control", "placeholder": "+998901234567"}),
             "email": forms.EmailInput(attrs={"class": "form-control"}),
             "role": forms.Select(attrs={"class": "form-select"}),
+            "extra_roles": forms.SelectMultiple(attrs={"class": "form-select select2", "data-placeholder": "Qo'shimcha rollar..."}),
             "specialty": forms.TextInput(attrs={"class": "form-control"}),
             "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
@@ -123,6 +130,8 @@ class StaffEditForm(forms.ModelForm):
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
         self.fields["role"].queryset = Role.objects.order_by("name")
+        self.fields["extra_roles"].queryset = Role.objects.order_by("name")
+        self.fields["extra_roles"].required = False
 
 
 class ServiceForm(forms.ModelForm):
