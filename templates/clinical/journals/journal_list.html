@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+
+{% block title %}Operatsion hamshira jurnallari{% endblock %}
+
+{% block content %}
+<div class="mb-4 d-flex justify-content-between align-items-center">
+    <h1 class="h3"><i class="bi bi-journal-medical text-primary"></i> Jurnallar (Reyestr)</h1>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addModal">
+        <i class="bi bi-plus-lg"></i> Yangi qo'shish
+    </button>
+</div>
+
+<!-- TABS -->
+<ul class="nav nav-tabs mb-4">
+    <li class="nav-item">
+        <a class="nav-link {% if journal_type == 'simultaneous' %}active fw-bold{% endif %}" href="?type=simultaneous">
+            Semultant operatsiyalar
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if journal_type == 'histology' %}active fw-bold{% endif %}" href="?type=histology">
+            Patalogo-gistologik
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if journal_type == 'minor' %}active fw-bold{% endif %}" href="?type=minor">
+            Kichik operatsiyalar
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if journal_type == 'outpatient' %}active fw-bold{% endif %}" href="?type=outpatient">
+            Ambulator operatsiyalar
+        </a>
+    </li>
+    
+    <!-- Sterilization Dropdown -->
+    <li class="nav-item dropdown">
+        <a class="nav-link dropdown-toggle {% if 'sterilization' in journal_type %}active fw-bold{% endif %}" data-bs-toggle="dropdown" href="#" role="button" aria-expanded="false">Sterilizatsiya (Laparoskop)</a>
+        <ul class="dropdown-menu">
+            {% for code, name in sterilization_types %}
+            <li><a class="dropdown-item {% if journal_type == 'sterilization_'|add:code %}active{% endif %}" href="?type=sterilization_{{ code }}">{{ name }}</a></li>
+            {% endfor %}
+        </ul>
+    </li>
+</ul>
+
+<!-- SEARCH -->
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-body py-2">
+        <form method="get" class="d-flex gap-2">
+            <input type="hidden" name="type" value="{{ journal_type }}">
+            <input type="text" name="q" class="form-control" value="{{ q }}" placeholder="Ism-familiya, JSHSHIR, metrika raqami yoki sana (YYYY-MM-DD) bo'yicha izlash...">
+            <button type="submit" class="btn btn-dark px-4"><i class="bi bi-search"></i> Izlash</button>
+            {% if q %}
+            <a href="?type={{ journal_type }}" class="btn btn-outline-secondary">Tozalash</a>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+<!-- TABLE -->
+<div class="card shadow-sm border-0">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-3">Sana</th>
+                    {% if 'sterilization' not in journal_type %}
+                    <th>Bemor</th>
+                    <th>Metrika / JSHSHIR</th>
+                    <th>Tashxis</th>
+                    
+                        {% if journal_type == 'simultaneous' %}
+                        <th>Asosiy / Semultant operatsiya</th>
+                        <th>Jarroh (Jamoa)</th>
+                        {% elif journal_type == 'histology' %}
+                        <th>Olingan material</th>
+                        <th>Gistologiya xulosasi</th>
+                        {% elif journal_type == 'minor' %}
+                        <th>Operatsiya nomi</th>
+                        <th>Jarroh</th>
+                        {% elif journal_type == 'outpatient' %}
+                        <th>O'tkazilgan muolaja</th>
+                        <th>Shifokor</th>
+                        {% endif %}
+                        
+                    {% else %}
+                        <th>Uskuna</th>
+                        <th>Tozalash (Bosh. - Tug.)</th>
+                        <th>Sterilizatsiya (Bosh. - Tug.)</th>
+                        <th>Kimyoviy eritma</th>
+                        <th>Bajaruvchi hamshira</th>
+                    {% endif %}
+                    
+                    <th class="text-end pe-3">Amal</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td class="ps-3 text-nowrap">{{ log.date|date:"d.m.Y" }}</td>
+                    
+                    {% if 'sterilization' not in journal_type %}
+                    <td class="fw-bold">{{ log.patient_name }}</td>
+                    <td class="text-muted small">
+                        № {{ log.metric_number|default:"-" }}<br>
+                        {{ log.jshshir|default:"-" }}
+                    </td>
+                    <td>{{ log.diagnosis|default:"-" }}</td>
+                    
+                        {% if journal_type == 'simultaneous' %}
+                        <td>
+                            <div class="text-primary small fw-bold">{{ log.primary_surgery }}</div>
+                            <div class="text-success small fw-bold">{{ log.simultaneous_surgery }}</div>
+                        </td>
+                        <td class="small">
+                            <b>{{ log.surgeon }}</b><br>
+                            Assistent: {{ log.assistants|default:"-" }}<br>
+                            Anesteziolog: {{ log.anesthesiologist|default:"-" }}
+                        </td>
+                        {% elif journal_type == 'histology' %}
+                        <td>{{ log.material }}</td>
+                        <td>{{ log.result|default:"Kutilmoqda..." }}</td>
+                        {% elif journal_type == 'minor' %}
+                        <td class="fw-bold text-primary">{{ log.surgery_name }}</td>
+                        <td>{{ log.surgeon }}</td>
+                        {% elif journal_type == 'outpatient' %}
+                        <td class="fw-bold text-primary">{{ log.intervention }}</td>
+                        <td>{{ log.doctor }}</td>
+                        {% endif %}
+                        
+                    {% else %}
+                        <td class="fw-bold">{{ log.equipment }}</td>
+                        <td>
+                            <span class="badge bg-light text-dark border">{{ log.cleaning_start|default:"-" }}</span> - 
+                            <span class="badge bg-light text-dark border">{{ log.cleaning_end|default:"-" }}</span>
+                        </td>
+                        <td>
+                            <span class="badge bg-light text-dark border">{{ log.sterilization_start|default:"-" }}</span> - 
+                            <span class="badge bg-light text-dark border">{{ log.sterilization_end|default:"-" }}</span>
+                        </td>
+                        <td>{{ log.chemical_used|default:"-" }}</td>
+                        <td>{{ log.nurse_name|default:"-" }}</td>
+                    {% endif %}
+                    
+                    <td class="text-end pe-3">
+                        <form method="post" action="{% url 'clinical:journal_delete' journal_type log.pk %}" class="d-inline" onsubmit="return confirm('Rostdan ham o\'chirasizmi?');">
+                            {% csrf_token %}
+                            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                        </form>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="10" class="text-center text-muted py-4">
+                        <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+                        Ma'lumot topilmadi.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ADD MODAL -->
+<div class="modal fade" id="addModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Yangi yozuv qo'shish</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'clinical:journal_add' journal_type %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Sana</label>
+                            <input type="date" name="date" class="form-control" required value="{% now 'Y-m-d' %}">
+                        </div>
+                        
+                        {% if 'sterilization' not in journal_type %}
+                        <div class="col-md-8 mb-3">
+                            <label class="form-label">Bemor F.I.Sh</label>
+                            <input type="text" name="patient_name" class="form-control" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">JSHSHIR</label>
+                            <input type="text" name="jshshir" class="form-control">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Metrika (Kasallik tarixi) raqami</label>
+                            <input type="text" name="metric_number" class="form-control">
+                        </div>
+                        <div class="col-12 mb-3">
+                            <label class="form-label">Asosiy tashxis</label>
+                            <input type="text" name="diagnosis" class="form-control">
+                        </div>
+                        {% endif %}
+                        
+                        {% if journal_type == 'simultaneous' %}
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Asosiy operatsiya</label>
+                            <input type="text" name="primary_surgery" class="form-control" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Semultant (qo'shimcha) operatsiya</label>
+                            <input type="text" name="simultaneous_surgery" class="form-control" required>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Jarroh</label>
+                            <input type="text" name="surgeon" class="form-control" required>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Assistentlar</label>
+                            <input type="text" name="assistants" class="form-control">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Anesteziolog</label>
+                            <input type="text" name="anesthesiologist" class="form-control">
+                        </div>
+                        
+                        {% elif journal_type == 'histology' %}
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Bo'lim / Xona</label>
+                            <input type="text" name="room_number" class="form-control">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Olingan to'qima (material)</label>
+                            <input type="text" name="material" class="form-control" required>
+                        </div>
+                        <div class="col-12 mb-3">
+                            <label class="form-label">Gistologiya xulosasi (agar kelsa)</label>
+                            <textarea name="result" class="form-control" rows="2"></textarea>
+                        </div>
+                        
+                        {% elif journal_type == 'minor' %}
+                        <div class="col-md-8 mb-3">
+                            <label class="form-label">Operatsiya nomi</label>
+                            <input type="text" name="surgery_name" class="form-control" required>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Jarroh</label>
+                            <input type="text" name="surgeon" class="form-control" required>
+                        </div>
+                        
+                        {% elif journal_type == 'outpatient' %}
+                        <div class="col-md-8 mb-3">
+                            <label class="form-label">O'tkazilgan muolaja/operatsiya</label>
+                            <input type="text" name="intervention" class="form-control" required>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Shifokor</label>
+                            <input type="text" name="doctor" class="form-control" required>
+                        </div>
+                        
+                        {% elif 'sterilization' in journal_type %}
+                        <div class="col-12 mb-3">
+                            <label class="form-label">Uskuna nomi</label>
+                            <input type="text" name="equipment" class="form-control" value="Laparoskop va uning tarkibiy qismlari">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Tozalash boshlangan vaqt (masalan: 09:00)</label>
+                            <input type="text" name="cleaning_start" class="form-control">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Tozalash tugagan vaqt</label>
+                            <input type="text" name="cleaning_end" class="form-control">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Sterilizatsiya boshlangan vaqt</label>
+                            <input type="text" name="sterilization_start" class="form-control">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Sterilizatsiya tugagan vaqt</label>
+                            <input type="text" name="sterilization_end" class="form-control">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Ishlatilgan eritma va konsentratsiya</label>
+                            <input type="text" name="chemical_used" class="form-control">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Mas'ul hamshira</label>
+                            <input type="text" name="nurse_name" class="form-control" value="{{ request.user.get_full_name|default:request.user.username }}">
+                        </div>
+                        {% endif %}
+                        
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Saqlash</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

@@ -192,6 +192,9 @@
                     {% endcomment %}
                     {% if user.can_operating_block or "reception" in user.role_codes %}
                     <a href="{% url 'clinical:operating_rooms_overview' %}" class="{% if request.resolver_match.url_name == 'operating_rooms_overview' %}active{% endif %}"><i class="bi bi-door-open"></i> Operatsion xonalar</a>
+                    {% if user.is_superuser or user.role.code == "operating_nurse" or user.role.code == "surgery_admin" or user.role.code == "chief_doctor" %}
+                    <a href="{% url 'clinical:journal_list' %}" class="{% if request.resolver_match.url_name == 'journal_list' %}active{% endif %}"><i class="bi bi-journal-medical"></i> Operatsion jurnallar</a>
+                    {% endif %}
                     {% endif %}
                     {% if user.is_superuser or "super_admin" in user.role_codes %}
                     <a href="{% url 'clinical:ambulatory_rooms_settings' %}" class="{% if request.resolver_match.url_name == 'ambulatory_rooms_settings' %}active{% endif %}"><i class="bi bi-door-closed"></i> Ambulator xonalar</a>

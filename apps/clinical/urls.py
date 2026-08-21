@@ -1,6 +1,7 @@
 from django.urls import path
 from apps.clinical.views import VisitConsultationView
 from apps.clinical import views
+from apps.clinical import journal_views
 from apps.clinical import episode_views
 
 app_name = "clinical"
@@ -187,4 +188,8 @@ urlpatterns = [
     # Tekshiruv natijalarini chop etish (shifokor ham, registratura ham)
     path("result/<uuid:order_id>/print/", views.ServiceResultPrintView.as_view(), name="service_result_print"),
     path("visit/<uuid:visit_id>/results/print/", views.VisitResultsPrintView.as_view(), name="visit_results_print"),
+
+    path("journals/", journal_views.journal_list, name="journal_list"),
+    path("journals/<str:journal_type>/add/", journal_views.journal_add, name="journal_add"),
+    path("journals/<str:journal_type>/<int:pk>/delete/", journal_views.journal_delete, name="journal_delete"),
 ]

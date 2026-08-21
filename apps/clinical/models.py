@@ -1825,3 +1825,97 @@ class DischargeTemplate(Auditable, BaseModel):
 
     def __str__(self):
         return f"{self.name} ({self.doctor.get_full_name()})"
+
+
+# ==========================================
+# OPERATSION HAMSHIRA JURNALLARI
+# ==========================================
+
+class AbstractNurseLog(Auditable, BaseModel):
+    patient_name = models.CharField("Bemor F.I.Sh", max_length=255)
+    jshshir = models.CharField("JSHSHIR", max_length=14, blank=True, null=True)
+    metric_number = models.CharField("Metrika (Kasallik tarixi) raqami", max_length=50, blank=True, null=True)
+    date = models.DateField("Sana", default=timezone.now)
+
+    class Meta:
+        abstract = True
+
+
+class SimultaneousSurgeryLog(AbstractNurseLog):
+    """Semultant operatsiyalar bo'lgan bemorlar ro'yxati"""
+    diagnosis = models.TextField("Tashxis", blank=True, null=True)
+    primary_surgery = models.TextField("Asosiy operatsiya")
+    simultaneous_surgery = models.TextField("Semultant operatsiya")
+    surgeon = models.CharField("Jarroh", max_length=255)
+    assistants = models.CharField("Assistentlar", max_length=255, blank=True, null=True)
+    anesthesiologist = models.CharField("Anesteziolog", max_length=255, blank=True, null=True)
+
+    class Meta:
+        verbose_name = "Semultant operatsiyalar jurnali"
+        verbose_name_plural = "Semultant operatsiyalar jurnallari"
+        ordering = ['-date', '-created_at']
+
+
+class HistologyLog(AbstractNurseLog):
+    """Patalogo-gistologik tekshiruvlar ro'yxati"""
+    room_number = models.CharField("Bo'lim/Xona", max_length=100, blank=True, null=True)
+    diagnosis = models.TextField("Tashxis", blank=True, null=True)
+    material = models.CharField("Olingan to'qima (material)", max_length=255)
+    result = models.TextField("Gistologiya xulosasi", blank=True, null=True)
+
+    class Meta:
+        verbose_name = "Patalogo-gistologik jurnal"
+        verbose_name_plural = "Patalogo-gistologik jurnallar"
+        ordering = ['-date', '-created_at']
+
+
+class MinorSurgeryLog(AbstractNurseLog):
+    """Kichik operatsiyalarni ro'yxatga olish jurnali"""
+    diagnosis = models.TextField("Tashxis", blank=True, null=True)
+    surgery_name = models.TextField("Operatsiya nomi")
+    surgeon = models.CharField("Jarroh", max_length=255)
+
+    class Meta:
+        verbose_name = "Kichik operatsiyalar jurnali"
+        verbose_name_plural = "Kichik operatsiyalar jurnallari"
+        ordering = ['-date', '-created_at']
+
+
+class OutpatientSurgeryLog(AbstractNurseLog):
+    """Ambulator bemorlarni ro'yxatga olish jurnali (operatsion blokka kirganlari)"""
+    diagnosis = models.TextField("Tashxis", blank=True, null=True)
+    intervention = models.TextField("O'tkazilgan muolaja/operatsiya")
+    doctor = models.CharField("Shifokor", max_length=255)
+
+    class Meta:
+        verbose_name = "Ambulator operatsiyalar jurnali"
+        verbose_name_plural = "Ambulator operatsiyalar jurnallari"
+        ordering = ['-date', '-created_at']
+
+
+class SterilizationLog(Auditable, BaseModel):
+    """Laparoskop va uning tarkibiy qismlarini sterilizatsiya qilish jurnallari"""
+    class Type(models.TextChoices):
+        DC1_GENERAL = 'dc1_general', 'DC-1 (Umumiy)'
+        PEROXIDE_GENERAL = 'peroxide_general', 'Perekis 3% (Umumiy)'
+        DC1_UROLOGY = 'dc1_urology', 'DC-1 (Urologiya)'
+        PEROXIDE_UROLOGY = 'peroxide_urology', 'Perekis 3% (Urologiya)'
+
+    log_type = models.CharField("Jurnal turi", max_length=32, choices=Type.choices)
+    date = models.DateField("Sana", default=timezone.now)
+    equipment = models.CharField("Uskuna nomi", max_length=255, default="Laparoskop va uning tarkibiy qismlari")
+    
+    # Hamshira qo'lda erkin kiritishi uchun CharField qilingan
+    cleaning_start = models.CharField("Tozalash boshlangan vaqt", max_length=50, blank=True, null=True)
+    cleaning_end = models.CharField("Tozalash tugagan vaqt", max_length=50, blank=True, null=True)
+    
+    sterilization_start = models.CharField("Sterilizatsiya boshlangan vaqt", max_length=50, blank=True, null=True)
+    sterilization_end = models.CharField("Sterilizatsiya tugagan vaqt", max_length=50, blank=True, null=True)
+    
+    chemical_used = models.CharField("Ishlatilgan eritma va konsentratsiya", max_length=255, blank=True, null=True)
+    nurse_name = models.CharField("Mas'ul hamshira", max_length=255, blank=True, null=True)
+
+    class Meta:
+        verbose_name = "Sterilizatsiya jurnali"
+        verbose_name_plural = "Sterilizatsiya jurnallari"
+        ordering = ['-date', '-created_at']
